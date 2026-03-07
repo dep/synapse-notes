@@ -17,27 +17,43 @@ brew install xcodegen
 
 ## Build And Run
 
+Preferred: run it entirely from the CLI.
+
 1. Generate the Xcode project:
 
 ```bash
 xcodegen generate
 ```
 
-2. Open the project in Xcode:
-
-```bash
-open Noted.xcodeproj
-```
-
-3. In Xcode, select the `Noted` scheme and press `Cmd-R` to build and run.
-
-You can also build from the command line:
+2. Build the app:
 
 ```bash
 xcodebuild -project "Noted.xcodeproj" -scheme "Noted" -destination "platform=macOS" build
 ```
 
-The built app will be placed in Xcode DerivedData under the Debug products folder.
+3. Launch the built app:
+
+```bash
+open ~/Library/Developer/Xcode/DerivedData/Noted-*/Build/Products/Debug/Noted.app
+```
+
+Or do all three steps in one shot:
+
+```bash
+xcodegen generate && xcodebuild -project "Noted.xcodeproj" -scheme "Noted" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Noted-*/Build/Products/Debug/Noted.app
+```
+
+The app is built into Xcode DerivedData under the Debug products folder.
+
+## Run In Xcode
+
+If you prefer Xcode:
+
+```bash
+open Noted.xcodeproj
+```
+
+Then select the `Noted` scheme and press `Cmd-R`.
 
 ## Notes
 
