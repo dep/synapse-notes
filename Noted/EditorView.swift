@@ -167,7 +167,9 @@ struct RawEditor: NSViewRepresentable {
             context.coordinator.suppressSync = false
         }
         textView.allFiles = appState.allFiles
+        textView.currentFileURL = appState.selectedFile
         textView.onOpenFile = { appState.openFile($0) }
+        textView.refreshInlineImagePreviews()
     }
 
     class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
@@ -242,7 +244,10 @@ extension LinkAwareTextView {
     func applyMarkdownStyling() {
         guard let storage = textStorage else { return }
         let fullRange = NSRange(location: 0, length: storage.length)
-        guard fullRange.length > 0 else { return }
+        guard fullRange.length > 0 else {
+            clearInlineImagePreviews()
+            return
+        }
         let text = storage.string as NSString
 
         storage.beginEditing()
@@ -355,8 +360,20 @@ extension LinkAwareTextView {
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: match.range)
         }
 
+        let availableWidth = max(120, bounds.width - textContainerInset.width * 2 - 20)
+        let maxPreviewWidth = min(availableWidth, 520)
+        for match in self.inlineYouTubeMatches() {
+            let paragraphStyle = (storage.attribute(.paragraphStyle, at: match.paragraphRange.location, effectiveRange: nil) as? NSMutableParagraphStyle)
+                ?? NSMutableParagraphStyle()
+            let updatedStyle = paragraphStyle.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+            updatedStyle.paragraphSpacing = max(updatedStyle.paragraphSpacing, self.inlineYouTubePreviewHeight(maxWidth: maxPreviewWidth) + 18)
+            storage.addAttribute(.paragraphStyle, value: updatedStyle, range: match.paragraphRange)
+        }
+
         storage.endEditing()
-        self.refreshInlineImagePreviews()
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshInlineImagePreviews()
+        }
     }
 
     private func applyRegex(_ pattern: String, to text: NSString, storage: NSTextStorage, options: NSRegularExpression.Options = [], apply: (NSRange) -> Void) {
@@ -371,6 +388,18 @@ extension LinkAwareTextView {
         guard outerRange.length >= delimLen * 2 else { return }
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: outerRange.location, length: delimLen))
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: outerRange.location + outerRange.length - delimLen, length: delimLen))
+    }
+
+    private func clearInlineImagePreviews() {
+        for key in Array(inlineImageViews.keys) {
+            inlineImageViews[key]?.removeFromSuperview()
+            inlineImageViews.removeValue(forKey: key)
+        }
+
+        for key in Array(inlineVideoViews.keys) {
+            inlineVideoViews[key]?.removeFromSuperview()
+            inlineVideoViews.removeValue(forKey: key)
+        }
     }
 }
 
@@ -401,11 +430,15 @@ class LinkAwareTextView: NSTextView {
     private var linkTypingRange: NSRange?
     private var eventMonitor: Any?
     private var inlineImageViews: [String: NSImageView] = [:]
+    private var inlineVideoViews: [String: YouTubePreviewView] = [:]
     private var failedInlineImageKeys: Set<String> = []
     private var loadingInlineImageKeys: Set<String> = []
+    private var loadingYouTubeMetadataKeys: Set<String> = []
 
     private static let inlineImageCache = NSCache<NSString, NSImage>()
     private static let inlineImageRegex = try? NSRegularExpression(pattern: #"!\[[^\]]*\]\(([^)]+)\)"#)
+    private static let youtubeThumbnailCache = NSCache<NSString, NSImage>()
+    private static var youtubeTitleCache: [String: String] = [:]
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
@@ -604,14 +637,23 @@ class LinkAwareTextView: NSTextView {
 
     func refreshInlineImagePreviews() {
         guard let layoutManager, let textContainer else { return }
+        layoutManager.ensureLayout(for: textContainer)
 
         let matches = inlineImageMatches()
+        let youtubeMatches = inlineYouTubeMatches()
         let activeKeys = Set(matches.map(\.id))
+        let activeVideoKeys = Set(youtubeMatches.map(\.id))
 
         for key in Array(inlineImageViews.keys) where !activeKeys.contains(key) {
             guard let view = inlineImageViews[key] else { continue }
             view.removeFromSuperview()
             inlineImageViews.removeValue(forKey: key)
+        }
+
+        for key in Array(inlineVideoViews.keys) where !activeVideoKeys.contains(key) {
+            guard let view = inlineVideoViews[key] else { continue }
+            view.removeFromSuperview()
+            inlineVideoViews.removeValue(forKey: key)
         }
 
         let availableWidth = max(120, bounds.width - textContainerInset.width * 2 - 20)
@@ -628,6 +670,10 @@ class LinkAwareTextView: NSTextView {
                 inlineImageViews.removeValue(forKey: match.id)
                 loadInlineImage(from: resolvedURL, cacheKey: cacheKey, maxPixelSize: maxPreviewWidth * 2)
             }
+        }
+
+        for match in youtubeMatches {
+            placeInlineVideo(for: match, layoutManager: layoutManager, textContainer: textContainer, maxWidth: maxPreviewWidth)
         }
     }
 
@@ -662,6 +708,27 @@ class LinkAwareTextView: NSTextView {
         return 140
     }
 
+    func inlineYouTubeMatches() -> [InlineYouTubeMatch] {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }
+        let nsText = string as NSString
+        let range = NSRange(location: 0, length: nsText.length)
+        var seenIDs = Set<String>()
+
+        return detector.matches(in: string, options: [], range: range).compactMap { match in
+            guard let url = match.url, let videoID = youtubeVideoID(from: url) else { return nil }
+            let paragraphRange = nsText.paragraphRange(for: match.range)
+            let id = "yt-\(paragraphRange.location)-\(videoID)"
+            guard seenIDs.insert(id).inserted else { return nil }
+            return InlineYouTubeMatch(id: id, paragraphRange: paragraphRange, videoID: videoID, sourceURL: url)
+        }
+    }
+
+    func inlineYouTubePreviewHeight(maxWidth: CGFloat) -> CGFloat {
+        let width = min(maxWidth, 520)
+        let height = max(170, min(320, width * 9 / 16))
+        return height + 12
+    }
+
     private func placeInlineImage(_ image: NSImage, for match: InlineImageMatch, layoutManager: NSLayoutManager, textContainer: NSTextContainer, maxWidth: CGFloat) {
         let glyphRange = layoutManager.glyphRange(forCharacterRange: match.paragraphRange, actualCharacterRange: nil)
         var paragraphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
@@ -687,6 +754,37 @@ class LinkAwareTextView: NSTextView {
 
         imageView.image = image
         imageView.frame = frame
+    }
+
+    private func placeInlineVideo(for match: InlineYouTubeMatch, layoutManager: NSLayoutManager, textContainer: NSTextContainer, maxWidth: CGFloat) {
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: match.paragraphRange, actualCharacterRange: nil)
+        var paragraphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        paragraphRect.origin.x += textContainerOrigin.x
+        paragraphRect.origin.y += textContainerOrigin.y
+
+        let width = min(maxWidth, 520)
+        let height = max(170, min(320, width * 9 / 16))
+        let frame = NSRect(x: textContainerOrigin.x + 14, y: paragraphRect.maxY + 8, width: width, height: height)
+
+        let previewView = inlineVideoViews[match.id] ?? {
+            let view = YouTubePreviewView()
+            addSubview(view)
+            inlineVideoViews[match.id] = view
+            return view
+        }()
+
+        let title = Self.youtubeTitleCache[match.videoID] ?? "YouTube video"
+        let thumbnail = Self.youtubeThumbnailCache.object(forKey: match.videoID as NSString)
+        previewView.configure(title: title, subtitle: match.sourceURL.absoluteString, thumbnail: thumbnail, url: match.sourceURL)
+        previewView.frame = frame
+
+        if thumbnail == nil {
+            loadYouTubeThumbnail(for: match.videoID)
+        }
+
+        if Self.youtubeTitleCache[match.videoID] == nil {
+            loadYouTubeTitle(for: match)
+        }
     }
 
     private func loadInlineImage(from url: URL, cacheKey: NSString, maxPixelSize: CGFloat) {
@@ -766,6 +864,103 @@ class LinkAwareTextView: NSTextView {
         return URL(fileURLWithPath: cleanedSource, relativeTo: currentFileURL.deletingLastPathComponent()).standardizedFileURL
     }
 
+    private func youtubeVideoID(from url: URL) -> String? {
+        guard let host = url.host?.lowercased() else { return nil }
+
+        if host == "youtu.be" {
+            let id = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            return id.isEmpty ? nil : id
+        }
+
+        if host.contains("youtube.com") || host.contains("youtube-nocookie.com") {
+            let path = url.path.lowercased()
+
+            if path == "/watch" || path == "/watch/" {
+                return URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?
+                    .first(where: { $0.name == "v" })?
+                    .value
+            }
+
+            if path.hasPrefix("/embed/") || path.hasPrefix("/shorts/") || path.hasPrefix("/live/") {
+                let parts = url.pathComponents.filter { $0 != "/" }
+                return parts.last
+            }
+        }
+
+        return nil
+    }
+
+    private func loadYouTubeThumbnail(for videoID: String) {
+        let cacheKey = videoID as NSString
+        guard Self.youtubeThumbnailCache.object(forKey: cacheKey) == nil else { return }
+
+        let urlStrings = [
+            "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg",
+            "https://i.ytimg.com/vi/\(videoID)/mqdefault.jpg",
+        ]
+
+        loadFirstAvailableImage(from: urlStrings, cacheKey: cacheKey)
+    }
+
+    private func loadFirstAvailableImage(from urlStrings: [String], cacheKey: NSString) {
+        guard let first = urlStrings.first, let url = URL(string: first) else { return }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                let isImageResponse = (response?.mimeType?.hasPrefix("image/") ?? true)
+                if isImageResponse, let data, let image = self.downsampledImage(from: data, maxPixelSize: 1200) ?? NSImage(data: data) {
+                    Self.youtubeThumbnailCache.setObject(image, forKey: cacheKey)
+                    self.refreshInlineImagePreviews()
+                } else if urlStrings.count > 1 {
+                    self.loadFirstAvailableImage(from: Array(urlStrings.dropFirst()), cacheKey: cacheKey)
+                }
+            }
+        }.resume()
+    }
+
+    private func loadYouTubeTitle(for match: InlineYouTubeMatch) {
+        guard !loadingYouTubeMetadataKeys.contains(match.videoID) else { return }
+        loadingYouTubeMetadataKeys.insert(match.videoID)
+
+        guard var components = URLComponents(string: "https://www.youtube.com/oembed") else {
+            loadingYouTubeMetadataKeys.remove(match.videoID)
+            return
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "url", value: match.sourceURL.absoluteString),
+            URLQueryItem(name: "format", value: "json"),
+        ]
+
+        guard let url = components.url else {
+            loadingYouTubeMetadataKeys.remove(match.videoID)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                defer { self.loadingYouTubeMetadataKeys.remove(match.videoID) }
+
+                guard let data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let title = json["title"] as? String,
+                      !title.isEmpty else { return }
+
+                Self.youtubeTitleCache[match.videoID] = title
+                self.refreshInlineImagePreviews()
+            }
+        }.resume()
+    }
+
     private func scaledInlineImageSize(for image: NSImage, maxWidth: CGFloat) -> NSSize {
         let originalSize = image.size.width > 0 && image.size.height > 0 ? image.size : NSSize(width: maxWidth, height: 180)
         let width = min(maxWidth, originalSize.width)
@@ -780,6 +975,103 @@ struct InlineImageMatch {
     let range: NSRange
     let paragraphRange: NSRange
     let source: String
+}
+
+struct InlineYouTubeMatch {
+    let id: String
+    let paragraphRange: NSRange
+    let videoID: String
+    let sourceURL: URL
+}
+
+final class YouTubePreviewView: NSView {
+    private let thumbnailView = NSImageView()
+    private let overlay = NSView()
+    private let playIcon = NSImageView()
+    private let titleField = NSTextField(labelWithString: "")
+    private let subtitleField = NSTextField(labelWithString: "")
+    private let actionButton = NSButton()
+    private var targetURL: URL?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    func configure(title: String, subtitle: String, thumbnail: NSImage?, url: URL) {
+        targetURL = url
+        titleField.stringValue = title
+        subtitleField.stringValue = subtitle
+        thumbnailView.image = thumbnail
+        overlay.isHidden = thumbnail != nil
+    }
+
+    override func layout() {
+        super.layout()
+        wantsLayer = true
+        layer?.cornerRadius = 10
+        layer?.masksToBounds = true
+        layer?.borderWidth = 1
+        layer?.borderColor = NSColor(NotedTheme.border).cgColor
+        layer?.backgroundColor = NotedTheme.editorCodeBackground.cgColor
+
+        thumbnailView.frame = bounds
+        overlay.frame = bounds
+        actionButton.frame = bounds
+
+        let iconSize: CGFloat = 54
+        playIcon.frame = NSRect(x: 20, y: bounds.midY - iconSize / 2, width: iconSize, height: iconSize)
+
+        let textX = playIcon.frame.maxX + 18
+        let textWidth = max(160, bounds.width - textX - 20)
+        titleField.frame = NSRect(x: textX, y: bounds.midY + 2, width: textWidth, height: 28)
+        subtitleField.frame = NSRect(x: textX, y: bounds.midY - 28, width: textWidth, height: 44)
+    }
+
+    @objc private func openVideo() {
+        guard let targetURL else { return }
+        NSWorkspace.shared.open(targetURL)
+    }
+
+    private func setup() {
+        thumbnailView.imageScaling = .scaleProportionallyUpOrDown
+        thumbnailView.imageAlignment = .alignCenter
+        thumbnailView.autoresizingMask = [.width, .height]
+        addSubview(thumbnailView)
+
+        overlay.wantsLayer = true
+        overlay.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.35).cgColor
+        overlay.autoresizingMask = [.width, .height]
+        addSubview(overlay)
+
+        if let image = NSImage(systemSymbolName: "play.circle.fill", accessibilityDescription: nil) {
+            playIcon.image = image
+        }
+        playIcon.contentTintColor = .white
+        addSubview(playIcon)
+
+        titleField.font = .systemFont(ofSize: 20, weight: .bold)
+        titleField.textColor = NSColor(NotedTheme.textPrimary)
+        titleField.lineBreakMode = .byTruncatingTail
+        addSubview(titleField)
+
+        subtitleField.font = .systemFont(ofSize: 12, weight: .medium)
+        subtitleField.textColor = NSColor(NotedTheme.textSecondary)
+        subtitleField.lineBreakMode = .byTruncatingMiddle
+        addSubview(subtitleField)
+
+        actionButton.isBordered = false
+        actionButton.title = ""
+        actionButton.target = self
+        actionButton.action = #selector(openVideo)
+        actionButton.autoresizingMask = [.width, .height]
+        addSubview(actionButton)
+    }
 }
 
 // MARK: - Completion popover
