@@ -7,6 +7,26 @@ struct NoteLinkRelationships {
     let unresolved: [String]
 }
 
+enum FileBrowserError: LocalizedError {
+    case noWorkspace
+    case invalidName
+    case itemAlreadyExists(String)
+    case operationFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noWorkspace:
+            return "Open a folder before managing files."
+        case .invalidName:
+            return "Enter a valid name."
+        case .itemAlreadyExists(let name):
+            return "\(name) already exists."
+        case .operationFailed(let message):
+            return message
+        }
+    }
+}
+
 class AppState: ObservableObject {
     @Published var rootURL: URL?
     @Published var selectedFile: URL?
@@ -79,6 +99,73 @@ class AppState: ObservableObject {
         try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
     }
 
+    private func standardized(_ url: URL) -> URL {
+        url.standardizedFileURL
+    }
+
+    private func isWithin(_ childURL: URL, parentURL: URL) -> Bool {
+        let child = standardized(childURL).pathComponents
+        let parent = standardized(parentURL).pathComponents
+        guard child.count >= parent.count else { return false }
+        return Array(child.prefix(parent.count)) == parent
+    }
+
+    private func movedURL(for originalURL: URL, from oldBase: URL, to newBase: URL) -> URL? {
+        guard isWithin(originalURL, parentURL: oldBase) else { return nil }
+        let originalComponents = standardized(originalURL).pathComponents
+        let oldComponents = standardized(oldBase).pathComponents
+        let suffix = originalComponents.dropFirst(oldComponents.count)
+        return suffix.reduce(standardized(newBase)) { partialResult, component in
+            partialResult.appendingPathComponent(component)
+        }
+    }
+
+    private func refreshedHistoryIndex() -> Int {
+        guard !history.isEmpty else { return -1 }
+        if let selectedFile, let index = history.lastIndex(of: selectedFile) {
+            return index
+        }
+        return min(historyIndex, history.count - 1)
+    }
+
+    private func prepareName(_ name: String, defaultExtension: String? = nil) throws -> String {
+        var trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        trimmed = trimmed.replacingOccurrences(of: "/", with: "-")
+        guard !trimmed.isEmpty, trimmed != ".", trimmed != ".." else {
+            throw FileBrowserError.invalidName
+        }
+        if let defaultExtension, URL(fileURLWithPath: trimmed).pathExtension.isEmpty {
+            trimmed += ".\(defaultExtension)"
+        }
+        return trimmed
+    }
+
+    private func updateSelectionAfterMove(from oldURL: URL, to newURL: URL) {
+        history = history.map { movedURL(for: $0, from: oldURL, to: newURL) ?? $0 }
+        if let selectedFile, let movedSelected = movedURL(for: selectedFile, from: oldURL, to: newURL) {
+            self.selectedFile = movedSelected
+            fileContent = (try? String(contentsOf: movedSelected, encoding: .utf8)) ?? fileContent
+            stopWatching()
+            startWatching(movedSelected)
+        }
+        historyIndex = refreshedHistoryIndex()
+        updateHistoryState()
+    }
+
+    private func updateSelectionAfterDelete(_ url: URL) {
+        history.removeAll { isWithin($0, parentURL: url) }
+
+        if let selectedFile, isWithin(selectedFile, parentURL: url) {
+            stopWatching()
+            self.selectedFile = nil
+            fileContent = ""
+            isDirty = false
+        }
+
+        historyIndex = refreshedHistoryIndex()
+        updateHistoryState()
+    }
+
     private func noteTitle(for url: URL) -> String {
         url.deletingPathExtension().lastPathComponent
     }
@@ -108,7 +195,13 @@ class AppState: ObservableObject {
     }
 
     private func noteIndex() -> [String: URL] {
-        Dictionary(uniqueKeysWithValues: allFiles.map { (normalizedNoteReference(noteTitle(for: $0)), $0) })
+        allFiles
+            .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+            .reduce(into: [String: URL]()) { index, url in
+                let key = normalizedNoteReference(noteTitle(for: url))
+                guard !key.isEmpty, index[key] == nil else { return }
+                index[key] = url
+            }
     }
 
     func relationshipsForSelectedFile() -> NoteLinkRelationships? {
@@ -190,6 +283,82 @@ class AppState: ObservableObject {
         allFiles = enumerator.compactMap { $0 as? URL }.filter {
             let ext = $0.pathExtension.lowercased()
             return ext == "md" || ext == "markdown"
+        }
+    }
+
+    @discardableResult
+    func createNote(named name: String, in directory: URL? = nil) throws -> URL {
+        let fm = FileManager.default
+        guard let directory = directory ?? rootURL else { throw FileBrowserError.noWorkspace }
+        let fileName = try prepareName(name, defaultExtension: "md")
+        let url = directory.appendingPathComponent(fileName)
+
+        guard !fm.fileExists(atPath: url.path) else {
+            throw FileBrowserError.itemAlreadyExists(fileName)
+        }
+
+        let created = fm.createFile(atPath: url.path, contents: Data(), attributes: nil)
+        guard created else {
+            throw FileBrowserError.operationFailed("Could not create the note.")
+        }
+
+        refreshAllFiles()
+        openFile(url)
+        return url
+    }
+
+    @discardableResult
+    func createFolder(named name: String, in directory: URL? = nil) throws -> URL {
+        let fm = FileManager.default
+        guard let directory = directory ?? rootURL else { throw FileBrowserError.noWorkspace }
+        let folderName = try prepareName(name)
+        let url = directory.appendingPathComponent(folderName, isDirectory: true)
+
+        guard !fm.fileExists(atPath: url.path) else {
+            throw FileBrowserError.itemAlreadyExists(folderName)
+        }
+
+        do {
+            try fm.createDirectory(at: url, withIntermediateDirectories: false, attributes: nil)
+            refreshAllFiles()
+            return url
+        } catch {
+            throw FileBrowserError.operationFailed("Could not create the folder.")
+        }
+    }
+
+    @discardableResult
+    func renameItem(at url: URL, to newName: String) throws -> URL {
+        let fm = FileManager.default
+        let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+        let preparedName = try prepareName(newName, defaultExtension: isDirectory ? nil : url.pathExtension)
+        let destination = url.deletingLastPathComponent().appendingPathComponent(preparedName, isDirectory: isDirectory)
+
+        if standardized(destination) == standardized(url) {
+            return url
+        }
+
+        guard !fm.fileExists(atPath: destination.path) else {
+            throw FileBrowserError.itemAlreadyExists(destination.lastPathComponent)
+        }
+
+        do {
+            try fm.moveItem(at: url, to: destination)
+            updateSelectionAfterMove(from: url, to: destination)
+            refreshAllFiles()
+            return destination
+        } catch {
+            throw FileBrowserError.operationFailed("Could not rename the item.")
+        }
+    }
+
+    func deleteItem(at url: URL) throws {
+        do {
+            try FileManager.default.removeItem(at: url)
+            updateSelectionAfterDelete(url)
+            refreshAllFiles()
+        } catch {
+            throw FileBrowserError.operationFailed("Could not delete the item.")
         }
     }
 
