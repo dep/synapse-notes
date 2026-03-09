@@ -41,6 +41,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.noted.app.tests
         SWIFT_VERSION: 5.0
         MACOSX_DEPLOYMENT_TARGET: "14.0"
+        GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Noted.app/Contents/MacOS/Noted"
         BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:
