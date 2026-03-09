@@ -51,5 +51,10 @@ struct NotedApp: App {
                 .disabled(appState.rootURL == nil)
             }
         }
+
+        Settings {
+            SettingsView()
+                .preferredColorScheme(.dark)
+        }
     }
 }
