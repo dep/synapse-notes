@@ -1,0 +1,341 @@
+import SwiftUI
+import AppKit
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let scrollToSearchMatch  = Notification.Name("noted.scrollToSearchMatch")
+    static let clearSearchHighlights = Notification.Name("noted.clearSearchHighlights")
+    static let advanceSearchMatch   = Notification.Name("noted.advanceSearchMatch")  // userInfo: ["delta": Int]
+}
+
+// MARK: - All-files search result
+
+struct FileSearchResult: Identifiable {
+    let id = UUID()
+    let url: URL
+    let snippet: String
+    let lineNumber: Int
+}
+
+// MARK: - Inline find bar (current-file mode only)
+
+struct FindBar: View {
+    @EnvironmentObject var appState: AppState
+    @FocusState private var isFieldFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(NotedTheme.textMuted)
+
+            TextField("Find in note…", text: $appState.searchQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(NotedTheme.textPrimary)
+                .focused($isFieldFocused)
+                .onSubmit { advance(by: 1) }
+
+            if !appState.searchQuery.isEmpty {
+                Text(appState.searchMatchCount == 0
+                     ? "No matches"
+                     : "\(appState.searchMatchIndex + 1) / \(appState.searchMatchCount)")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(NotedTheme.textMuted)
+                    .animation(.none, value: appState.searchMatchIndex)
+                    .fixedSize()
+
+                HStack(spacing: 2) {
+                    Button { advance(by: -1) } label: {
+                        Image(systemName: "chevron.up").font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(ChromeButtonStyle())
+                    .disabled(appState.searchMatchCount == 0)
+                    .help("Previous match (⇧⌘G)")
+
+                    Button { advance(by: 1) } label: {
+                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(ChromeButtonStyle())
+                    .disabled(appState.searchMatchCount == 0)
+                    .help("Next match (⌘G)")
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Button { close() } label: {
+                Image(systemName: "xmark").font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(ChromeButtonStyle())
+            .help("Close (Esc)")
+
+            Button("") { close() }
+                .keyboardShortcut(.cancelAction)
+                .hidden()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(NotedTheme.panelElevated)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(NotedTheme.border).frame(height: 1)
+        }
+        .onAppear {
+            isFieldFocused = true
+        }
+        .onChange(of: appState.searchQuery) { _, newQuery in
+            postHighlight(query: newQuery, focusIndex: 0)
+            appState.searchMatchIndex = 0
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .advanceSearchMatch)) { note in
+            guard let delta = note.userInfo?["delta"] as? Int else { return }
+            advance(by: delta)
+        }
+        .onDisappear {
+            NotificationCenter.default.post(name: .clearSearchHighlights, object: nil)
+            appState.searchQuery = ""
+            appState.searchMatchIndex = 0
+            appState.searchMatchCount = 0
+        }
+    }
+
+    private func advance(by delta: Int) {
+        guard appState.searchMatchCount > 0 else { return }
+        let newIndex = ((appState.searchMatchIndex + delta) % appState.searchMatchCount + appState.searchMatchCount) % appState.searchMatchCount
+        appState.searchMatchIndex = newIndex
+        postHighlight(query: appState.searchQuery, focusIndex: newIndex)
+    }
+
+    private func postHighlight(query: String, focusIndex: Int) {
+        NotificationCenter.default.post(
+            name: .scrollToSearchMatch,
+            object: nil,
+            userInfo: ["query": query, "matchIndex": focusIndex]
+        )
+    }
+
+    private func close() {
+        appState.dismissSearch()
+    }
+}
+
+// MARK: - All-files search modal
+
+struct AllFilesSearchView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var query: String = ""
+    @State private var results: [FileSearchResult] = []
+    @State private var selectedIndex: Int = 0
+    @State private var isSearching: Bool = false
+    @State private var eventMonitor: Any?
+    @FocusState private var isFieldFocused: Bool
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.40)
+                .ignoresSafeArea()
+                .onTapGesture { dismiss() }
+
+            VStack(alignment: .leading, spacing: 12) {
+                // ── Search bar ──────────────────────────────────────────
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(NotedTheme.textMuted)
+
+                    TextField("Search all notes…", text: $query)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundStyle(NotedTheme.textPrimary)
+                        .focused($isFieldFocused)
+                        .onSubmit { openSelected() }
+
+                    if !query.isEmpty {
+                        if isSearching {
+                            ProgressView().scaleEffect(0.6).frame(width: 16, height: 16)
+                        } else {
+                            TinyBadge(text: "\(results.count) matches")
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(NotedTheme.row)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .stroke(NotedTheme.rowBorder, lineWidth: 1)
+                        }
+                }
+
+                // ── Results list ────────────────────────────────────────
+                if !query.isEmpty {
+                    if results.isEmpty && !isSearching {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("No matches found")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(NotedTheme.textPrimary)
+                            Text("Try a different search term.")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(NotedTheme.textMuted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                    } else {
+                        ScrollViewReader { proxy in
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 6) {
+                                    ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
+                                        Button {
+                                            selectedIndex = index
+                                            openSelected()
+                                        } label: {
+                                            HStack(spacing: 10) {
+                                                Image(systemName: "doc.text")
+                                                    .foregroundStyle(NotedTheme.accent)
+                                                    .frame(width: 16)
+
+                                                VStack(alignment: .leading, spacing: 3) {
+                                                    HStack(spacing: 6) {
+                                                        Text(result.url.lastPathComponent)
+                                                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                                            .foregroundStyle(NotedTheme.textPrimary)
+                                                            .lineLimit(1)
+                                                        Text("line \(result.lineNumber)")
+                                                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                                                            .foregroundStyle(NotedTheme.textMuted)
+                                                    }
+                                                    Text(result.snippet)
+                                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                                        .foregroundStyle(NotedTheme.textSecondary)
+                                                        .lineLimit(1)
+                                                    Text(appState.relativePath(for: result.url))
+                                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                                        .foregroundStyle(NotedTheme.textMuted)
+                                                        .lineLimit(1)
+                                                }
+
+                                                Spacer()
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 8)
+                                            .background {
+                                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                    .fill(index == selectedIndex ? NotedTheme.accentSoft : NotedTheme.row)
+                                                    .overlay {
+                                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                            .stroke(index == selectedIndex ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
+                                                    }
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                        .id(index)
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 340)
+                            .onChange(of: selectedIndex) { _, newIndex in
+                                withAnimation { proxy.scrollTo(newIndex, anchor: .center) }
+                            }
+                        }
+                    }
+                }
+
+                HStack {
+                    Text("↑↓ to navigate · Return to open · Esc to close")
+                    Spacer()
+                    Text("⇧⌘F")
+                }
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(NotedTheme.textMuted)
+
+                Button("") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .hidden()
+            }
+            .padding(14)
+            .frame(width: 640)
+            .notedPanel(radius: 6)
+            .shadow(color: .black.opacity(0.35), radius: 20, x: 0, y: 18)
+        }
+        .onAppear {
+            isFieldFocused = true
+            installEventMonitor()
+        }
+        .onDisappear {
+            removeEventMonitor()
+        }
+        .onChange(of: query) { _, newQuery in
+            selectedIndex = 0
+            scheduleSearch(newQuery)
+        }
+        .onChange(of: results.count) { _, newCount in
+            selectedIndex = min(selectedIndex, max(newCount - 1, 0))
+        }
+    }
+
+    private func dismiss() { appState.dismissSearch() }
+
+    private func openSelected() {
+        guard results.indices.contains(selectedIndex) else { return }
+        appState.openFile(results[selectedIndex].url)
+        dismiss()
+    }
+
+    private func moveSelection(by delta: Int) {
+        guard !results.isEmpty else { return }
+        selectedIndex = min(max(selectedIndex + delta, 0), results.count - 1)
+    }
+
+    private func scheduleSearch(_ newQuery: String) {
+        results = []
+        guard !newQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            isSearching = false
+            return
+        }
+        isSearching = true
+        let q = newQuery
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.2) {
+            let needle = q.lowercased()
+            let files = appState.allFiles
+            var found: [FileSearchResult] = []
+            for url in files {
+                guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
+                let lines = content.components(separatedBy: "\n")
+                for (idx, line) in lines.enumerated() {
+                    if line.lowercased().contains(needle) {
+                        found.append(FileSearchResult(
+                            url: url,
+                            snippet: line.trimmingCharacters(in: .whitespaces),
+                            lineNumber: idx + 1
+                        ))
+                        if found.count >= 200 { break }
+                    }
+                }
+                if found.count >= 200 { break }
+            }
+            DispatchQueue.main.async {
+                self.results = found
+                self.isSearching = false
+            }
+        }
+    }
+
+    private func installEventMonitor() {
+        removeEventMonitor()
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            switch event.keyCode {
+            case 125: moveSelection(by: 1);  return nil  // ↓
+            case 126: moveSelection(by: -1); return nil  // ↑
+            case 36, 76: openSelected();     return nil  // Return / numpad Enter
+            case 53: dismiss();              return nil  // Escape
+            default: return event
+            }
+        }
+    }
+
+    private func removeEventMonitor() {
+        if let mon = eventMonitor { NSEvent.removeMonitor(mon); eventMonitor = nil }
+    }
+}

@@ -40,6 +40,13 @@ struct ContentView: View {
                     .zIndex(1)
             }
 
+            if appState.isSearchPresented && appState.searchMode == .allFiles {
+                AllFilesSearchView()
+                    .environmentObject(appState)
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
+
             Group {
                 Button("") { appState.presentCommandPalette() }
                     .keyboardShortcut("k", modifiers: .command)
@@ -47,6 +54,22 @@ struct ContentView: View {
                 Button("") { appState.presentCommandPalette() }
                     .keyboardShortcut("p", modifiers: .command)
                     .hidden()
+                Button("") { appState.presentSearch(mode: .currentFile) }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .hidden()
+                Button("") { appState.presentSearch(mode: .allFiles) }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
+                    .hidden()
+                Button("") {
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": 1])
+                }
+                .keyboardShortcut("g", modifiers: .command)
+                .hidden()
+                Button("") {
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": -1])
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+                .hidden()
             }
         }
         .animation(.easeInOut(duration: 0.14), value: appState.isCommandPalettePresented)

@@ -6,25 +6,40 @@ struct EditorView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             if let file = appState.selectedFile {
-                editorHeader(for: file)
+                VStack(spacing: 0) {
+                    editorHeader(for: file)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
 
-                RawEditor(text: $appState.fileContent)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if appState.isSearchPresented && appState.searchMode == .currentFile {
+                        FindBar()
+                            .environmentObject(appState)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
-                HStack {
-                    Text("Autosaves after a short pause")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(NotedTheme.textMuted)
-                    Spacer()
-                    TinyBadge(text: file.pathExtension.uppercased().isEmpty ? "TEXT" : file.pathExtension.uppercased())
+                    RawEditor(text: $appState.fileContent)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    HStack {
+                        Text("Autosaves after a short pause")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(NotedTheme.textMuted)
+                        Spacer()
+                        TinyBadge(text: file.pathExtension.uppercased().isEmpty ? "TEXT" : file.pathExtension.uppercased())
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                    .padding(.top, 8)
                 }
             } else {
                 emptyState
+                    .padding(12)
             }
         }
-        .padding(12)
+        .animation(.easeInOut(duration: 0.15), value: appState.isSearchPresented)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -135,6 +150,7 @@ struct RawEditor: NSViewRepresentable {
         textView.textStorage?.delegate = context.coordinator
 
         context.coordinator.textView = textView
+        textView.installSearchObservers()
 
         let scroll = NSScrollView()
         scroll.documentView = textView
@@ -158,6 +174,7 @@ struct RawEditor: NSViewRepresentable {
         textView.allFiles = appState.allFiles
         textView.currentFileURL = appState.selectedFile
         textView.onOpenFile = { appState.openFile($0) }
+        textView.onMatchCountUpdate = { count in appState.searchMatchCount = count }
         textView.refreshInlineImagePreviews()
     }
 
@@ -344,6 +361,31 @@ extension LinkAwareTextView {
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: range)
         }
 
+        // Style YAML frontmatter block (between first --- pair) with smaller, muted text
+        let fullString = storage.string
+        if fullString.hasPrefix("---") {
+            let lines = fullString.components(separatedBy: "\n")
+            var fenceCount = 0
+            var charOffset = 0
+            for line in lines {
+                let lineLength = (line as NSString).length
+                if line == "---" {
+                    fenceCount += 1
+                    charOffset += lineLength + 1
+                    if fenceCount == 2 { break }
+                } else if fenceCount == 1 {
+                    let lineRange = NSRange(location: charOffset, length: lineLength)
+                    storage.addAttributes([
+                        .font: NSFont.systemFont(ofSize: 11),
+                        .foregroundColor: NotedTheme.editorMuted,
+                    ], range: lineRange)
+                    charOffset += lineLength + 1
+                } else {
+                    charOffset += lineLength + 1
+                }
+            }
+        }
+
         for match in self.inlineImageMatches() {
             let paragraphStyle = (storage.attribute(.paragraphStyle, at: match.paragraphRange.location, effectiveRange: nil) as? NSMutableParagraphStyle)
                 ?? NSMutableParagraphStyle()
@@ -407,6 +449,7 @@ class LinkAwareTextView: NSTextView {
     var allFiles: [URL] = []
     var onOpenFile: ((URL) -> Void)?
     var currentFileURL: URL?
+    var onMatchCountUpdate: ((Int) -> Void)?
 
     private var completionPopover: NSPopover?
     private var completionVC: CompletionViewController?
@@ -427,6 +470,87 @@ class LinkAwareTextView: NSTextView {
     private static let youtubeDetector: NSDataDetector? = {
         try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
     }()
+
+    // MARK: - Search highlight support
+
+    private var searchObserver: Any?
+    private var searchClearObserver: Any?
+
+    func installSearchObservers() {
+        guard searchObserver == nil else { return }
+        searchObserver = NotificationCenter.default.addObserver(
+            forName: .scrollToSearchMatch,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self,
+                  let query = note.userInfo?["query"] as? String,
+                  let focusIndex = note.userInfo?["matchIndex"] as? Int else { return }
+            self.applySearchHighlights(query: query, focusIndex: focusIndex)
+        }
+        searchClearObserver = NotificationCenter.default.addObserver(
+            forName: .clearSearchHighlights,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.clearSearchHighlights()
+        }
+    }
+
+    func removeSearchObservers() {
+        if let obs = searchObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = searchClearObserver { NotificationCenter.default.removeObserver(obs) }
+        searchObserver = nil
+        searchClearObserver = nil
+    }
+
+    private func applySearchHighlights(query: String, focusIndex: Int) {
+        guard let storage = textStorage, !query.isEmpty else {
+            clearSearchHighlights()
+            return
+        }
+        let content = storage.string
+        let needle = query.lowercased()
+        var matches: [NSRange] = []
+        var searchStart = content.startIndex
+        while searchStart < content.endIndex,
+              let range = content.range(of: needle, options: .caseInsensitive, range: searchStart..<content.endIndex) {
+            matches.append(NSRange(range, in: content))
+            searchStart = range.upperBound
+            if matches.count > 2000 { break }
+        }
+
+        storage.beginEditing()
+        // Clear previous search backgrounds from entire text
+        storage.removeAttribute(.backgroundColor, range: NSRange(location: 0, length: storage.length))
+        // Re-apply code backgrounds (don't want to clobber those; simpler to just restore from theme)
+        // Highlight all matches
+        let dimHighlight = NSColor.yellow.withAlphaComponent(0.25)
+        let focusHighlight = NSColor.yellow.withAlphaComponent(0.70)
+        for (i, range) in matches.enumerated() {
+            storage.addAttribute(.backgroundColor, value: i == focusIndex ? focusHighlight : dimHighlight, range: range)
+        }
+        storage.endEditing()
+
+        // Report match count back to SwiftUI
+        onMatchCountUpdate?(matches.count)
+
+        // Scroll focused match into view
+        if matches.indices.contains(focusIndex) {
+            let range = matches[focusIndex]
+            scrollRangeToVisible(range)
+            setSelectedRange(range)
+        }
+    }
+
+    private func clearSearchHighlights() {
+        guard let storage = textStorage else { return }
+        storage.beginEditing()
+        storage.removeAttribute(.backgroundColor, range: NSRange(location: 0, length: storage.length))
+        storage.endEditing()
+        // Re-apply code block backgrounds by re-running styling
+        applyMarkdownStyling()
+    }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)

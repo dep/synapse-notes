@@ -44,6 +44,14 @@ class AppState: ObservableObject {
     @Published var canGoForward: Bool = false
     @Published var isCommandPalettePresented: Bool = false
     @Published var isRootNoteSheetPresented: Bool = false
+    @Published var isSearchPresented: Bool = false
+    @Published var searchMode: SearchMode = .currentFile
+    // Current-file find state (shared so CMD-G works globally)
+    @Published var searchQuery: String = ""
+    @Published var searchMatchIndex: Int = 0
+    @Published var searchMatchCount: Int = 0
+
+    enum SearchMode { case currentFile, allFiles }
 
     // Git
     @Published var gitSyncStatus: GitSyncStatus = .notGitRepo
@@ -437,6 +445,16 @@ class AppState: ObservableObject {
 
     func dismissCommandPalette() {
         isCommandPalettePresented = false
+    }
+
+    func presentSearch(mode: SearchMode) {
+        guard selectedFile != nil || mode == .allFiles else { return }
+        searchMode = mode
+        isSearchPresented = true
+    }
+
+    func dismissSearch() {
+        isSearchPresented = false
     }
 
     func presentRootNoteSheet() {

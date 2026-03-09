@@ -50,6 +50,32 @@ struct NotedApp: App {
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(appState.rootURL == nil)
             }
+
+            CommandGroup(after: .textEditing) {
+                Button("Find in Note…") {
+                    appState.presentSearch(mode: .currentFile)
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(appState.selectedFile == nil)
+
+                Button("Find in All Notes…") {
+                    appState.presentSearch(mode: .allFiles)
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+                .disabled(appState.rootURL == nil)
+
+                Button("Find Next") {
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": 1])
+                }
+                .keyboardShortcut("g", modifiers: .command)
+                .disabled(!appState.isSearchPresented || appState.searchMode != .currentFile)
+
+                Button("Find Previous") {
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": -1])
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+                .disabled(!appState.isSearchPresented || appState.searchMode != .currentFile)
+            }
         }
 
         Settings {
