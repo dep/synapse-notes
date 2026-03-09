@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import AppKit
 
 struct NoteLinkRelationships {
     let outbound: [URL]
@@ -43,7 +44,12 @@ class AppState: ObservableObject {
     @Published var canGoForward: Bool = false
     @Published var isCommandPalettePresented: Bool = false
     @Published var isRootNoteSheetPresented: Bool = false
-    
+
+    // Git
+    @Published var gitSyncStatus: GitSyncStatus = .notGitRepo
+    @Published var gitBranch: String = "main"
+    @Published var gitAheadCount: Int = 0
+
     @AppStorage("sortCriterion") var sortCriterion: SortCriterion = .name
     @AppStorage("sortAscending") var sortAscending: Bool = true
 
@@ -57,6 +63,11 @@ class AppState: ObservableObject {
     private var filePollCancellable: AnyCancellable?
     private var watchedFD: Int32 = -1
 
+    private var gitService: GitService?
+    private var pushTimer: Timer?
+    private let gitQueue = DispatchQueue(label: "com.noted.git", qos: .background)
+    private let machineName: String = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+
     init() {
         saveCancellable = $fileContent
             .dropFirst()
@@ -65,6 +76,20 @@ class AppState: ObservableObject {
                 guard let self, self.isDirty else { return }
                 self.saveCurrentFile(content: content)
             }
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppTermination),
+            name: NSApplication.willTerminateNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleAppTermination() {
+        guard let git = gitService, git.hasRemote() else { return }
+        try? git.pullRebase()
+        guard !git.hasConflicts() else { return }
+        try? git.push()
     }
 
     private func startWatching(_ url: URL) {
@@ -292,6 +317,94 @@ class AppState: ObservableObject {
         historyIndex = -1
         updateHistoryState()
         refreshAllFiles()
+        setupGit(for: url)
+    }
+
+    private func setupGit(for url: URL) {
+        pushTimer?.invalidate()
+        pushTimer = nil
+
+        if GitService.isGitRepo(at: url), let git = try? GitService(repoURL: url) {
+            gitService = git
+            gitBranch = git.currentBranch()
+            gitAheadCount = git.aheadCount()
+            gitSyncStatus = .idle
+            startPushTimer()
+        } else {
+            gitService = nil
+            gitBranch = "main"
+            gitAheadCount = 0
+            gitSyncStatus = .notGitRepo
+        }
+    }
+
+    private func startPushTimer() {
+        let timer = Timer(timeInterval: 300, repeats: true) { [weak self] _ in
+            self?.pushToRemote()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        pushTimer = timer
+    }
+
+    func pushToRemote() {
+        guard let git = gitService, git.hasRemote() else { return }
+        gitQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                DispatchQueue.main.async { self.gitSyncStatus = .pulling }
+                try git.pullRebase()
+
+                if git.hasConflicts() {
+                    DispatchQueue.main.async {
+                        self.gitSyncStatus = .conflict("Merge conflicts detected. Resolve them manually in a terminal, then push.")
+                        self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                    }
+                    return
+                }
+
+                DispatchQueue.main.async { self.gitSyncStatus = .pushing }
+                try git.push()
+
+                let ahead = git.aheadCount()
+                DispatchQueue.main.async {
+                    self.gitAheadCount = ahead
+                    self.gitSyncStatus = .upToDate
+                }
+
+                // Reset to idle after a brief pause so the user can see "up to date"
+                Thread.sleep(forTimeInterval: 3)
+                DispatchQueue.main.async {
+                    if case .upToDate = self.gitSyncStatus {
+                        self.gitSyncStatus = .idle
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.gitSyncStatus = .error(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func cloneRepository(remoteURL: String, to parentDirectory: URL, completion: @escaping (Result<Void, Error>) -> Void) {
+        gitSyncStatus = .cloning
+        let repoName = URL(string: remoteURL)?.deletingPathExtension().lastPathComponent ?? "repo"
+        let localURL = parentDirectory.appendingPathComponent(repoName)
+
+        gitQueue.async { [weak self] in
+            do {
+                try GitService.clone(from: remoteURL, to: localURL)
+                DispatchQueue.main.async {
+                    self?.openFolder(localURL)
+                    completion(.success(()))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.gitSyncStatus = .notGitRepo
+                    completion(.failure(error))
+                }
+            }
+        }
     }
 
     func refreshAllFiles() {
@@ -454,5 +567,31 @@ class AppState: ObservableObject {
         try? content.write(to: url, atomically: true, encoding: .utf8)
         isDirty = false
         lastObservedModificationDate = fileModificationDate(for: url)
+        scheduleGitCommit(for: url)
+    }
+
+    private func scheduleGitCommit(for url: URL) {
+        guard let git = gitService else { return }
+        let message = "Update to \(url.lastPathComponent) on \(machineName)"
+
+        gitSyncStatus = .committing
+        gitQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                if git.hasChanges() {
+                    try git.stageAll()
+                    try git.commit(message: message)
+                }
+                let ahead = git.aheadCount()
+                DispatchQueue.main.async {
+                    self.gitAheadCount = ahead
+                    self.gitSyncStatus = .idle
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.gitSyncStatus = .error(error.localizedDescription)
+                }
+            }
+        }
     }
 }

@@ -155,6 +155,11 @@ struct ContentView: View {
                 .keyboardShortcut("o", modifiers: [.command, .shift])
                 .help("Open Folder (⇧⌘O)")
 
+                if appState.gitSyncStatus != .notGitRepo {
+                    GitSyncIndicator()
+                        .environmentObject(appState)
+                }
+
                 if appState.selectedFile != nil {
                     Button(action: { appState.saveCurrentFile(content: appState.fileContent) }) {
                         Image(systemName: "square.and.arrow.down")
@@ -184,6 +189,178 @@ struct ContentView: View {
         .help(help)
     }
 }
+
+// MARK: - Git Sync Indicator
+
+private struct GitSyncIndicator: View {
+    @EnvironmentObject var appState: AppState
+    @State private var isPopoverShown = false
+
+    var body: some View {
+        Button(action: { isPopoverShown.toggle() }) {
+            HStack(spacing: 5) {
+                statusIcon
+                if appState.gitAheadCount > 0 && !appState.gitSyncStatus.isInProgress {
+                    Text("\(appState.gitAheadCount)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(NotedTheme.textMuted)
+                }
+            }
+        }
+        .buttonStyle(ChromeButtonStyle())
+        .help(statusHelp)
+        .popover(isPresented: $isPopoverShown, arrowEdge: .bottom) {
+            GitSyncPopover(isPresented: $isPopoverShown)
+                .environmentObject(appState)
+        }
+    }
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch appState.gitSyncStatus {
+        case .committing, .pushing, .pulling, .cloning:
+            ProgressView()
+                .scaleEffect(0.55)
+                .progressViewStyle(.circular)
+                .frame(width: 13, height: 13)
+        case .upToDate:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(NotedTheme.success)
+        case .conflict:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.orange)
+        case .error:
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.red)
+        default:
+            Image(systemName: appState.gitAheadCount > 0 ? "cloud.fill" : "cloud")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(appState.gitAheadCount > 0 ? NotedTheme.accent : NotedTheme.textMuted)
+        }
+    }
+
+    private var statusHelp: String {
+        switch appState.gitSyncStatus {
+        case .committing: return "Committing changes…"
+        case .pulling: return "Pulling from remote…"
+        case .pushing: return "Pushing to remote…"
+        case .cloning: return "Cloning repository…"
+        case .upToDate: return "Repository is up to date"
+        case .conflict: return "Merge conflicts detected"
+        case .error(let msg): return "Git error: \(msg)"
+        case .idle where appState.gitAheadCount > 0:
+            return "\(appState.gitAheadCount) unpushed commit(s)"
+        default: return "Git sync"
+        }
+    }
+}
+
+private struct GitSyncPopover: View {
+    @EnvironmentObject var appState: AppState
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(NotedTheme.textMuted)
+                Text(appState.gitBranch)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(NotedTheme.textPrimary)
+            }
+
+            Divider()
+                .background(NotedTheme.border)
+
+            VStack(alignment: .leading, spacing: 6) {
+                statusRow
+                if appState.gitAheadCount > 0 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(NotedTheme.accent)
+                        Text("\(appState.gitAheadCount) commit(s) to push")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(NotedTheme.textSecondary)
+                    }
+                }
+            }
+
+            if case .conflict(let msg) = appState.gitSyncStatus {
+                Text(msg)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 240, alignment: .leading)
+            }
+
+            if case .error(let msg) = appState.gitSyncStatus {
+                Text(msg)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 240, alignment: .leading)
+            }
+
+            Button(action: {
+                isPresented = false
+                appState.pushToRemote()
+            }) {
+                Label("Push Now", systemImage: "arrow.up.to.line")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ChromeButtonStyle())
+            .disabled(appState.gitSyncStatus.isInProgress)
+        }
+        .padding(14)
+        .frame(minWidth: 220)
+        .background(NotedTheme.panelElevated)
+    }
+
+    private var statusRow: some View {
+        HStack(spacing: 6) {
+            statusDot(statusDotColor)
+            Text(statusLabel)
+        }
+        .font(.system(size: 12, weight: .medium, design: .rounded))
+        .foregroundStyle(NotedTheme.textSecondary)
+    }
+
+    private var statusDotColor: Color {
+        switch appState.gitSyncStatus {
+        case .committing: return .yellow
+        case .pulling, .pushing: return NotedTheme.accent
+        case .upToDate: return NotedTheme.success
+        case .conflict: return .orange
+        case .error: return .red
+        default: return appState.gitAheadCount > 0 ? .yellow : NotedTheme.success
+        }
+    }
+
+    private var statusLabel: String {
+        switch appState.gitSyncStatus {
+        case .committing: return "Committing…"
+        case .pulling: return "Pulling…"
+        case .pushing: return "Pushing…"
+        case .upToDate: return "Up to date"
+        case .conflict: return "Conflicts"
+        case .error: return "Error"
+        default: return appState.gitAheadCount > 0 ? "Pending push" : "Synced"
+        }
+    }
+
+    private func statusDot(_ color: Color) -> some View {
+        Circle()
+            .fill(color)
+            .frame(width: 7, height: 7)
+    }
+}
+
+// MARK: - Root Note Sheet
 
 private struct RootNoteSheet: View {
     @EnvironmentObject var appState: AppState

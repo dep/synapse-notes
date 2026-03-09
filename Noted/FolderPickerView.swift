@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FolderPickerView: View {
     @EnvironmentObject var appState: AppState
+    @State private var isCloneSheetPresented = false
 
     var body: some View {
         ZStack {
@@ -18,7 +19,7 @@ struct FolderPickerView: View {
                             .fill(NotedTheme.accent.opacity(0.20))
                             .frame(width: 120, height: 120)
                             .blur(radius: 20)
-                        
+
                         // App icon background - macOS icon shape
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
                             .fill(
@@ -37,7 +38,7 @@ struct FolderPickerView: View {
                                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                                     .stroke(Color.white.opacity(0.15), lineWidth: 1)
                             )
-                        
+
                         // Icon symbol
                         Image(systemName: "doc.text.fill")
                             .font(.system(size: 42, weight: .semibold))
@@ -74,14 +75,22 @@ struct FolderPickerView: View {
                         TinyBadge(text: "Terminal ready")
                     }
 
-                    Button(action: appState.pickFolder) {
-                        Label("Open Folder…", systemImage: "folder.badge.plus")
-                            .frame(width: 210)
-                    }
-                    .buttonStyle(PrimaryChromeButtonStyle())
-                    .keyboardShortcut(.defaultAction)
+                    VStack(spacing: 10) {
+                        Button(action: appState.pickFolder) {
+                            Label("Open Folder…", systemImage: "folder.badge.plus")
+                                .frame(width: 210)
+                        }
+                        .buttonStyle(PrimaryChromeButtonStyle())
+                        .keyboardShortcut(.defaultAction)
 
-                    Text("Choose a folder of notes to load your workspace.")
+                        Button(action: { isCloneSheetPresented = true }) {
+                            Label("Clone Repository…", systemImage: "arrow.down.to.line")
+                                .frame(width: 210)
+                        }
+                        .buttonStyle(ChromeButtonStyle())
+                    }
+
+                    Text("Open a local folder or clone a remote git repository.")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(NotedTheme.textMuted)
                 }
@@ -94,6 +103,136 @@ struct FolderPickerView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .sheet(isPresented: $isCloneSheetPresented) {
+            CloneRepositorySheet(isPresented: $isCloneSheetPresented)
+                .environmentObject(appState)
+        }
+    }
+}
+
+private struct CloneRepositorySheet: View {
+    @EnvironmentObject var appState: AppState
+    @Binding var isPresented: Bool
+
+    @State private var remoteURL = ""
+    @State private var destinationURL: URL? = nil
+    @State private var isCloning = false
+    @State private var errorMessage: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Clone Repository")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(NotedTheme.textPrimary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Repository URL")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(NotedTheme.textSecondary)
+
+                TextField("https://github.com/user/repo.git", text: $remoteURL)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(isCloning)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Clone Into")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(NotedTheme.textSecondary)
+
+                HStack(spacing: 8) {
+                    if let dest = destinationURL {
+                        Text(dest.path)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(NotedTheme.textSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text("No folder selected")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(NotedTheme.textMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button("Choose…", action: pickDestination)
+                        .buttonStyle(ChromeButtonStyle())
+                        .disabled(isCloning)
+                }
+                .padding(8)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(NotedTheme.border, lineWidth: 1)
+                )
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.red)
+            }
+
+            if isCloning {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .progressViewStyle(.circular)
+                    Text("Cloning repository…")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(NotedTheme.textSecondary)
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    isPresented = false
+                }
+                .disabled(isCloning)
+
+                Button("Clone", action: startClone)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canClone || isCloning)
+            }
+        }
+        .padding(24)
+        .frame(width: 440)
+    }
+
+    private var canClone: Bool {
+        !remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && destinationURL != nil
+    }
+
+    private func pickDestination() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose where to clone the repository"
+        panel.prompt = "Select"
+        if panel.runModal() == .OK {
+            destinationURL = panel.url
+        }
+    }
+
+    private func startClone() {
+        guard let destination = destinationURL else { return }
+        let url = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return }
+
+        errorMessage = nil
+        isCloning = true
+
+        appState.cloneRepository(remoteURL: url, to: destination) { result in
+            isCloning = false
+            switch result {
+            case .success:
+                isPresented = false
+            case .failure(let error):
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }
