@@ -163,16 +163,7 @@ struct CommandPaletteView: View {
                                     }
                                     Spacer()
                                 }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background {
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .fill(index == selectedIndex ? NotedTheme.accentSoft : NotedTheme.row)
-                                        .overlay {
-                                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                .stroke(index == selectedIndex ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
-                                        }
-                                }
+                                .paletteRow(selected: index == selectedIndex)
                             }
                             .buttonStyle(.plain)
                             .id(index)

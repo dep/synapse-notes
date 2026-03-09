@@ -371,16 +371,14 @@ extension LinkAwareTextView {
                 let lineLength = (line as NSString).length
                 if line == "---" {
                     fenceCount += 1
-                    charOffset += lineLength + 1
                     if fenceCount == 2 { break }
+                    charOffset += lineLength + 1
                 } else if fenceCount == 1 {
                     let lineRange = NSRange(location: charOffset, length: lineLength)
                     storage.addAttributes([
                         .font: NSFont.systemFont(ofSize: 11),
                         .foregroundColor: NotedTheme.editorMuted,
                     ], range: lineRange)
-                    charOffset += lineLength + 1
-                } else {
                     charOffset += lineLength + 1
                 }
             }
@@ -475,6 +473,7 @@ class LinkAwareTextView: NSTextView {
 
     private var searchObserver: Any?
     private var searchClearObserver: Any?
+    private var lastSearchHighlightRanges: [NSRange] = []
 
     func installSearchObservers() {
         guard searchObserver == nil else { return }
@@ -484,8 +483,8 @@ class LinkAwareTextView: NSTextView {
             queue: .main
         ) { [weak self] note in
             guard let self,
-                  let query = note.userInfo?["query"] as? String,
-                  let focusIndex = note.userInfo?["matchIndex"] as? Int else { return }
+                  let query = note.userInfo?[SearchMatchKey.query] as? String,
+                  let focusIndex = note.userInfo?[SearchMatchKey.matchIndex] as? Int else { return }
             self.applySearchHighlights(query: query, focusIndex: focusIndex)
         }
         searchClearObserver = NotificationCenter.default.addObserver(
@@ -520,17 +519,17 @@ class LinkAwareTextView: NSTextView {
             if matches.count > 2000 { break }
         }
 
-        storage.beginEditing()
-        // Clear previous search backgrounds from entire text
-        storage.removeAttribute(.backgroundColor, range: NSRange(location: 0, length: storage.length))
-        // Re-apply code backgrounds (don't want to clobber those; simpler to just restore from theme)
-        // Highlight all matches
         let dimHighlight = NSColor.yellow.withAlphaComponent(0.25)
         let focusHighlight = NSColor.yellow.withAlphaComponent(0.70)
+        storage.beginEditing()
+        for range in lastSearchHighlightRanges {
+            storage.removeAttribute(.backgroundColor, range: range)
+        }
         for (i, range) in matches.enumerated() {
             storage.addAttribute(.backgroundColor, value: i == focusIndex ? focusHighlight : dimHighlight, range: range)
         }
         storage.endEditing()
+        lastSearchHighlightRanges = matches
 
         // Report match count back to SwiftUI
         onMatchCountUpdate?(matches.count)
@@ -546,10 +545,11 @@ class LinkAwareTextView: NSTextView {
     private func clearSearchHighlights() {
         guard let storage = textStorage else { return }
         storage.beginEditing()
-        storage.removeAttribute(.backgroundColor, range: NSRange(location: 0, length: storage.length))
+        for range in lastSearchHighlightRanges {
+            storage.removeAttribute(.backgroundColor, range: range)
+        }
         storage.endEditing()
-        // Re-apply code block backgrounds by re-running styling
-        applyMarkdownStyling()
+        lastSearchHighlightRanges = []
     }
 
     override func setFrameSize(_ newSize: NSSize) {

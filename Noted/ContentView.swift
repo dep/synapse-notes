@@ -61,12 +61,12 @@ struct ContentView: View {
                     .keyboardShortcut("f", modifiers: [.command, .shift])
                     .hidden()
                 Button("") {
-                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": 1])
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: [SearchMatchKey.delta: 1])
                 }
                 .keyboardShortcut("g", modifiers: .command)
                 .hidden()
                 Button("") {
-                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": -1])
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: [SearchMatchKey.delta: -1])
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
                 .hidden()

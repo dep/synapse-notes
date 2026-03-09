@@ -65,13 +65,13 @@ struct NotedApp: App {
                 .disabled(appState.rootURL == nil)
 
                 Button("Find Next") {
-                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": 1])
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: [SearchMatchKey.delta: 1])
                 }
                 .keyboardShortcut("g", modifiers: .command)
                 .disabled(!appState.isSearchPresented || appState.searchMode != .currentFile)
 
                 Button("Find Previous") {
-                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: ["delta": -1])
+                    NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: [SearchMatchKey.delta: -1])
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
                 .disabled(!appState.isSearchPresented || appState.searchMode != .currentFile)

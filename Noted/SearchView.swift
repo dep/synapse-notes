@@ -6,7 +6,31 @@ import AppKit
 extension Notification.Name {
     static let scrollToSearchMatch  = Notification.Name("noted.scrollToSearchMatch")
     static let clearSearchHighlights = Notification.Name("noted.clearSearchHighlights")
-    static let advanceSearchMatch   = Notification.Name("noted.advanceSearchMatch")  // userInfo: ["delta": Int]
+    static let advanceSearchMatch   = Notification.Name("noted.advanceSearchMatch")
+}
+
+enum SearchMatchKey {
+    static let query      = "query"
+    static let matchIndex = "matchIndex"
+    static let delta      = "delta"
+}
+
+// MARK: - Shared result-row chrome
+
+extension View {
+    func paletteRow(selected: Bool) -> some View {
+        self
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(selected ? NotedTheme.accentSoft : NotedTheme.row)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .stroke(selected ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
+                    }
+            }
+    }
 }
 
 // MARK: - All-files search result
@@ -89,7 +113,7 @@ struct FindBar: View {
             appState.searchMatchIndex = 0
         }
         .onReceive(NotificationCenter.default.publisher(for: .advanceSearchMatch)) { note in
-            guard let delta = note.userInfo?["delta"] as? Int else { return }
+            guard let delta = note.userInfo?[SearchMatchKey.delta] as? Int else { return }
             advance(by: delta)
         }
         .onDisappear {
@@ -111,7 +135,7 @@ struct FindBar: View {
         NotificationCenter.default.post(
             name: .scrollToSearchMatch,
             object: nil,
-            userInfo: ["query": query, "matchIndex": focusIndex]
+            userInfo: [SearchMatchKey.query: query, SearchMatchKey.matchIndex: focusIndex]
         )
     }
 
@@ -232,16 +256,7 @@ struct AllFilesSearchView: View {
 
                                         Spacer()
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 8)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                            .fill(index == selectedIndex ? NotedTheme.accentSoft : NotedTheme.row)
-                                            .overlay {
-                                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                    .stroke(index == selectedIndex ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
-                                            }
-                                    }
+                                    .paletteRow(selected: index == selectedIndex)
                                 }
                                 .buttonStyle(.plain)
                                 .id(index)
