@@ -58,6 +58,27 @@ open Noted.xcodeproj
 
 Then select the `Noted` scheme and press `Cmd-R`.
 
+## Testing
+
+Run tests from the command line:
+
+```bash
+xcodebuild test -scheme Noted -destination 'platform=macOS'
+```
+
+Or run tests in Xcode:
+
+1. Open the project: `open Noted.xcodeproj`
+2. Select the `Noted` scheme
+3. Press `Cmd-U` to run all tests
+
+The test suite includes:
+- Core `AppState` lifecycle tests
+- File and folder CRUD operations
+- Navigation history
+- Relative path formatting
+- Wiki-link and backlink resolution
+
 ## Notes
 
 - The project uses `SwiftTerm` via Swift Package Manager.

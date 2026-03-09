@@ -13,7 +13,7 @@ enum SortCriterion: String, CaseIterable {
     case modified = "Date"
 }
 
-enum FileBrowserError: LocalizedError {
+enum FileBrowserError: LocalizedError, Equatable {
     case noWorkspace
     case invalidName
     case itemAlreadyExists(String)
@@ -308,7 +308,7 @@ class AppState: ObservableObject {
 
     func openFolder(_ url: URL) {
         stopWatching()
-        rootURL = url
+        rootURL = standardized(url)
         selectedFile = nil
         fileContent = ""
         isDirty = false
@@ -420,6 +420,7 @@ class AppState: ObservableObject {
             options: [.skipsHiddenFiles]
         ) else { return }
         let discoveredFiles = enumerator.compactMap { $0 as? URL }
+            .map { standardized($0) }
             .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
 
         allProjectFiles = discoveredFiles
@@ -452,7 +453,7 @@ class AppState: ObservableObject {
         let fm = FileManager.default
         guard let directory = directory ?? rootURL else { throw FileBrowserError.noWorkspace }
         let fileName = try prepareName(name, defaultExtension: "md")
-        let url = directory.appendingPathComponent(fileName)
+        let url = standardized(directory.appendingPathComponent(fileName))
 
         guard !fm.fileExists(atPath: url.path) else {
             throw FileBrowserError.itemAlreadyExists(fileName)
@@ -473,7 +474,7 @@ class AppState: ObservableObject {
         let fm = FileManager.default
         guard let directory = directory ?? rootURL else { throw FileBrowserError.noWorkspace }
         let folderName = try prepareName(name)
-        let url = directory.appendingPathComponent(folderName, isDirectory: true)
+        let url = standardized(directory.appendingPathComponent(folderName, isDirectory: true))
 
         guard !fm.fileExists(atPath: url.path) else {
             throw FileBrowserError.itemAlreadyExists(folderName)
@@ -493,7 +494,7 @@ class AppState: ObservableObject {
         let fm = FileManager.default
         let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
         let preparedName = try prepareName(newName, defaultExtension: isDirectory ? nil : url.pathExtension)
-        let destination = url.deletingLastPathComponent().appendingPathComponent(preparedName, isDirectory: isDirectory)
+        let destination = standardized(url.deletingLastPathComponent().appendingPathComponent(preparedName, isDirectory: isDirectory))
 
         if standardized(destination) == standardized(url) {
             return url
