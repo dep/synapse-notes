@@ -85,61 +85,7 @@ struct CommandPaletteView: View {
                         }
                 }
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
-                        if results.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("No matching files")
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(NotedTheme.textPrimary)
-                                Text("Try a file name, path fragment, or extension.")
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(NotedTheme.textMuted)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 6)
-                        } else {
-                            ForEach(Array(results.enumerated()), id: \.element) { index, url in
-                                Button {
-                                    selectedIndex = index
-                                    appState.openFile(url)
-                                } label: {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: fileIcon(for: url))
-                                            .foregroundStyle(NotedTheme.accent)
-                                            .frame(width: 16)
-
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(url.lastPathComponent)
-                                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(NotedTheme.textPrimary)
-                                                .lineLimit(1)
-
-                                            Text(appState.relativePath(for: url))
-                                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                                .foregroundStyle(NotedTheme.textMuted)
-                                                .lineLimit(1)
-                                        }
-
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 8)
-                                    .background {
-                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                            .fill(index == selectedIndex ? NotedTheme.accentSoft : NotedTheme.row)
-                                            .overlay {
-                                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                    .stroke(index == selectedIndex ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
-                                            }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: 360)
+                resultsList
 
                 HStack {
                     Text("Use up/down, then press Enter")
@@ -176,6 +122,68 @@ struct CommandPaletteView: View {
                 return
             }
             selectedIndex = min(selectedIndex, newCount - 1)
+        }
+    }
+
+    @ViewBuilder
+    private var resultsList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    if results.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("No matching files")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(NotedTheme.textPrimary)
+                            Text("Try a file name, path fragment, or extension.")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(NotedTheme.textMuted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 6)
+                    } else {
+                        ForEach(Array(results.enumerated()), id: \.element) { index, url in
+                            Button {
+                                selectedIndex = index
+                                appState.openFile(url)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: fileIcon(for: url))
+                                        .foregroundStyle(NotedTheme.accent)
+                                        .frame(width: 16)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(url.lastPathComponent)
+                                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(NotedTheme.textPrimary)
+                                            .lineLimit(1)
+                                        Text(appState.relativePath(for: url))
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                            .foregroundStyle(NotedTheme.textMuted)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background {
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(index == selectedIndex ? NotedTheme.accentSoft : NotedTheme.row)
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                .stroke(index == selectedIndex ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
+                                        }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .id(index)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 360)
+            .onChange(of: selectedIndex) { _, newIndex in
+                proxy.scrollTo(newIndex, anchor: nil)
+            }
         }
     }
 

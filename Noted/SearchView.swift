@@ -126,7 +126,7 @@ struct AllFilesSearchView: View {
     @EnvironmentObject var appState: AppState
     @State private var query: String = ""
     @State private var results: [FileSearchResult] = []
-    @State private var selectedIndex: Int = 0
+    @State private var selectedIndex: Int = -1
     @State private var isSearching: Bool = false
     @State private var eventMonitor: Any?
     @FocusState private var isFieldFocused: Bool
@@ -170,77 +170,91 @@ struct AllFilesSearchView: View {
                 }
 
                 // ── Results list ────────────────────────────────────────
-                if !query.isEmpty {
-                    if results.isEmpty && !isSearching {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("No matches found")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(NotedTheme.textPrimary)
-                            Text("Try a different search term.")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if query.isEmpty {
+                            Text("Type to search across all notes")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
                                 .foregroundStyle(NotedTheme.textMuted)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 4)
-                    } else {
-                        ScrollViewReader { proxy in
-                            ScrollView {
-                                LazyVStack(alignment: .leading, spacing: 6) {
-                                    ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
-                                        Button {
-                                            selectedIndex = index
-                                            openSelected()
-                                        } label: {
-                                            HStack(spacing: 10) {
-                                                Image(systemName: "doc.text")
-                                                    .foregroundStyle(NotedTheme.accent)
-                                                    .frame(width: 16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 6)
+                        } else if isSearching {
+                            // spinner row while searching
+                            HStack(spacing: 8) {
+                                ProgressView().scaleEffect(0.7)
+                                Text("Searching…")
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundStyle(NotedTheme.textMuted)
+                            }
+                            .padding(.top, 6)
+                        } else if results.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("No matches found")
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(NotedTheme.textPrimary)
+                                Text("Try a different search term.")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(NotedTheme.textMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 6)
+                        } else {
+                            ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
+                                Button {
+                                    selectedIndex = index
+                                    openSelected()
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "doc.text")
+                                            .foregroundStyle(NotedTheme.accent)
+                                            .frame(width: 16)
 
-                                                VStack(alignment: .leading, spacing: 3) {
-                                                    HStack(spacing: 6) {
-                                                        Text(result.url.lastPathComponent)
-                                                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                                            .foregroundStyle(NotedTheme.textPrimary)
-                                                            .lineLimit(1)
-                                                        Text("line \(result.lineNumber)")
-                                                            .font(.system(size: 10, weight: .medium, design: .rounded))
-                                                            .foregroundStyle(NotedTheme.textMuted)
-                                                    }
-                                                    Text(result.snippet)
-                                                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                                                        .foregroundStyle(NotedTheme.textSecondary)
-                                                        .lineLimit(1)
-                                                    Text(appState.relativePath(for: result.url))
-                                                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                                                        .foregroundStyle(NotedTheme.textMuted)
-                                                        .lineLimit(1)
-                                                }
-
-                                                Spacer()
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            HStack(spacing: 6) {
+                                                Text(result.url.lastPathComponent)
+                                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                                    .foregroundStyle(NotedTheme.textPrimary)
+                                                    .lineLimit(1)
+                                                Text("line \(result.lineNumber)")
+                                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                                    .foregroundStyle(NotedTheme.textMuted)
                                             }
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 8)
-                                            .background {
-                                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                    .fill(index == selectedIndex ? NotedTheme.accentSoft : NotedTheme.row)
-                                                    .overlay {
-                                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                            .stroke(index == selectedIndex ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
-                                                    }
-                                            }
+                                            Text(result.snippet)
+                                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                                .foregroundStyle(NotedTheme.textSecondary)
+                                                .lineLimit(1)
+                                            Text(appState.relativePath(for: result.url))
+                                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                                .foregroundStyle(NotedTheme.textMuted)
+                                                .lineLimit(1)
                                         }
-                                        .buttonStyle(.plain)
-                                        .id(index)
+
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                            .fill(index == selectedIndex ? NotedTheme.accentSoft : NotedTheme.row)
+                                            .overlay {
+                                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                    .stroke(index == selectedIndex ? NotedTheme.accent : NotedTheme.rowBorder, lineWidth: 1)
+                                            }
                                     }
                                 }
-                            }
-                            .frame(maxHeight: 340)
-                            .onChange(of: selectedIndex) { _, newIndex in
-                                withAnimation { proxy.scrollTo(newIndex, anchor: .center) }
+                                .buttonStyle(.plain)
+                                .id(index)
                             }
                         }
                     }
                 }
+                .frame(maxHeight: 340)
+                .onChange(of: selectedIndex) { _, newIndex in
+                    guard newIndex >= 0 else { return }
+                    proxy.scrollTo(newIndex, anchor: nil)
+                }
+                } // ScrollViewReader
 
                 HStack {
                     Text("↑↓ to navigate · Return to open · Esc to close")
@@ -267,25 +281,34 @@ struct AllFilesSearchView: View {
             removeEventMonitor()
         }
         .onChange(of: query) { _, newQuery in
-            selectedIndex = 0
+            selectedIndex = -1
             scheduleSearch(newQuery)
         }
         .onChange(of: results.count) { _, newCount in
-            selectedIndex = min(selectedIndex, max(newCount - 1, 0))
+            if selectedIndex >= newCount { selectedIndex = newCount - 1 }
         }
     }
 
     private func dismiss() { appState.dismissSearch() }
 
     private func openSelected() {
-        guard results.indices.contains(selectedIndex) else { return }
-        appState.openFile(results[selectedIndex].url)
+        let idx = selectedIndex < 0 ? 0 : selectedIndex
+        guard results.indices.contains(idx) else { return }
+        appState.openFile(results[idx].url)
         dismiss()
     }
 
     private func moveSelection(by delta: Int) {
         guard !results.isEmpty else { return }
-        selectedIndex = min(max(selectedIndex + delta, 0), results.count - 1)
+        let next: Int
+        if selectedIndex < 0 {
+            next = delta > 0 ? 0 : results.count - 1
+        } else {
+            next = min(max(selectedIndex + delta, 0), results.count - 1)
+        }
+        selectedIndex = next
+        // Keep the text field focused so the ScrollView can't steal arrow keys
+        isFieldFocused = true
     }
 
     private func scheduleSearch(_ newQuery: String) {
