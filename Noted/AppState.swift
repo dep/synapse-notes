@@ -40,6 +40,7 @@ class AppState: ObservableObject {
     @Published var isDirty: Bool = false
     @Published var allFiles: [URL] = []
     @Published var allProjectFiles: [URL] = []
+    @Published var recentFiles: [URL] = []
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
     @Published var isCommandPalettePresented: Bool = false
@@ -593,6 +594,9 @@ class AppState: ObservableObject {
         isDirty = false
         startWatching(url)
         updateHistoryState()
+        recentFiles.removeAll { $0 == url }
+        recentFiles.insert(url, at: 0)
+        if recentFiles.count > 40 { recentFiles = Array(recentFiles.prefix(40)) }
     }
 
     func goBack() {

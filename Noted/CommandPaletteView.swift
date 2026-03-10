@@ -13,6 +13,8 @@ struct CommandPaletteView: View {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedQuery.isEmpty else {
+            let recent = appState.recentFiles
+            if !recent.isEmpty { return recent }
             return Array(files.prefix(40))
         }
 
