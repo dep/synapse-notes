@@ -60,7 +60,7 @@ private struct BrowserDeleteTarget {
     }
 }
 
-func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool) -> [FileNode] {
+func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool, settings: SettingsManager) -> [FileNode] {
     let fm = FileManager.default
     guard let contents = try? fm.contentsOfDirectory(
         at: url,
@@ -99,11 +99,13 @@ func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool) -
     
     return items.compactMap { item -> FileNode? in
         if item.isDirectory {
-            let children = buildFileTree(at: item.url, sortCriterion: sortCriterion, ascending: ascending)
+            let children = buildFileTree(at: item.url, sortCriterion: sortCriterion, ascending: ascending, settings: settings)
             return FileNode(url: item.url, children: children)
         } else {
-            let ext = item.url.pathExtension.lowercased()
-            guard ext == "md" || ext == "markdown" || ext == "txt" else { return nil }
+            // Use SettingsManager to check if file should be shown
+            if !settings.shouldShowFile(item.url) {
+                return nil
+            }
             return FileNode(url: item.url, children: nil)
         }
     }
@@ -111,6 +113,7 @@ func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool) -
 
 struct FileTreeView: View {
     @EnvironmentObject var appState: AppState
+    @StateObject private var settings = SettingsManager()
     @State private var nodes: [FileNode] = []
     @State private var expandedDirs: Set<URL> = []
     @State private var editorAction: BrowserEditorAction?
@@ -262,6 +265,9 @@ struct FileTreeView: View {
                 expandPath(to: newFile)
                 revealSelection(with: proxy)
             }
+            .onChange(of: settings.fileExtensionFilter) { _, _ in
+                refresh()
+            }
             .sheet(item: $editorAction) { action in
                 BrowserItemEditorSheet(action: action) { submittedName in
                     handleEditorSubmit(action: action, submittedName: submittedName)
@@ -298,7 +304,7 @@ struct FileTreeView: View {
             nodes = []
             return
         }
-        nodes = buildFileTree(at: root, sortCriterion: appState.sortCriterion, ascending: appState.sortAscending)
+        nodes = buildFileTree(at: root, sortCriterion: appState.sortCriterion, ascending: appState.sortAscending, settings: settings)
         expandPath(to: appState.selectedFile)
     }
 

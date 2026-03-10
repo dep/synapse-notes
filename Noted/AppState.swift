@@ -61,6 +61,9 @@ class AppState: ObservableObject {
     @AppStorage("sortCriterion") var sortCriterion: SortCriterion = .name
     @AppStorage("sortAscending") var sortAscending: Bool = true
 
+    // Settings
+    let settings = SettingsManager()
+
     private var history: [URL] = []
     private var historyIndex: Int = -1
     private var navigatingHistory = false
@@ -432,10 +435,7 @@ class AppState: ObservableObject {
             .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
 
         allProjectFiles = discoveredFiles
-        allFiles = discoveredFiles.filter {
-            let ext = $0.pathExtension.lowercased()
-            return ext == "md" || ext == "markdown"
-        }
+        allFiles = discoveredFiles.filter { settings.shouldShowFile($0) }
     }
 
     func presentCommandPalette() {

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		176429857B534B116295B882 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DA991681C049F5B9232E8AD /* Theme.swift */; };
 		3F80F8E1B9FC707EA01334FA /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E43EF1E8A2E10F1E9B970C /* EditorView.swift */; };
+		4343A4190A6FA3B0BB2F33F7 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A39596E7D194F46FDA0E89C /* SettingsManagerTests.swift */; };
 		49B951A7B560E5F2ACA2D1B7 /* AppStateSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC1CC9828325A2D58F447A2 /* AppStateSearchTests.swift */; };
 		4DED39B222B1B21E06683122 /* AppStateFileOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC3AEA452E7B5640E74BBE7 /* AppStateFileOperationsTests.swift */; };
 		859AF32158491FA5F98C44A8 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC747A709A4B2CDA0979E7F8 /* SearchView.swift */; };
@@ -16,6 +17,7 @@
 		8EA422E9ED2F49954345DB60 /* FileTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91225417549CE4B6454C2BB3 /* FileTreeView.swift */; };
 		986B071DBEA6711AC84BE46D /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 0FA5A06921DBF1C2EEEF28FF /* SwiftTerm */; };
 		A66E7827DB301FCD115146F4 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1CCB8199A79ACB28FF2D48 /* CommandPaletteView.swift */; };
+		A9098FB70482ABDB8D3A3488 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219541B4425196E49ED7FFD2 /* SettingsManager.swift */; };
 		AE87103BF1D9DA3FBD1F2D16 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736A971B7173F018108BF51 /* ContentView.swift */; };
 		BEF11253506DDEFC63FF9C14 /* AppStateNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 903F0815BBE2E4B50FDCB645 /* AppStateNavigationTests.swift */; };
 		C22507A911877F763C77ED86 /* AppStateCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BED738E87303BE22FE80D3C /* AppStateCoreTests.swift */; };
@@ -45,6 +47,7 @@
 		152582446E9AC0B1343551D2 /* NotedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotedApp.swift; sourceTree = "<group>"; };
 		1736A971B7173F018108BF51 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1D1590A70DA7E63DD33AF5B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		219541B4425196E49ED7FFD2 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		21BECAB9CC4CDFD05C5164B5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2F6EE2C4CE0C9D0460958407 /* Noted.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Noted.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DA991681C049F5B9232E8AD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -56,6 +59,7 @@
 		903F0815BBE2E4B50FDCB645 /* AppStateNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateNavigationTests.swift; sourceTree = "<group>"; };
 		91225417549CE4B6454C2BB3 /* FileTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeView.swift; sourceTree = "<group>"; };
 		96851FBFAC9BCC33369827F8 /* NotedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NotedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9A39596E7D194F46FDA0E89C /* SettingsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerTests.swift; sourceTree = "<group>"; };
 		9AC1CC9828325A2D58F447A2 /* AppStateSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSearchTests.swift; sourceTree = "<group>"; };
 		A29632AEEDE34F2B892653E6 /* GitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitService.swift; sourceTree = "<group>"; };
 		AF237272C5B4C7411B6A3917 /* Noted.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Noted.entitlements; sourceTree = "<group>"; };
@@ -95,6 +99,7 @@
 				152582446E9AC0B1343551D2 /* NotedApp.swift */,
 				76DF35339CD613B627D01D61 /* RelatedLinksPaneView.swift */,
 				DC747A709A4B2CDA0979E7F8 /* SearchView.swift */,
+				219541B4425196E49ED7FFD2 /* SettingsManager.swift */,
 				EF46412D5210FC81403BA6DD /* SettingsView.swift */,
 				C6E776DDA97E544C924703CD /* TerminalPaneView.swift */,
 				3DA991681C049F5B9232E8AD /* Theme.swift */,
@@ -129,6 +134,7 @@
 				0392F77B111B0D8E9ED0AE0B /* AppStateRelativePathTests.swift */,
 				9AC1CC9828325A2D58F447A2 /* AppStateSearchTests.swift */,
 				C43352A91B43578BBD8CCD30 /* AppStateWikiLinkTests.swift */,
+				9A39596E7D194F46FDA0E89C /* SettingsManagerTests.swift */,
 			);
 			path = NotedTests;
 			sourceTree = "<group>";
@@ -230,6 +236,7 @@
 				CEDDD9E80508946613FA8BA1 /* AppStateRelativePathTests.swift in Sources */,
 				49B951A7B560E5F2ACA2D1B7 /* AppStateSearchTests.swift in Sources */,
 				DB2306C131D91D6B9DF0ABD9 /* AppStateWikiLinkTests.swift in Sources */,
+				4343A4190A6FA3B0BB2F33F7 /* SettingsManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -247,6 +254,7 @@
 				DB24729741EDC5E632213C2D /* NotedApp.swift in Sources */,
 				F89A87A8418BCB48A81249EE /* RelatedLinksPaneView.swift in Sources */,
 				859AF32158491FA5F98C44A8 /* SearchView.swift in Sources */,
+				A9098FB70482ABDB8D3A3488 /* SettingsManager.swift in Sources */,
 				D2BEBDFC72C9D8D865FC5981 /* SettingsView.swift in Sources */,
 				89B0DD02BE38F860CA4DA9F5 /* TerminalPaneView.swift in Sources */,
 				176429857B534B116295B882 /* Theme.swift in Sources */,

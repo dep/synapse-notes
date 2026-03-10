@@ -1,12 +1,98 @@
 import SwiftUI
 
+// MARK: - Placeholder Extension
+
+extension View {
+    func placeholder(when shouldShow: Bool, alignment: Alignment = .leading, @ViewBuilder placeholder: () -> some View) -> some View {
+        overlay(alignment: alignment) {
+            if shouldShow {
+                placeholder()
+            }
+        }
+    }
+}
+
 struct SettingsView: View {
     @AppStorage(kGitSSHAuthSock) private var sshAuthSock: String = ""
+    @StateObject private var settings = SettingsManager()
     @State private var isDetecting = false
     @State private var detectError: String?
 
     var body: some View {
         Form {
+            // MARK: - On-Boot Command Section
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Terminal Command")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+
+                    TextField("", text: $settings.onBootCommand)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .placeholder(when: settings.onBootCommand.isEmpty) {
+                            Text("npm run dev, claude, opencode…")
+                                .foregroundStyle(.tertiary)
+                        }
+
+                    if !settings.onBootCommand.isEmpty {
+                        Button("Clear") {
+                            settings.onBootCommand = ""
+                        }
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                    }
+
+                    Text("A command to run automatically when Noted launches with a folder. Leave empty to do nothing.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("On-Boot Command")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+
+            // MARK: - File Extension Filter Section
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Show Files Matching")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+
+                    TextField("", text: $settings.fileExtensionFilter)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .placeholder(when: settings.fileExtensionFilter.isEmpty) {
+                            Text("*")
+                                .foregroundStyle(.tertiary)
+                        }
+
+                    HStack(spacing: 6) {
+                        Button("*.md, *.txt") {
+                            settings.fileExtensionFilter = "*.md, *.txt"
+                        }
+                        .font(.system(size: 11))
+
+                        Button("* (all)") {
+                            settings.fileExtensionFilter = "*"
+                        }
+                        .font(.system(size: 11))
+                    }
+
+                    Text("Filter which files appear in the sidebar. Use commas to list multiple patterns (e.g. *.md, *.txt) or * for all files. Changes apply immediately.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("File Browser")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+
+            // MARK: - Git Sync Section (existing)
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("SSH Agent Socket Path")

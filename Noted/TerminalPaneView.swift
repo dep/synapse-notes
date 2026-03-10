@@ -3,6 +3,7 @@ import SwiftTerm
 
 struct LocalTerminalView: NSViewRepresentable {
     let workingDirectory: String
+    let onBootCommand: String?
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let terminal = LocalProcessTerminalView(frame: .zero)
@@ -21,9 +22,19 @@ struct LocalTerminalView: NSViewRepresentable {
             environment: envArray,
             execName: "zsh"
         )
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             let escaped = workingDirectory.replacingOccurrences(of: " ", with: "\\ ")
-            terminal.send(txt: "cd \(escaped) && CLAUDECODE=null claude --dangerously-skip-permissions\n")
+            
+            // Use on-boot command if set, otherwise fall back to default
+            let commandToRun: String
+            if let customCommand = onBootCommand, !customCommand.isEmpty {
+                commandToRun = "cd \(escaped) && \(customCommand)"
+            } else {
+                commandToRun = "cd \(escaped) && CLAUDECODE=null claude --dangerously-skip-permissions"
+            }
+            
+            terminal.send(txt: commandToRun + "\n")
         }
         return terminal
     }
@@ -66,7 +77,10 @@ struct TerminalPaneView: View {
                 .fill(NotedTheme.divider)
                 .frame(height: 1)
 
-            LocalTerminalView(workingDirectory: appState.rootURL?.path ?? NSHomeDirectory())
+            LocalTerminalView(
+                workingDirectory: appState.rootURL?.path ?? NSHomeDirectory(),
+                onBootCommand: appState.settings.onBootCommand
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(12)
