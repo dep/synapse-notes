@@ -264,7 +264,7 @@ struct FileTreeView: View {
                 expandPath(to: newFile)
                 revealSelection(with: proxy)
             }
-            .onChange(of: appState.fileExtensionFilter) { _, _ in
+            .onChange(of: appState.settings.fileExtensionFilter) { _, _ in
                 refresh()
             }
             .sheet(item: $editorAction) { action in
