@@ -26,6 +26,11 @@
 		TT0000000000000013 /* AppStateNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000003 /* AppStateNavigationTests.swift */; };
 		TT0000000000000014 /* AppStateRelativePathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000004 /* AppStateRelativePathTests.swift */; };
 		TT0000000000000015 /* AppStateWikiLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000005 /* AppStateWikiLinkTests.swift */; };
+		TT0000000000000081 /* AppStatePrepareNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000071 /* AppStatePrepareNameTests.swift */; };
+		TT0000000000000082 /* AppStateRefreshAllFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000072 /* AppStateRefreshAllFilesTests.swift */; };
+		TT0000000000000083 /* FileTreeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000073 /* FileTreeTests.swift */; };
+		TT0000000000000084 /* GitErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000074 /* GitErrorTests.swift */; };
+		TT0000000000000085 /* GitSyncStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TT0000000000000075 /* GitSyncStatusTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +55,11 @@
 		TT0000000000000003 /* AppStateNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateNavigationTests.swift; sourceTree = "<group>"; };
 		TT0000000000000004 /* AppStateRelativePathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateRelativePathTests.swift; sourceTree = "<group>"; };
 		TT0000000000000005 /* AppStateWikiLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateWikiLinkTests.swift; sourceTree = "<group>"; };
+		TT0000000000000071 /* AppStatePrepareNameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePrepareNameTests.swift; sourceTree = "<group>"; };
+		TT0000000000000072 /* AppStateRefreshAllFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateRefreshAllFilesTests.swift; sourceTree = "<group>"; };
+		TT0000000000000073 /* FileTreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeTests.swift; sourceTree = "<group>"; };
+		TT0000000000000074 /* GitErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitErrorTests.swift; sourceTree = "<group>"; };
+		TT0000000000000075 /* GitSyncStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitSyncStatusTests.swift; sourceTree = "<group>"; };
 		TT0000000000000006 /* NotedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NotedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -111,8 +121,13 @@
 				TT0000000000000001 /* AppStateCoreTests.swift */,
 				TT0000000000000002 /* AppStateFileOperationsTests.swift */,
 				TT0000000000000003 /* AppStateNavigationTests.swift */,
+				TT0000000000000071 /* AppStatePrepareNameTests.swift */,
+				TT0000000000000072 /* AppStateRefreshAllFilesTests.swift */,
 				TT0000000000000004 /* AppStateRelativePathTests.swift */,
 				TT0000000000000005 /* AppStateWikiLinkTests.swift */,
+				TT0000000000000073 /* FileTreeTests.swift */,
+				TT0000000000000074 /* GitErrorTests.swift */,
+				TT0000000000000075 /* GitSyncStatusTests.swift */,
 			);
 			path = NotedTests;
 			sourceTree = "<group>";
@@ -231,8 +246,13 @@
 				TT0000000000000011 /* AppStateCoreTests.swift in Sources */,
 				TT0000000000000012 /* AppStateFileOperationsTests.swift in Sources */,
 				TT0000000000000013 /* AppStateNavigationTests.swift in Sources */,
+				TT0000000000000081 /* AppStatePrepareNameTests.swift in Sources */,
+				TT0000000000000082 /* AppStateRefreshAllFilesTests.swift in Sources */,
 				TT0000000000000014 /* AppStateRelativePathTests.swift in Sources */,
 				TT0000000000000015 /* AppStateWikiLinkTests.swift in Sources */,
+				TT0000000000000083 /* FileTreeTests.swift in Sources */,
+				TT0000000000000084 /* GitErrorTests.swift in Sources */,
+				TT0000000000000085 /* GitSyncStatusTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
