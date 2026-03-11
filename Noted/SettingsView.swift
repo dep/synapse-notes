@@ -148,6 +148,40 @@ struct SettingsView: View {
                 Text("Git Sync")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
             }
+
+            // MARK: - Auto-Save Section
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Stage changes on file save", isOn: $settings.autoSave)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+
+                    Text("Automatically stage git changes whenever a file is saved. Changes are committed when you push (Cmd+S, file switch, or quit).")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Auto-Save")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+
+            // MARK: - Auto-Push Section
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Auto-push commits", isOn: $settings.autoPush)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+
+                    Text("When enabled, staged changes are committed and pushed when you press Cmd+S, switch files, or quit the app. Requires a remote repository.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Auto-Push")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
         }
         .formStyle(.grouped)
         .frame(width: 560)

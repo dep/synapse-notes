@@ -13,42 +13,59 @@ struct CommandPaletteView: View {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedQuery.isEmpty else {
+            let recent = appState.recentFiles
+            if !recent.isEmpty { return recent }
             return Array(files.prefix(40))
         }
 
         let needle = trimmedQuery.lowercased()
-        return files
+
+        let scoredResults = files
             .compactMap { url -> (url: URL, score: Int)? in
                 let name = url.lastPathComponent.lowercased()
                 let relativePath = appState.relativePath(for: url).lowercased()
                 let stem = url.deletingPathExtension().lastPathComponent.lowercased()
 
                 var score = 0
-                if stem == needle { score += 120 }
-                if name == needle { score += 110 }
-                if stem.hasPrefix(needle) { score += 90 }
-                if name.hasPrefix(needle) { score += 80 }
-                if relativePath.hasPrefix(needle) { score += 70 }
-                if stem.contains(needle) { score += 60 }
-                if name.contains(needle) { score += 45 }
-                if relativePath.contains(needle) { score += 30 }
 
+                // Exact matches
+                if stem == needle { score += 200 }
+                else if name == needle { score += 190 }
+                // Prefix matches (strongest signal after exact)
+                else if stem.hasPrefix(needle) { score += 100 }
+                else if name.hasPrefix(needle) { score += 90 }
+                else if relativePath.hasPrefix(needle) { score += 70 }
+
+                // Substring matches (additive — don't else-chain these)
+                if score == 0 {
+                    if stem.contains(needle) { score += 60 }
+                    else if name.contains(needle) { score += 45 }
+                    else if relativePath.contains(needle) { score += 30 }
+                }
+
+                // Word-part fallback for multi-word queries or no match yet
                 if score == 0 {
                     let needleParts = needle.split(separator: " ").map(String.init)
                     let matchedParts = needleParts.filter { part in
-                        name.contains(part) || relativePath.contains(part)
+                        stem.contains(part) || relativePath.contains(part)
                     }
-                    score += matchedParts.count * 12
+                    score += matchedParts.count * 15
                 }
 
                 guard score > 0 else { return nil }
-                score -= relativePath.count / 12
+
+                // Penalise deep paths slightly (prefer shallow matches)
+                let depth = relativePath.components(separatedBy: "/").count - 1
+                score -= depth * 2
+
                 return (url, score)
             }
             .sorted {
                 if $0.score != $1.score { return $0.score > $1.score }
                 return appState.relativePath(for: $0.url).localizedStandardCompare(appState.relativePath(for: $1.url)) == .orderedAscending
             }
+
+        return scoredResults
             .map { $0.url }
             .prefix(40)
             .map { $0 }
@@ -142,7 +159,7 @@ struct CommandPaletteView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 6)
                     } else {
-                        ForEach(Array(results.enumerated()), id: \.element) { index, url in
+                        ForEach(Array(results.enumerated()), id: \.offset) { index, url in
                             Button {
                                 selectedIndex = index
                                 appState.openFile(url)

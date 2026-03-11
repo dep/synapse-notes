@@ -9,12 +9,20 @@ class SettingsManager: ObservableObject {
     @Published var fileExtensionFilter: String {
         didSet { save() }
     }
+    @Published var autoSave: Bool {
+        didSet { save() }
+    }
+    @Published var autoPush: Bool {
+        didSet { save() }
+    }
 
     let configPath: String
 
     private struct Config: Codable {
         var onBootCommand: String
         var fileExtensionFilter: String
+        var autoSave: Bool = false
+        var autoPush: Bool = false
     }
 
     /// Initialize with default config path in Application Support
@@ -34,9 +42,13 @@ class SettingsManager: ObservableObject {
         if let config = Self.loadConfig(from: configPath) {
             self.onBootCommand = config.onBootCommand
             self.fileExtensionFilter = config.fileExtensionFilter
+            self.autoSave = config.autoSave
+            self.autoPush = config.autoPush
         } else {
             self.onBootCommand = ""
             self.fileExtensionFilter = "*.md, *.txt"
+            self.autoSave = false
+            self.autoPush = false
         }
     }
 
@@ -81,7 +93,9 @@ class SettingsManager: ObservableObject {
     private func save() {
         let config = Config(
             onBootCommand: onBootCommand,
-            fileExtensionFilter: fileExtensionFilter
+            fileExtensionFilter: fileExtensionFilter,
+            autoSave: autoSave,
+            autoPush: autoPush
         )
 
         guard let data = try? JSONEncoder().encode(config) else { return }

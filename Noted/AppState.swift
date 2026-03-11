@@ -40,6 +40,11 @@ class AppState: ObservableObject {
     @Published var isDirty: Bool = false
     @Published var allFiles: [URL] = []
     @Published var allProjectFiles: [URL] = []
+    @Published var recentFiles: [URL] = []
+    
+    // Tabs
+    @Published var tabs: [URL] = []
+    @Published var activeTabIndex: Int? = nil
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
     @Published var isCommandPalettePresented: Bool = false
@@ -68,6 +73,9 @@ class AppState: ObservableObject {
     private var historyIndex: Int = -1
     private var navigatingHistory = false
     private var lastObservedModificationDate: Date?
+    private var closedTabs: [(url: URL, index: Int)] = []
+    private var tabMRU: [URL] = []
+    private let now: () -> Date
 
     private var saveCancellable: AnyCancellable?
     private var fileWatcher: DispatchSourceFileSystemObject?
@@ -79,7 +87,8 @@ class AppState: ObservableObject {
     private let gitQueue = DispatchQueue(label: "com.noted.git", qos: .background)
     private let machineName: String = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
 
-    init() {
+    init(now: @escaping () -> Date = Date.init) {
+        self.now = now
         saveCancellable = $fileContent
             .dropFirst()
             .debounce(for: .seconds(1), scheduler: RunLoop.main)
@@ -97,10 +106,8 @@ class AppState: ObservableObject {
     }
 
     @objc private func handleAppTermination() {
-        guard let git = gitService, git.hasRemote() else { return }
-        try? git.pullRebase()
-        guard !git.hasConflicts() else { return }
-        try? git.push()
+        // Try auto-push if enabled (includes pulling, squashing, and pushing)
+        autoPushIfEnabled()
     }
 
     private func startWatching(_ url: URL) {
@@ -165,6 +172,31 @@ class AppState: ObservableObject {
         return suffix.reduce(standardized(newBase)) { partialResult, component in
             partialResult.appendingPathComponent(component)
         }
+    }
+
+    private func recordTabRecency(for url: URL) {
+        tabMRU.removeAll { $0 == url }
+        tabMRU.insert(url, at: 0)
+    }
+
+    private func activateTab(at index: Int, updateRecency: Bool = true, resetCycle: Bool = true) {
+        guard index >= 0 && index < tabs.count else { return }
+
+        if isDirty {
+            saveCurrentFile(content: fileContent)
+        }
+
+        activeTabIndex = index
+        let newFile = tabs[index]
+        selectedFile = newFile
+        fileContent = (try? String(contentsOf: newFile, encoding: .utf8)) ?? ""
+        isDirty = false
+        startWatching(newFile)
+
+        if updateRecency {
+            recordTabRecency(for: newFile)
+        }
+
     }
 
     private func refreshedHistoryIndex() -> Int {
@@ -331,6 +363,40 @@ class AppState: ObservableObject {
         setupGit(for: url)
     }
 
+    /// Exits the current vault/folder and returns to the splash screen
+    func exitVault() {
+        // Try auto-push if enabled before exiting
+        autoPushIfEnabled()
+
+        // Clean up git service
+        gitService = nil
+        gitBranch = "main"
+        gitAheadCount = 0
+        gitSyncStatus = .notGitRepo
+
+        // Clean up file watching
+        stopWatching()
+
+        // Reset file state
+        selectedFile = nil
+        fileContent = ""
+        isDirty = false
+
+        // Reset history
+        history = []
+        historyIndex = -1
+        navigatingHistory = false
+        canGoBack = false
+        canGoForward = false
+
+        // Clear all files
+        allFiles = []
+        allProjectFiles = []
+
+        // Finally, clear the root URL to show the splash screen
+        rootURL = nil
+    }
+
     private func setupGit(for url: URL) {
         pushTimer?.invalidate()
         pushTimer = nil
@@ -487,6 +553,35 @@ class AppState: ObservableObject {
         return url
     }
 
+    func createNewUntitledNote() {
+        guard let root = rootURL else { return }
+        
+        // Generate unique name
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        let timestamp = dateFormatter.string(from: Date())
+        let baseName = "Untitled-\(timestamp).md"
+        
+        do {
+            let fileName = try prepareName(baseName, defaultExtension: "md")
+            let url = standardized(root.appendingPathComponent(fileName))
+            
+            // Create file directly without opening it
+            let fm = FileManager.default
+            guard !fm.fileExists(atPath: url.path) else { return }
+            
+            let created = fm.createFile(atPath: url.path, contents: Data(), attributes: nil)
+            guard created else { return }
+            
+            refreshAllFiles()
+            
+            // Now open in new tab
+            openFileInNewTab(url)
+        } catch {
+            // Silently fail
+        }
+    }
+
     @discardableResult
     func createFolder(named name: String, in directory: URL? = nil) throws -> URL {
         let fm = FileManager.default
@@ -543,7 +638,10 @@ class AppState: ObservableObject {
     }
 
     func openFile(_ url: URL) {
-        if isDirty { saveCurrentFile(content: fileContent) }
+        if isDirty { 
+            saveCurrentFile(content: fileContent)
+            autoPushIfEnabled()
+        }
         dismissCommandPalette()
         dismissRootNoteSheet()
         if !navigatingHistory {
@@ -558,6 +656,169 @@ class AppState: ObservableObject {
         isDirty = false
         startWatching(url)
         updateHistoryState()
+        recentFiles.removeAll { $0 == url }
+        recentFiles.insert(url, at: 0)
+        if recentFiles.count > 40 { recentFiles = Array(recentFiles.prefix(40)) }
+        
+        // Tab management: replace current tab (default behavior)
+        if let activeIndex = activeTabIndex {
+            tabs[activeIndex] = url
+        } else {
+            tabs.append(url)
+            activeTabIndex = tabs.count - 1
+        }
+    }
+
+    func openFileInNewTab(_ url: URL) {
+        // If file already open in a tab, just switch to it
+        if let existingIndex = tabs.firstIndex(of: url) {
+            switchTab(to: existingIndex)
+            return
+        }
+        
+        // Add new tab
+        tabs.append(url)
+        activeTabIndex = tabs.count - 1
+        
+        // Load file content directly (don't use openFile which replaces current tab)
+        selectedFile = url
+        fileContent = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        isDirty = false
+        startWatching(url)
+        
+        // Update history
+        if !navigatingHistory {
+            if historyIndex < history.count - 1 {
+                history = Array(history.prefix(historyIndex + 1))
+            }
+            history.append(url)
+            historyIndex = history.count - 1
+        }
+        updateHistoryState()
+        
+        // Update recent files
+        recentFiles.removeAll { $0 == url }
+        recentFiles.insert(url, at: 0)
+        if recentFiles.count > 40 { recentFiles = Array(recentFiles.prefix(40)) }
+        recordTabRecency(for: url)
+    }
+
+    func closeTab(at index: Int) {
+        guard index >= 0 && index < tabs.count else { return }
+        
+        let wasActive = (index == activeTabIndex)
+        
+        // Auto-save if dirty
+        if isDirty {
+            saveCurrentFile(content: fileContent)
+        }
+        
+        let closedURL = tabs[index]
+        closedTabs.append((url: closedURL, index: index))
+        tabMRU.removeAll { $0 == closedURL }
+        tabs.remove(at: index)
+        
+        if tabs.isEmpty {
+            activeTabIndex = nil
+            selectedFile = nil
+            fileContent = ""
+            isDirty = false
+            tabMRU = []
+            return
+        }
+        
+        // Update active tab index
+        if wasActive {
+            // Focus left tab, or right if no left
+            activeTabIndex = min(index, tabs.count - 1)
+        } else if let currentActive = activeTabIndex, index < currentActive {
+            // Closed tab was left of active, adjust index
+            activeTabIndex = currentActive - 1
+        }
+        
+        // Load the new active tab's content
+        if let newIndex = activeTabIndex {
+            let newFile = tabs[newIndex]
+            selectedFile = newFile
+            fileContent = (try? String(contentsOf: newFile, encoding: .utf8)) ?? ""
+            isDirty = false
+            startWatching(newFile)
+            recordTabRecency(for: newFile)
+        }
+    }
+
+    func switchTab(to index: Int) {
+        activateTab(at: index)
+    }
+
+    func switchToTabShortcut(_ shortcutNumber: Int) {
+        guard shortcutNumber >= 1, !tabs.isEmpty else { return }
+
+        if shortcutNumber == 9 {
+            switchTab(to: tabs.count - 1)
+            return
+        }
+
+        let index = shortcutNumber - 1
+        guard index < tabs.count else { return }
+        switchTab(to: index)
+    }
+
+    func reopenLastClosedTab() {
+        guard let closedTab = closedTabs.popLast() else { return }
+
+        if let existingIndex = tabs.firstIndex(of: closedTab.url) {
+            switchTab(to: existingIndex)
+            return
+        }
+
+        if isDirty {
+            saveCurrentFile(content: fileContent)
+        }
+
+        let insertIndex = min(closedTab.index, tabs.count)
+        tabs.insert(closedTab.url, at: insertIndex)
+        switchTab(to: insertIndex)
+    }
+
+    func switchToPreviousTab() {
+        guard let activeTabIndex, activeTabIndex > 0 else { return }
+        switchTab(to: activeTabIndex - 1)
+    }
+
+    func switchToNextTab() {
+        guard let activeTabIndex, activeTabIndex < tabs.count - 1 else { return }
+        switchTab(to: activeTabIndex + 1)
+    }
+
+    func closeOtherTabs() {
+        guard let activeTabIndex else { return }
+
+        let activeURL = tabs[activeTabIndex]
+        for (index, url) in tabs.enumerated() where index != activeTabIndex {
+            closedTabs.append((url: url, index: index))
+        }
+
+        tabs = [activeURL]
+        self.activeTabIndex = 0
+        selectedFile = activeURL
+        fileContent = (try? String(contentsOf: activeURL, encoding: .utf8)) ?? ""
+        isDirty = false
+        startWatching(activeURL)
+        tabMRU = [activeURL]
+    }
+
+    func cycleMostRecentTabs() {
+        guard tabs.count > 1 else { return }
+
+        if let selectedFile {
+            recordTabRecency(for: selectedFile)
+        }
+
+        guard tabMRU.count > 1,
+              let index = tabs.firstIndex(of: tabMRU[1]) else { return }
+
+        activateTab(at: index)
     }
 
     func goBack() {
@@ -586,24 +847,60 @@ class AppState: ObservableObject {
         try? content.write(to: url, atomically: true, encoding: .utf8)
         isDirty = false
         lastObservedModificationDate = fileModificationDate(for: url)
-        scheduleGitCommit(for: url)
+        stageGitChanges()
     }
 
-    private func scheduleGitCommit(for url: URL) {
-        guard let git = gitService else { return }
-        let message = "Update to \(url.lastPathComponent) on \(machineName)"
+    /// Stages changes for git (used by auto-save to stage without committing)
+    private func stageGitChanges() {
+        // Only stage if auto-save or auto-push is enabled
+        guard (settings.autoSave || settings.autoPush), let git = gitService else { return }
 
-        gitSyncStatus = .committing
         gitQueue.async { [weak self] in
             guard let self else { return }
             do {
                 if git.hasChanges() {
                     try git.stageAll()
+                }
+            } catch {
+                // Silently fail - staging isn't critical, will be retried on push
+            }
+        }
+    }
+
+    /// Performs auto-push if enabled: commits staged changes and pushes
+    func autoPushIfEnabled() {
+        guard settings.autoPush, let git = gitService, git.hasRemote() else { return }
+
+        gitSyncStatus = .pushing
+        gitQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                // Pull first to avoid conflicts
+                try git.pullRebase()
+
+                guard !git.hasConflicts() else {
+                    DispatchQueue.main.async {
+                        self.gitSyncStatus = .conflict("Merge conflicts detected. Resolve manually.")
+                    }
+                    return
+                }
+
+                // Stage any uncommitted changes and commit them
+                if git.hasChanges() {
+                    try git.stageAll()
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
+                    let timestamp = dateFormatter.string(from: Date())
+                    let message = "auto: update notes [\(timestamp)]"
                     try git.commit(message: message)
                 }
-                let ahead = git.aheadCount()
+
+                // Push all commits
+                try git.push()
+
+                let newAhead = git.aheadCount()
                 DispatchQueue.main.async {
-                    self.gitAheadCount = ahead
+                    self.gitAheadCount = newAhead
                     self.gitSyncStatus = .idle
                 }
             } catch {
