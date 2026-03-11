@@ -119,8 +119,14 @@ class AppState: ObservableObject {
     }
 
     @objc private func handleAppTermination() {
+        persistDirtyFileIfNeeded()
         // Try auto-push if enabled (includes pulling, squashing, and pushing)
         autoPushIfEnabled()
+    }
+
+    private func persistDirtyFileIfNeeded() {
+        guard isDirty else { return }
+        saveCurrentFile(content: fileContent)
     }
 
     private func startWatching(_ url: URL) {
@@ -425,6 +431,7 @@ class AppState: ObservableObject {
     }
 
     func openFolder(_ url: URL) {
+        persistDirtyFileIfNeeded()
         stopWatching()
         rootURL = standardized(url)
         selectedFile = nil
@@ -442,6 +449,8 @@ class AppState: ObservableObject {
 
     /// Exits the current vault/folder and returns to the splash screen
     func exitVault() {
+        persistDirtyFileIfNeeded()
+
         // Try auto-push if enabled before exiting
         autoPushIfEnabled()
 

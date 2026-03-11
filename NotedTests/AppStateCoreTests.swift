@@ -22,6 +22,12 @@ final class AppStateCoreTests: XCTestCase {
         super.tearDown()
     }
 
+    private func makeFile(in directory: URL, named name: String, content: String) -> URL {
+        let url = directory.appendingPathComponent(name)
+        try! content.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
     // MARK: - Initial state
 
     func test_initialState_noWorkspace() {
@@ -77,6 +83,41 @@ final class AppStateCoreTests: XCTestCase {
         sut.openFolder(newDir)
         XCTAssertFalse(sut.canGoBack)
         XCTAssertFalse(sut.canGoForward)
+    }
+
+    func test_openFolder_whenDirty_savesCurrentFileBeforeSwitchingWorkspace() throws {
+        let file = makeFile(in: tempDir, named: "dirty.md", content: "before")
+        sut.openFolder(tempDir)
+        sut.openFile(file)
+        sut.fileContent = "after edit"
+        sut.isDirty = true
+
+        let newDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: newDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: newDir) }
+
+        sut.openFolder(newDir)
+
+        let saved = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertEqual(saved, "after edit")
+        XCTAssertFalse(sut.isDirty)
+    }
+
+    func test_exitVault_whenDirty_savesCurrentFileBeforeClearingState() throws {
+        let file = makeFile(in: tempDir, named: "exit.md", content: "before")
+        sut.openFolder(tempDir)
+        sut.openFile(file)
+        sut.fileContent = "after edit"
+        sut.isDirty = true
+
+        sut.exitVault()
+
+        let saved = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertEqual(saved, "after edit")
+        XCTAssertNil(sut.rootURL)
+        XCTAssertNil(sut.selectedFile)
+        XCTAssertFalse(sut.isDirty)
     }
 
     // MARK: - Command palette
