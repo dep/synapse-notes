@@ -27,8 +27,9 @@ struct ContentView: View {
                         TabBarView()
                             .environmentObject(appState)
                         
-                        if appState.isTagPageVisible, let tag = appState.currentTag {
-                            TagPageView(tag: tag)
+                        if let activeTab = appState.activeTab,
+                           let tagName = activeTab.tagName {
+                            TagPageView(tag: tagName)
                                 .frame(minWidth: 420)
                                 .background(NotedTheme.editorShell)
                         } else {

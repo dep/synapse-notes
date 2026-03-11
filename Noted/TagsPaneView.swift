@@ -44,7 +44,7 @@ struct TagsPaneView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(tags, id: \.key) { tag, count in
-                            Button(action: { appState.showTagPage(tag: tag) }) {
+                            Button(action: { appState.openTagInNewTab(tag) }) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "number")
                                         .foregroundStyle(NotedTheme.accent)
@@ -111,7 +111,11 @@ struct TagPageView: View {
 
                     Spacer()
 
-                    Button(action: { appState.closeTagPage() }) {
+                    Button(action: { 
+                        if let index = appState.activeTabIndex {
+                            appState.closeTab(at: index)
+                        }
+                    }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(NotedTheme.textSecondary)

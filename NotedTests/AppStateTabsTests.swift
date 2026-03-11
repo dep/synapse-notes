@@ -50,7 +50,7 @@ final class AppStateTabsTests: XCTestCase {
         sut.openFile(fileA)
         
         XCTAssertEqual(sut.tabs.count, 1, "Should have one tab after opening a file")
-        XCTAssertEqual(sut.tabs[0], fileA, "Tab should contain the opened file")
+        XCTAssertEqual(sut.tabs[0], .file(fileA), "Tab should contain the opened file")
         XCTAssertEqual(sut.activeTabIndex, 0, "Active tab should be index 0")
     }
     
@@ -59,7 +59,7 @@ final class AppStateTabsTests: XCTestCase {
         sut.openFile(fileB)
         
         XCTAssertEqual(sut.tabs.count, 1, "Should still have one tab (replaced)")
-        XCTAssertEqual(sut.tabs[0], fileB, "Tab should contain the new file")
+        XCTAssertEqual(sut.tabs[0], .file(fileB), "Tab should contain the new file")
         XCTAssertEqual(sut.activeTabIndex, 0, "Active tab should still be index 0")
     }
     
@@ -70,8 +70,8 @@ final class AppStateTabsTests: XCTestCase {
         sut.openFileInNewTab(fileB)
         
         XCTAssertEqual(sut.tabs.count, 2, "Should have two tabs")
-        XCTAssertEqual(sut.tabs[0], fileA, "First tab should be fileA")
-        XCTAssertEqual(sut.tabs[1], fileB, "Second tab should be fileB")
+        XCTAssertEqual(sut.tabs[0], .file(fileA), "First tab should be fileA")
+        XCTAssertEqual(sut.tabs[1], .file(fileB), "Second tab should be fileB")
         XCTAssertEqual(sut.activeTabIndex, 1, "Active tab should be the new tab (index 1)")
     }
     
@@ -90,8 +90,8 @@ final class AppStateTabsTests: XCTestCase {
         sut.openFileInNewTab(fileA) // Try to open A again in new tab
         
         XCTAssertEqual(sut.tabs.count, 2, "Should still have only two tabs (no duplicates)")
-        XCTAssertEqual(sut.tabs[0], fileA, "First tab should be fileA")
-        XCTAssertEqual(sut.tabs[1], fileB, "Second tab should be fileB")
+        XCTAssertEqual(sut.tabs[0], .file(fileA), "First tab should be fileA")
+        XCTAssertEqual(sut.tabs[1], .file(fileB), "Second tab should be fileB")
         XCTAssertEqual(sut.activeTabIndex, 0, "Active tab should switch to existing fileA tab (index 0)")
     }
     
@@ -104,7 +104,7 @@ final class AppStateTabsTests: XCTestCase {
         sut.closeTab(at: 0)
         
         XCTAssertEqual(sut.tabs.count, 1, "Should have one tab after closing")
-        XCTAssertEqual(sut.tabs[0], fileB, "Remaining tab should be fileB")
+        XCTAssertEqual(sut.tabs[0], .file(fileB), "Remaining tab should be fileB")
         XCTAssertEqual(sut.activeTabIndex, 0, "Active tab should adjust to remaining tab")
     }
     
@@ -129,7 +129,7 @@ final class AppStateTabsTests: XCTestCase {
         
         XCTAssertEqual(sut.tabs.count, 2)
         XCTAssertEqual(sut.activeTabIndex, 1, "Active should adjust from 2 to 1")
-        XCTAssertEqual(sut.tabs[1], fileC)
+        XCTAssertEqual(sut.tabs[1], .file(fileC))
     }
     
     func test_closeLastTab_clearsActiveTab() {
@@ -210,7 +210,7 @@ final class AppStateTabsTests: XCTestCase {
         sut.closeTab(at: 1)
         sut.reopenLastClosedTab()
 
-        XCTAssertEqual(sut.tabs, [fileA, fileB])
+        XCTAssertEqual(sut.tabs, [.file(fileA), .file(fileB)])
         XCTAssertEqual(sut.activeTabIndex, 1)
         XCTAssertEqual(sut.selectedFile, fileB)
     }
@@ -224,11 +224,11 @@ final class AppStateTabsTests: XCTestCase {
         sut.closeTab(at: 1)
 
         sut.reopenLastClosedTab()
-        XCTAssertEqual(sut.tabs, [fileA, fileB])
+        XCTAssertEqual(sut.tabs, [.file(fileA), .file(fileB)])
         XCTAssertEqual(sut.selectedFile, fileB)
 
         sut.reopenLastClosedTab()
-        XCTAssertEqual(sut.tabs, [fileA, fileB, fileC])
+        XCTAssertEqual(sut.tabs, [.file(fileA), .file(fileB), .file(fileC)])
         XCTAssertEqual(sut.selectedFile, fileC)
     }
 
@@ -237,7 +237,7 @@ final class AppStateTabsTests: XCTestCase {
 
         sut.reopenLastClosedTab()
 
-        XCTAssertEqual(sut.tabs, [fileA])
+        XCTAssertEqual(sut.tabs, [.file(fileA)])
         XCTAssertEqual(sut.activeTabIndex, 0)
         XCTAssertEqual(sut.selectedFile, fileA)
     }
@@ -294,7 +294,7 @@ final class AppStateTabsTests: XCTestCase {
 
         sut.closeOtherTabs()
 
-        XCTAssertEqual(sut.tabs, [fileB])
+        XCTAssertEqual(sut.tabs, [.file(fileB)])
         XCTAssertEqual(sut.activeTabIndex, 0)
         XCTAssertEqual(sut.selectedFile, fileB)
     }
@@ -308,11 +308,11 @@ final class AppStateTabsTests: XCTestCase {
         sut.closeOtherTabs()
 
         sut.reopenLastClosedTab()
-        XCTAssertEqual(sut.tabs, [fileB, fileC])
+        XCTAssertEqual(sut.tabs, [.file(fileB), .file(fileC)])
         XCTAssertEqual(sut.selectedFile, fileC)
 
         sut.reopenLastClosedTab()
-        XCTAssertEqual(sut.tabs, [fileA, fileB, fileC])
+        XCTAssertEqual(sut.tabs, [.file(fileA), .file(fileB), .file(fileC)])
         XCTAssertEqual(sut.selectedFile, fileA)
     }
 
