@@ -13,6 +13,7 @@
 		4343A4190A6FA3B0BB2F33F7 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A39596E7D194F46FDA0E89C /* SettingsManagerTests.swift */; };
 		49B951A7B560E5F2ACA2D1B7 /* AppStateSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC1CC9828325A2D58F447A2 /* AppStateSearchTests.swift */; };
 		4DED39B222B1B21E06683122 /* AppStateFileOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC3AEA452E7B5640E74BBE7 /* AppStateFileOperationsTests.swift */; };
+		5659F6788F84E63F76D6C54F /* TagsPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5089DBE5FAEFCF7A46054F20 /* TagsPaneView.swift */; };
 		5EF44A850E8F5E752661C8BB /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA76AB5416DC7667FA61AAD /* TabBarView.swift */; };
 		7284EDEC4858322D1FD71AE0 /* AppStateTabsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5473BF2F01D6878F693C75B8 /* AppStateTabsTests.swift */; };
 		8186813525CDD3D791D83D77 /* GitAutoSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437D3F990E7EFE2A8E221A73 /* GitAutoSaveTests.swift */; };
@@ -33,6 +34,7 @@
 		CEDDD9E80508946613FA8BA1 /* AppStateRelativePathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0392F77B111B0D8E9ED0AE0B /* AppStateRelativePathTests.swift */; };
 		D2BEBDFC72C9D8D865FC5981 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF46412D5210FC81403BA6DD /* SettingsView.swift */; };
 		D6D1324905B4911E14794C63 /* GitErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9118A97F8E84287AB07F8F /* GitErrorTests.swift */; };
+		D94A9369C2EEF300633DF537 /* AppStateTagsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64E820AF16E4DCABB5A5F7E /* AppStateTagsTests.swift */; };
 		DB2306C131D91D6B9DF0ABD9 /* AppStateWikiLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C43352A91B43578BBD8CCD30 /* AppStateWikiLinkTests.swift */; };
 		DB24729741EDC5E632213C2D /* NotedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152582446E9AC0B1343551D2 /* NotedApp.swift */; };
 		E8FC2D6FAE6A0E0E4AEB6319 /* AppStateFolderOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FD800420909CC1FBA93CB6E /* AppStateFolderOperationsTests.swift */; };
@@ -64,6 +66,7 @@
 		3DA991681C049F5B9232E8AD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		437D3F990E7EFE2A8E221A73 /* GitAutoSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitAutoSaveTests.swift; sourceTree = "<group>"; };
 		4D1CCB8199A79ACB28FF2D48 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
+		5089DBE5FAEFCF7A46054F20 /* TagsPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagsPaneView.swift; sourceTree = "<group>"; };
 		5473BF2F01D6878F693C75B8 /* AppStateTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTabsTests.swift; sourceTree = "<group>"; };
 		5BED738E87303BE22FE80D3C /* AppStateCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateCoreTests.swift; sourceTree = "<group>"; };
 		5EC3AEA452E7B5640E74BBE7 /* AppStateFileOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateFileOperationsTests.swift; sourceTree = "<group>"; };
@@ -82,6 +85,7 @@
 		AF237272C5B4C7411B6A3917 /* Noted.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Noted.entitlements; sourceTree = "<group>"; };
 		BAA76AB5416DC7667FA61AAD /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		C43352A91B43578BBD8CCD30 /* AppStateWikiLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateWikiLinkTests.swift; sourceTree = "<group>"; };
+		C64E820AF16E4DCABB5A5F7E /* AppStateTagsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTagsTests.swift; sourceTree = "<group>"; };
 		C6E776DDA97E544C924703CD /* TerminalPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPaneView.swift; sourceTree = "<group>"; };
 		D03209C4FF3A5BE985FE616F /* FolderPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPickerView.swift; sourceTree = "<group>"; };
 		D8E43EF1E8A2E10F1E9B970C /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
@@ -120,6 +124,7 @@
 				219541B4425196E49ED7FFD2 /* SettingsManager.swift */,
 				EF46412D5210FC81403BA6DD /* SettingsView.swift */,
 				BAA76AB5416DC7667FA61AAD /* TabBarView.swift */,
+				5089DBE5FAEFCF7A46054F20 /* TagsPaneView.swift */,
 				C6E776DDA97E544C924703CD /* TerminalPaneView.swift */,
 				3DA991681C049F5B9232E8AD /* Theme.swift */,
 			);
@@ -156,6 +161,7 @@
 				AC36A4A37E8891F32C53A0A6 /* AppStateSaveTests.swift */,
 				9AC1CC9828325A2D58F447A2 /* AppStateSearchTests.swift */,
 				5473BF2F01D6878F693C75B8 /* AppStateTabsTests.swift */,
+				C64E820AF16E4DCABB5A5F7E /* AppStateTagsTests.swift */,
 				2D56A9DD722BD1AD0B8363E6 /* AppStateTemplatesTests.swift */,
 				C43352A91B43578BBD8CCD30 /* AppStateWikiLinkTests.swift */,
 				437D3F990E7EFE2A8E221A73 /* GitAutoSaveTests.swift */,
@@ -266,6 +272,7 @@
 				A9706FF815267B9D66AE5C75 /* AppStateSaveTests.swift in Sources */,
 				49B951A7B560E5F2ACA2D1B7 /* AppStateSearchTests.swift in Sources */,
 				7284EDEC4858322D1FD71AE0 /* AppStateTabsTests.swift in Sources */,
+				D94A9369C2EEF300633DF537 /* AppStateTagsTests.swift in Sources */,
 				86B64C8EF7AD9989C55DD568 /* AppStateTemplatesTests.swift in Sources */,
 				DB2306C131D91D6B9DF0ABD9 /* AppStateWikiLinkTests.swift in Sources */,
 				8186813525CDD3D791D83D77 /* GitAutoSaveTests.swift in Sources */,
@@ -292,6 +299,7 @@
 				A9098FB70482ABDB8D3A3488 /* SettingsManager.swift in Sources */,
 				D2BEBDFC72C9D8D865FC5981 /* SettingsView.swift in Sources */,
 				5EF44A850E8F5E752661C8BB /* TabBarView.swift in Sources */,
+				5659F6788F84E63F76D6C54F /* TagsPaneView.swift in Sources */,
 				89B0DD02BE38F860CA4DA9F5 /* TerminalPaneView.swift in Sources */,
 				176429857B534B116295B882 /* Theme.swift in Sources */,
 			);
