@@ -27,7 +27,7 @@ enum GitSyncStatus: Equatable {
 
 // MARK: - Errors
 
-enum GitError: LocalizedError {
+enum GitError: LocalizedError, Equatable {
     case gitNotFound
     case commandFailed(String)
     case notARepo
