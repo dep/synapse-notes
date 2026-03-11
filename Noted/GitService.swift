@@ -27,7 +27,7 @@ enum GitSyncStatus: Equatable {
 
 // MARK: - Errors
 
-enum GitError: LocalizedError {
+enum GitError: LocalizedError, Equatable {
     case gitNotFound
     case commandFailed(String)
     case notARepo
@@ -92,6 +92,8 @@ enum GitError: LocalizedError {
 // MARK: - GitService
 
 final class GitService {
+    static let pullRebaseArguments = ["pull", "--rebase", "--autostash"]
+
     let repoURL: URL
     private let gitPath: String
 
@@ -139,7 +141,7 @@ final class GitService {
 
     func push() throws { try run(["push"], operation: "Push", timeout: 60) }
 
-    func pullRebase() throws { try run(["pull", "--rebase"], operation: "Pull", timeout: 60) }
+    func pullRebase() throws { try run(Self.pullRebaseArguments, operation: "Pull", timeout: 60) }
 
     func hasConflicts() -> Bool {
         let out = (try? run(["status", "--porcelain"])) ?? ""

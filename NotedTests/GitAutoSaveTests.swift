@@ -139,4 +139,8 @@ final class GitAutoSaveTests: XCTestCase {
         XCTAssertFalse(newManager.autoSave)
         XCTAssertFalse(newManager.autoPush)
     }
+
+    func test_pullRebase_usesAutostashArguments() {
+        XCTAssertEqual(GitService.pullRebaseArguments, ["pull", "--rebase", "--autostash"])
+    }
 }

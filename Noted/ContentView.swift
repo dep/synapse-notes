@@ -1,10 +1,12 @@
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var isLeftSidebarVisible = true
     @State private var isRightSidebarVisible = true
     @State private var isRelatedPaneVisible = true
+    @State private var keyEventMonitor: Any?
 
     var body: some View {
         ZStack {
@@ -21,9 +23,14 @@ struct ContentView: View {
                             .background(NotedTheme.panel)
                     }
 
-                    EditorView()
-                        .frame(minWidth: 420)
-                        .background(NotedTheme.editorShell)
+                    VStack(spacing: 0) {
+                        TabBarView()
+                            .environmentObject(appState)
+                        
+                        EditorView()
+                            .frame(minWidth: 420)
+                            .background(NotedTheme.editorShell)
+                    }
 
                     if isRightSidebarVisible {
                         TerminalPaneView()
@@ -70,6 +77,51 @@ struct ContentView: View {
                 }
                 .keyboardShortcut("g", modifiers: [.command, .shift])
                 .hidden()
+                Button("") {
+                    if let index = appState.activeTabIndex {
+                        appState.closeTab(at: index)
+                    }
+                }
+                .keyboardShortcut("w", modifiers: .command)
+                .hidden()
+                Button("") { appState.closeOtherTabs() }
+                    .keyboardShortcut("w", modifiers: [.command, .shift])
+                    .hidden()
+                Button("") {
+                    appState.createNewUntitledNote()
+                }
+                .keyboardShortcut("t", modifiers: .command)
+                .hidden()
+                Button("") { appState.reopenLastClosedTab() }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(1) }
+                    .keyboardShortcut("1", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(2) }
+                    .keyboardShortcut("2", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(3) }
+                    .keyboardShortcut("3", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(4) }
+                    .keyboardShortcut("4", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(5) }
+                    .keyboardShortcut("5", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(6) }
+                    .keyboardShortcut("6", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(7) }
+                    .keyboardShortcut("7", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(8) }
+                    .keyboardShortcut("8", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(9) }
+                    .keyboardShortcut("9", modifiers: .command)
+                    .hidden()
             }
         }
         .animation(.easeInOut(duration: 0.14), value: appState.isCommandPalettePresented)
@@ -85,6 +137,31 @@ struct ContentView: View {
         .sheet(item: $appState.pendingTemplateRename) { (request: TemplateRenameRequest) in
             TemplateRenameSheet(request: request)
                 .environmentObject(appState)
+        }
+        .onAppear(perform: installEventMonitor)
+        .onDisappear(perform: removeEventMonitor)
+    }
+
+    private func installEventMonitor() {
+        removeEventMonitor()
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard !appState.isCommandPalettePresented,
+                  !appState.isSearchPresented,
+                  event.keyCode == 48,
+                  event.modifierFlags.contains(.control),
+                  !event.modifierFlags.contains(.command) else {
+                return event
+            }
+
+            appState.cycleMostRecentTabs()
+            return nil
+        }
+    }
+
+    private func removeEventMonitor() {
+        if let keyEventMonitor {
+            NSEvent.removeMonitor(keyEventMonitor)
+            self.keyEventMonitor = nil
         }
     }
 
@@ -130,6 +207,13 @@ struct ContentView: View {
                     .keyboardShortcut("[", modifiers: .command)
                     .help("Go Back (⌘[)")
 
+                    Button(action: appState.switchToPreviousTab) {
+                        EmptyView()
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("[", modifiers: [.command, .shift])
+                    .hidden()
+
                     Button(action: appState.goForward) {
                         Image(systemName: "chevron.right")
                     }
@@ -137,6 +221,13 @@ struct ContentView: View {
                     .disabled(!appState.canGoForward)
                     .keyboardShortcut("]", modifiers: .command)
                     .help("Go Forward (⌘])")
+
+                    Button(action: appState.switchToNextTab) {
+                        EmptyView()
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("]", modifiers: [.command, .shift])
+                    .hidden()
                 }
                 .padding(.leading, 8)
             }
