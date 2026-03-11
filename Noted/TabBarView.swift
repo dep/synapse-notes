@@ -5,7 +5,15 @@ struct TabBarView: View {
     
     var body: some View {
         HStack(spacing: 0) {
-            if appState.tabs.isEmpty {
+            if appState.isTagPageVisible, let tag = appState.currentTag {
+                // Show tag as a special virtual tab
+                TabItemView(
+                    fileName: "#\(tag)",
+                    isActive: true,
+                    onSelect: { },
+                    onClose: { appState.closeTagPage() }
+                )
+            } else if appState.tabs.isEmpty {
                 // Empty state - show placeholder or nothing
                 EmptyView()
             } else {

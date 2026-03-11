@@ -152,7 +152,7 @@ struct TagPageView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(notes, id: \.self) { url in
-                            Button(action: { appState.openFile(url) }) {
+                            Button(action: { }) {
                                 HStack(spacing: 10) {
                                     Image(systemName: "doc.text")
                                         .foregroundStyle(NotedTheme.accent)
@@ -182,6 +182,19 @@ struct TagPageView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .simultaneousGesture(
+                                TapGesture()
+                                    .modifiers(.command)
+                                    .onEnded { _ in
+                                        appState.openFileInNewTab(url)
+                                    }
+                            )
+                            .simultaneousGesture(
+                                TapGesture()
+                                    .onEnded { _ in
+                                        appState.openFile(url)
+                                    }
+                            )
                         }
                     }
                     .padding(16)
