@@ -4,3 +4,12 @@
 .agents/USER_RULES.md
 .agents/TEAM_RULES.md
 .agents/LEARNING_LOG.md
+
+# Xcode - User data (per-developer settings)
+*.xcuserstate
+*.xcuserdata
+xcuserdata/
+
+# Xcode - Build products
+build/
+DerivedData/
