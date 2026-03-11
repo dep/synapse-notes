@@ -12,6 +12,7 @@
 		4343A4190A6FA3B0BB2F33F7 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A39596E7D194F46FDA0E89C /* SettingsManagerTests.swift */; };
 		49B951A7B560E5F2ACA2D1B7 /* AppStateSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC1CC9828325A2D58F447A2 /* AppStateSearchTests.swift */; };
 		4DED39B222B1B21E06683122 /* AppStateFileOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC3AEA452E7B5640E74BBE7 /* AppStateFileOperationsTests.swift */; };
+		8186813525CDD3D791D83D77 /* GitAutoSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437D3F990E7EFE2A8E221A73 /* GitAutoSaveTests.swift */; };
 		859AF32158491FA5F98C44A8 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC747A709A4B2CDA0979E7F8 /* SearchView.swift */; };
 		89B0DD02BE38F860CA4DA9F5 /* TerminalPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E776DDA97E544C924703CD /* TerminalPaneView.swift */; };
 		8EA422E9ED2F49954345DB60 /* FileTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91225417549CE4B6454C2BB3 /* FileTreeView.swift */; };
@@ -51,6 +52,7 @@
 		21BECAB9CC4CDFD05C5164B5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2F6EE2C4CE0C9D0460958407 /* Noted.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Noted.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DA991681C049F5B9232E8AD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		437D3F990E7EFE2A8E221A73 /* GitAutoSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitAutoSaveTests.swift; sourceTree = "<group>"; };
 		4D1CCB8199A79ACB28FF2D48 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		5BED738E87303BE22FE80D3C /* AppStateCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateCoreTests.swift; sourceTree = "<group>"; };
 		5EC3AEA452E7B5640E74BBE7 /* AppStateFileOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateFileOperationsTests.swift; sourceTree = "<group>"; };
@@ -134,6 +136,7 @@
 				0392F77B111B0D8E9ED0AE0B /* AppStateRelativePathTests.swift */,
 				9AC1CC9828325A2D58F447A2 /* AppStateSearchTests.swift */,
 				C43352A91B43578BBD8CCD30 /* AppStateWikiLinkTests.swift */,
+				437D3F990E7EFE2A8E221A73 /* GitAutoSaveTests.swift */,
 				9A39596E7D194F46FDA0E89C /* SettingsManagerTests.swift */,
 			);
 			path = NotedTests;
@@ -236,6 +239,7 @@
 				CEDDD9E80508946613FA8BA1 /* AppStateRelativePathTests.swift in Sources */,
 				49B951A7B560E5F2ACA2D1B7 /* AppStateSearchTests.swift in Sources */,
 				DB2306C131D91D6B9DF0ABD9 /* AppStateWikiLinkTests.swift in Sources */,
+				8186813525CDD3D791D83D77 /* GitAutoSaveTests.swift in Sources */,
 				4343A4190A6FA3B0BB2F33F7 /* SettingsManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -35,6 +35,12 @@ struct NotedApp: App {
                     appState.pickFolder()
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                Button("Close Vault") {
+                    appState.exitVault()
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .disabled(appState.rootURL == nil)
             }
 
             CommandGroup(after: .newItem) {

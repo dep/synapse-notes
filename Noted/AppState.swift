@@ -40,6 +40,7 @@ class AppState: ObservableObject {
     @Published var isDirty: Bool = false
     @Published var allFiles: [URL] = []
     @Published var allProjectFiles: [URL] = []
+    @Published var recentFiles: [URL] = []
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
     @Published var isCommandPalettePresented: Bool = false
@@ -97,10 +98,8 @@ class AppState: ObservableObject {
     }
 
     @objc private func handleAppTermination() {
-        guard let git = gitService, git.hasRemote() else { return }
-        try? git.pullRebase()
-        guard !git.hasConflicts() else { return }
-        try? git.push()
+        // Try auto-push if enabled (includes pulling, squashing, and pushing)
+        autoPushIfEnabled()
     }
 
     private func startWatching(_ url: URL) {
@@ -331,6 +330,40 @@ class AppState: ObservableObject {
         setupGit(for: url)
     }
 
+    /// Exits the current vault/folder and returns to the splash screen
+    func exitVault() {
+        // Try auto-push if enabled before exiting
+        autoPushIfEnabled()
+
+        // Clean up git service
+        gitService = nil
+        gitBranch = "main"
+        gitAheadCount = 0
+        gitSyncStatus = .notGitRepo
+
+        // Clean up file watching
+        stopWatching()
+
+        // Reset file state
+        selectedFile = nil
+        fileContent = ""
+        isDirty = false
+
+        // Reset history
+        history = []
+        historyIndex = -1
+        navigatingHistory = false
+        canGoBack = false
+        canGoForward = false
+
+        // Clear all files
+        allFiles = []
+        allProjectFiles = []
+
+        // Finally, clear the root URL to show the splash screen
+        rootURL = nil
+    }
+
     private func setupGit(for url: URL) {
         pushTimer?.invalidate()
         pushTimer = nil
@@ -543,7 +576,10 @@ class AppState: ObservableObject {
     }
 
     func openFile(_ url: URL) {
-        if isDirty { saveCurrentFile(content: fileContent) }
+        if isDirty { 
+            saveCurrentFile(content: fileContent)
+            autoPushIfEnabled()
+        }
         dismissCommandPalette()
         dismissRootNoteSheet()
         if !navigatingHistory {
@@ -558,6 +594,9 @@ class AppState: ObservableObject {
         isDirty = false
         startWatching(url)
         updateHistoryState()
+        recentFiles.removeAll { $0 == url }
+        recentFiles.insert(url, at: 0)
+        if recentFiles.count > 40 { recentFiles = Array(recentFiles.prefix(40)) }
     }
 
     func goBack() {
@@ -586,24 +625,60 @@ class AppState: ObservableObject {
         try? content.write(to: url, atomically: true, encoding: .utf8)
         isDirty = false
         lastObservedModificationDate = fileModificationDate(for: url)
-        scheduleGitCommit(for: url)
+        stageGitChanges()
     }
 
-    private func scheduleGitCommit(for url: URL) {
-        guard let git = gitService else { return }
-        let message = "Update to \(url.lastPathComponent) on \(machineName)"
+    /// Stages changes for git (used by auto-save to stage without committing)
+    private func stageGitChanges() {
+        // Only stage if auto-save or auto-push is enabled
+        guard (settings.autoSave || settings.autoPush), let git = gitService else { return }
 
-        gitSyncStatus = .committing
         gitQueue.async { [weak self] in
             guard let self else { return }
             do {
                 if git.hasChanges() {
                     try git.stageAll()
+                }
+            } catch {
+                // Silently fail - staging isn't critical, will be retried on push
+            }
+        }
+    }
+
+    /// Performs auto-push if enabled: commits staged changes and pushes
+    func autoPushIfEnabled() {
+        guard settings.autoPush, let git = gitService, git.hasRemote() else { return }
+
+        gitSyncStatus = .pushing
+        gitQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                // Pull first to avoid conflicts
+                try git.pullRebase()
+
+                guard !git.hasConflicts() else {
+                    DispatchQueue.main.async {
+                        self.gitSyncStatus = .conflict("Merge conflicts detected. Resolve manually.")
+                    }
+                    return
+                }
+
+                // Stage any uncommitted changes and commit them
+                if git.hasChanges() {
+                    try git.stageAll()
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
+                    let timestamp = dateFormatter.string(from: Date())
+                    let message = "auto: update notes [\(timestamp)]"
                     try git.commit(message: message)
                 }
-                let ahead = git.aheadCount()
+
+                // Push all commits
+                try git.push()
+
+                let newAhead = git.aheadCount()
                 DispatchQueue.main.async {
-                    self.gitAheadCount = ahead
+                    self.gitAheadCount = newAhead
                     self.gitSyncStatus = .idle
                 }
             } catch {

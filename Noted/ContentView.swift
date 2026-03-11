@@ -101,6 +101,7 @@ struct ContentView: View {
 
     private var headerBar: some View {
         HStack(spacing: 12) {
+            // Left side: Title, folder, and navigation
             HStack(spacing: 10) {
                 Text("Noted")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -114,6 +115,26 @@ struct ContentView: View {
                         .padding(.vertical, 4)
                         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
+                
+                // Navigation buttons moved to left side
+                HStack(spacing: 4) {
+                    Button(action: appState.goBack) {
+                        Image(systemName: "chevron.left")
+                    }
+                    .buttonStyle(ChromeButtonStyle())
+                    .disabled(!appState.canGoBack)
+                    .keyboardShortcut("[", modifiers: .command)
+                    .help("Go Back (⌘[)")
+
+                    Button(action: appState.goForward) {
+                        Image(systemName: "chevron.right")
+                    }
+                    .buttonStyle(ChromeButtonStyle())
+                    .disabled(!appState.canGoForward)
+                    .keyboardShortcut("]", modifiers: .command)
+                    .help("Go Forward (⌘])")
+                }
+                .padding(.leading, 8)
             }
 
             Spacer(minLength: 0)
@@ -131,6 +152,7 @@ struct ContentView: View {
                 }
             }
 
+            // Right side: Other toolbar buttons (without back/forward)
             HStack(spacing: 8) {
                 headerToggleButton(
                     systemName: isLeftSidebarVisible ? "sidebar.left" : "sidebar.left",
@@ -155,22 +177,6 @@ struct ContentView: View {
                     help: isRightSidebarVisible ? "Hide Right Sidebar" : "Show Right Sidebar"
                 )
 
-                Button(action: appState.goBack) {
-                    Image(systemName: "chevron.left")
-                }
-                .buttonStyle(ChromeButtonStyle())
-                .disabled(!appState.canGoBack)
-                .keyboardShortcut("[", modifiers: .command)
-                .help("Go Back (⌘[)")
-
-                Button(action: appState.goForward) {
-                    Image(systemName: "chevron.right")
-                }
-                .buttonStyle(ChromeButtonStyle())
-                .disabled(!appState.canGoForward)
-                .keyboardShortcut("]", modifiers: .command)
-                .help("Go Forward (⌘])")
-
                 Button(action: appState.pickFolder) {
                     Image(systemName: "folder.badge.plus")
                 }
@@ -184,7 +190,10 @@ struct ContentView: View {
                 }
 
                 if appState.selectedFile != nil {
-                    Button(action: { appState.saveCurrentFile(content: appState.fileContent) }) {
+                    Button(action: { 
+                        appState.saveCurrentFile(content: appState.fileContent)
+                        appState.autoPushIfEnabled()
+                    }) {
                         Image(systemName: "square.and.arrow.down")
                     }
                     .buttonStyle(PrimaryChromeButtonStyle())
@@ -192,6 +201,14 @@ struct ContentView: View {
                     .help("Save (⌘S)")
                     .opacity(appState.isDirty ? 1 : 0.78)
                 }
+                
+                // Exit vault button - far right
+                Button(action: { appState.exitVault() }) {
+                    Image(systemName: "xmark.circle")
+                }
+                .buttonStyle(ChromeButtonStyle())
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+                .help("Exit Vault (⌘⇧N)")
             }
         }
         .padding(.horizontal, 16)

@@ -174,9 +174,11 @@ final class SettingsManagerTests: XCTestCase {
 
     func test_load_readsFromDisk() {
         // Pre-write a config file
-        let config: [String: String] = [
+        let config: [String: Any] = [
             "onBootCommand": "npm start",
-            "fileExtensionFilter": "*.swift"
+            "fileExtensionFilter": "*.swift",
+            "autoSave": false,
+            "autoPush": false
         ]
         let data = try! JSONSerialization.data(withJSONObject: config)
         try! data.write(to: URL(fileURLWithPath: configFilePath))
