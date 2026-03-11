@@ -166,4 +166,121 @@ final class AppStateTabsTests: XCTestCase {
         XCTAssertNil(sut.activeTabIndex)
         XCTAssertNil(sut.selectedFile)
     }
+
+    // MARK: - Keyboard Shortcuts
+
+    func test_switchToTabShortcut_usesOneBasedIndex() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+        sut.openFileInNewTab(fileC)
+
+        sut.switchToTabShortcut(2)
+
+        XCTAssertEqual(sut.activeTabIndex, 1)
+        XCTAssertEqual(sut.selectedFile, fileB)
+    }
+
+    func test_switchToTabShortcut_nineSelectsLastTab() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+        sut.openFileInNewTab(fileC)
+
+        sut.switchToTabShortcut(9)
+
+        XCTAssertEqual(sut.activeTabIndex, 2)
+        XCTAssertEqual(sut.selectedFile, fileC)
+    }
+
+    func test_switchToTabShortcut_outOfRangeDoesNothing() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+
+        sut.switchToTabShortcut(3)
+
+        XCTAssertEqual(sut.activeTabIndex, 1)
+        XCTAssertEqual(sut.selectedFile, fileB)
+    }
+
+    func test_reopenClosedTab_restoresMostRecentlyClosedTab() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+
+        sut.closeTab(at: 1)
+        sut.reopenLastClosedTab()
+
+        XCTAssertEqual(sut.tabs, [fileA, fileB])
+        XCTAssertEqual(sut.activeTabIndex, 1)
+        XCTAssertEqual(sut.selectedFile, fileB)
+    }
+
+    func test_reopenClosedTab_reopensMultipleTabsInReverseCloseOrder() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+        sut.openFileInNewTab(fileC)
+
+        sut.closeTab(at: 2)
+        sut.closeTab(at: 1)
+
+        sut.reopenLastClosedTab()
+        XCTAssertEqual(sut.tabs, [fileA, fileB])
+        XCTAssertEqual(sut.selectedFile, fileB)
+
+        sut.reopenLastClosedTab()
+        XCTAssertEqual(sut.tabs, [fileA, fileB, fileC])
+        XCTAssertEqual(sut.selectedFile, fileC)
+    }
+
+    func test_reopenClosedTab_withNoClosedTabs_doesNothing() {
+        sut.openFile(fileA)
+
+        sut.reopenLastClosedTab()
+
+        XCTAssertEqual(sut.tabs, [fileA])
+        XCTAssertEqual(sut.activeTabIndex, 0)
+        XCTAssertEqual(sut.selectedFile, fileA)
+    }
+
+    func test_switchToPreviousTab_movesLeft() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+        sut.openFileInNewTab(fileC)
+
+        sut.switchToPreviousTab()
+
+        XCTAssertEqual(sut.activeTabIndex, 1)
+        XCTAssertEqual(sut.selectedFile, fileB)
+    }
+
+    func test_switchToNextTab_movesRight() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+        sut.openFileInNewTab(fileC)
+        sut.switchTab(to: 0)
+
+        sut.switchToNextTab()
+
+        XCTAssertEqual(sut.activeTabIndex, 1)
+        XCTAssertEqual(sut.selectedFile, fileB)
+    }
+
+    func test_switchToPreviousTab_atFirstTab_doesNothing() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+        sut.switchTab(to: 0)
+
+        sut.switchToPreviousTab()
+
+        XCTAssertEqual(sut.activeTabIndex, 0)
+        XCTAssertEqual(sut.selectedFile, fileA)
+    }
+
+    func test_switchToNextTab_atLastTab_doesNothing() {
+        sut.openFile(fileA)
+        sut.openFileInNewTab(fileB)
+
+        sut.switchToNextTab()
+
+        XCTAssertEqual(sut.activeTabIndex, 1)
+        XCTAssertEqual(sut.selectedFile, fileB)
+    }
 }

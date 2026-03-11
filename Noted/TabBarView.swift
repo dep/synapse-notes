@@ -2,7 +2,6 @@ import SwiftUI
 
 struct TabBarView: View {
     @EnvironmentObject var appState: AppState
-    @State private var hoveredTabIndex: Int? = nil
     
     var body: some View {
         HStack(spacing: 0) {
@@ -50,15 +49,13 @@ struct TabItemView: View {
                     .foregroundStyle(isActive ? NotedTheme.textPrimary : NotedTheme.textMuted)
                     .lineLimit(1)
                 
-                // Close button - visible on hover or when active
                 if isActive || isHovered {
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(NotedTheme.textMuted)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(width: 16, height: 16)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(NotedTheme.textMuted)
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: onClose)
                 }
             }
             .padding(.horizontal, 12)
@@ -72,11 +69,10 @@ struct TabItemView: View {
             )
             .overlay(
                 Rectangle()
-                    .fill(NotedTheme.accent)
+                    .fill(isActive ? NotedTheme.accent : Color.clear)
                     .frame(height: 2),
                 alignment: .bottom
             )
-            .opacity(isActive ? 1.0 : 0.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering in

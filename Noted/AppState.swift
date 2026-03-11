@@ -73,6 +73,7 @@ class AppState: ObservableObject {
     private var historyIndex: Int = -1
     private var navigatingHistory = false
     private var lastObservedModificationDate: Date?
+    private var closedTabs: [(url: URL, index: Int)] = []
 
     private var saveCancellable: AnyCancellable?
     private var fileWatcher: DispatchSourceFileSystemObject?
@@ -524,6 +525,35 @@ class AppState: ObservableObject {
         return url
     }
 
+    func createNewUntitledNote() {
+        guard let root = rootURL else { return }
+        
+        // Generate unique name
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        let timestamp = dateFormatter.string(from: Date())
+        let baseName = "Untitled-\(timestamp).md"
+        
+        do {
+            let fileName = try prepareName(baseName, defaultExtension: "md")
+            let url = standardized(root.appendingPathComponent(fileName))
+            
+            // Create file directly without opening it
+            let fm = FileManager.default
+            guard !fm.fileExists(atPath: url.path) else { return }
+            
+            let created = fm.createFile(atPath: url.path, contents: Data(), attributes: nil)
+            guard created else { return }
+            
+            refreshAllFiles()
+            
+            // Now open in new tab
+            openFileInNewTab(url)
+        } catch {
+            // Silently fail
+        }
+    }
+
     @discardableResult
     func createFolder(named name: String, in directory: URL? = nil) throws -> URL {
         let fm = FileManager.default
@@ -614,19 +644,34 @@ class AppState: ObservableObject {
     func openFileInNewTab(_ url: URL) {
         // If file already open in a tab, just switch to it
         if let existingIndex = tabs.firstIndex(of: url) {
-            activeTabIndex = existingIndex
-            // Still need to actually open the file content
-            openFile(url)
-            // Restore the tab selection (openFile replaces)
-            activeTabIndex = existingIndex
-        } else {
-            // Add new tab and open file
-            tabs.append(url)
-            activeTabIndex = tabs.count - 1
-            openFile(url)
-            // Restore the tab selection (openFile replaces)
-            activeTabIndex = tabs.count - 1
+            switchTab(to: existingIndex)
+            return
         }
+        
+        // Add new tab
+        tabs.append(url)
+        activeTabIndex = tabs.count - 1
+        
+        // Load file content directly (don't use openFile which replaces current tab)
+        selectedFile = url
+        fileContent = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        isDirty = false
+        startWatching(url)
+        
+        // Update history
+        if !navigatingHistory {
+            if historyIndex < history.count - 1 {
+                history = Array(history.prefix(historyIndex + 1))
+            }
+            history.append(url)
+            historyIndex = history.count - 1
+        }
+        updateHistoryState()
+        
+        // Update recent files
+        recentFiles.removeAll { $0 == url }
+        recentFiles.insert(url, at: 0)
+        if recentFiles.count > 40 { recentFiles = Array(recentFiles.prefix(40)) }
     }
 
     func closeTab(at index: Int) {
@@ -639,6 +684,8 @@ class AppState: ObservableObject {
             saveCurrentFile(content: fileContent)
         }
         
+        let closedURL = tabs[index]
+        closedTabs.append((url: closedURL, index: index))
         tabs.remove(at: index)
         
         if tabs.isEmpty {
@@ -682,6 +729,46 @@ class AppState: ObservableObject {
         fileContent = (try? String(contentsOf: newFile, encoding: .utf8)) ?? ""
         isDirty = false
         startWatching(newFile)
+    }
+
+    func switchToTabShortcut(_ shortcutNumber: Int) {
+        guard shortcutNumber >= 1, !tabs.isEmpty else { return }
+
+        if shortcutNumber == 9 {
+            switchTab(to: tabs.count - 1)
+            return
+        }
+
+        let index = shortcutNumber - 1
+        guard index < tabs.count else { return }
+        switchTab(to: index)
+    }
+
+    func reopenLastClosedTab() {
+        guard let closedTab = closedTabs.popLast() else { return }
+
+        if let existingIndex = tabs.firstIndex(of: closedTab.url) {
+            switchTab(to: existingIndex)
+            return
+        }
+
+        if isDirty {
+            saveCurrentFile(content: fileContent)
+        }
+
+        let insertIndex = min(closedTab.index, tabs.count)
+        tabs.insert(closedTab.url, at: insertIndex)
+        switchTab(to: insertIndex)
+    }
+
+    func switchToPreviousTab() {
+        guard let activeTabIndex, activeTabIndex > 0 else { return }
+        switchTab(to: activeTabIndex - 1)
+    }
+
+    func switchToNextTab() {
+        guard let activeTabIndex, activeTabIndex < tabs.count - 1 else { return }
+        switchTab(to: activeTabIndex + 1)
     }
 
     func goBack() {

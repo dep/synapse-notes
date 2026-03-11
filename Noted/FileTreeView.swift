@@ -481,7 +481,13 @@ struct FileNodeRow: View {
             if isExpanded { expandedDirs.remove(node.url) }
             else { expandedDirs.insert(node.url) }
         } else {
-            appState.openFile(node.url)
+            // Check if Cmd key is pressed
+            let isCmdPressed = NSEvent.modifierFlags.contains(.command)
+            if isCmdPressed {
+                appState.openFileInNewTab(node.url)
+            } else {
+                appState.openFile(node.url)
+            }
         }
     }
 }

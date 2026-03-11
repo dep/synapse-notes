@@ -82,6 +82,41 @@ struct ContentView: View {
                 }
                 .keyboardShortcut("w", modifiers: .command)
                 .hidden()
+                Button("") {
+                    appState.createNewUntitledNote()
+                }
+                .keyboardShortcut("t", modifiers: .command)
+                .hidden()
+                Button("") { appState.reopenLastClosedTab() }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(1) }
+                    .keyboardShortcut("1", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(2) }
+                    .keyboardShortcut("2", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(3) }
+                    .keyboardShortcut("3", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(4) }
+                    .keyboardShortcut("4", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(5) }
+                    .keyboardShortcut("5", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(6) }
+                    .keyboardShortcut("6", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(7) }
+                    .keyboardShortcut("7", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(8) }
+                    .keyboardShortcut("8", modifiers: .command)
+                    .hidden()
+                Button("") { appState.switchToTabShortcut(9) }
+                    .keyboardShortcut("9", modifiers: .command)
+                    .hidden()
             }
         }
         .animation(.easeInOut(duration: 0.14), value: appState.isCommandPalettePresented)
@@ -138,6 +173,13 @@ struct ContentView: View {
                     .keyboardShortcut("[", modifiers: .command)
                     .help("Go Back (⌘[)")
 
+                    Button(action: appState.switchToPreviousTab) {
+                        EmptyView()
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("[", modifiers: [.command, .shift])
+                    .hidden()
+
                     Button(action: appState.goForward) {
                         Image(systemName: "chevron.right")
                     }
@@ -145,6 +187,13 @@ struct ContentView: View {
                     .disabled(!appState.canGoForward)
                     .keyboardShortcut("]", modifiers: .command)
                     .help("Go Forward (⌘])")
+
+                    Button(action: appState.switchToNextTab) {
+                        EmptyView()
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("]", modifiers: [.command, .shift])
+                    .hidden()
                 }
                 .padding(.leading, 8)
             }
