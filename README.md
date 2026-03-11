@@ -79,6 +79,54 @@ The test suite includes:
 - Relative path formatting
 - Wiki-link and backlink resolution
 
+## Release Build And Notarization
+
+To create a shareable macOS build, use a Release archive signed with `Developer ID Application`, then notarize and staple it.
+
+Prerequisites:
+
+- A valid `Developer ID Application` certificate with private key installed in your login keychain
+- A configured notarization profile for `notarytool` (example: `noted-notary`)
+- `project.yml` must remain the source of truth for release signing settings; do not rely on Xcode-only UI changes because `xcodegen generate` will overwrite them
+
+Create a signed Release archive:
+
+```bash
+xcodegen generate && \
+xcodebuild archive \
+  -project "Noted.xcodeproj" \
+  -scheme "Noted" \
+  -configuration Release \
+  -destination "generic/platform=macOS" \
+  -archivePath "/tmp/Noted.xcarchive"
+```
+
+Package the app for notarization:
+
+```bash
+ditto -c -k --keepParent \
+  "/tmp/Noted.xcarchive/Products/Applications/Noted.app" \
+  "/tmp/Noted.zip"
+```
+
+Submit, wait, and staple:
+
+```bash
+xcrun notarytool submit "/tmp/Noted.zip" --keychain-profile "noted-notary" --wait && \
+xcrun stapler staple "/tmp/Noted.xcarchive/Products/Applications/Noted.app" && \
+spctl --assess --type execute --verbose=4 "/tmp/Noted.xcarchive/Products/Applications/Noted.app"
+```
+
+Expected successful validation output includes:
+
+- `accepted`
+- `source=Notarized Developer ID`
+
+Artifacts:
+
+- notarized app: `/tmp/Noted.xcarchive/Products/Applications/Noted.app`
+- shareable zip: `/tmp/Noted.zip`
+
 ## Notes
 
 - The project uses `SwiftTerm` via Swift Package Manager.

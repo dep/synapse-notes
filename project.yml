@@ -24,6 +24,12 @@ targets:
         SWIFT_VERSION: 5.0
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         INFOPLIST_FILE: Noted/Info.plist
+        ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: 299R8V27FZ
+          CODE_SIGN_IDENTITY: Developer ID Application
     dependencies:
       - package: SwiftTerm
     entitlements:

@@ -6,6 +6,34 @@
 xcodegen generate && xcodebuild -project "Noted.xcodeproj" -scheme "Noted" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Noted-*/Build/Products/Debug/Noted.app
 ```
 
+2. Release/distribution changes must be reflected in `project.yml`, not only in Xcode UI. This repo uses `xcodegen`, so signing or hardened runtime changes made only in Xcode will be overwritten the next time the project is generated.
+
+3. For a notarized release build, use this flow:
+
+```
+xcodegen generate && \
+xcodebuild archive \
+  -project "Noted.xcodeproj" \
+  -scheme "Noted" \
+  -configuration Release \
+  -destination "generic/platform=macOS" \
+  -archivePath "/tmp/Noted.xcarchive"
+
+ditto -c -k --keepParent \
+  "/tmp/Noted.xcarchive/Products/Applications/Noted.app" \
+  "/tmp/Noted.zip"
+
+xcrun notarytool submit "/tmp/Noted.zip" --keychain-profile "noted-notary" --wait && \
+xcrun stapler staple "/tmp/Noted.xcarchive/Products/Applications/Noted.app" && \
+spctl --assess --type execute --verbose=4 "/tmp/Noted.xcarchive/Products/Applications/Noted.app"
+```
+
+4. Release prerequisites:
+
+- `Developer ID Application` certificate with private key installed locally
+- notarization credentials stored in a `notarytool` keychain profile (currently `noted-notary`)
+- Release signing and hardened runtime configured in `project.yml`
+
 ---
 
 ## Project Overview
