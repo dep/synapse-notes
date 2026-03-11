@@ -170,55 +170,50 @@ struct TagPageNoteRow: View {
     @State private var isHovered = false
     
     var body: some View {
-        Button(action: { }) {
-            HStack(spacing: 10) {
-                Image(systemName: "doc.text")
-                    .foregroundStyle(NotedTheme.accent)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(url.deletingPathExtension().lastPathComponent)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(NotedTheme.textPrimary)
-                        .lineLimit(1)
-                    Text(appState.relativePath(for: url))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(NotedTheme.textMuted)
-                        .lineLimit(1)
-                }
-                
-                Spacer()
-                
-                if isHovered {
-                    Text("⌘+Click for new tab")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundStyle(NotedTheme.textMuted)
-                }
+        HStack(spacing: 10) {
+            Image(systemName: "doc.text")
+                .foregroundStyle(NotedTheme.accent)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(url.deletingPathExtension().lastPathComponent)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(NotedTheme.textPrimary)
+                    .lineLimit(1)
+                Text(appState.relativePath(for: url))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(NotedTheme.textMuted)
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(NotedTheme.row)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(NotedTheme.rowBorder, lineWidth: 1)
-                    }
+            
+            Spacer()
+            
+            if isHovered {
+                Text("⌘+Click for new tab")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(NotedTheme.textMuted)
             }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(NotedTheme.row)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(NotedTheme.rowBorder, lineWidth: 1)
+                }
+        }
+        .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering
         }
-        .gesture(
-            TapGesture(count: 1)
-                .onEnded { _ in
-                    let isCommandPressed = NSEvent.modifierFlags.contains(.command)
-                    if isCommandPressed {
-                        appState.openFileInNewTab(url)
-                    } else {
-                        appState.openFile(url)
-                    }
-                }
-        )
+        .onTapGesture {
+            let isCommandPressed = NSEvent.modifierFlags.contains(.command)
+            if isCommandPressed {
+                appState.openFileInNewTab(url)
+            } else {
+                appState.openFile(url)
+            }
+        }
     }
 }
