@@ -38,6 +38,42 @@ struct TemplateRenameRequest: Identifiable {
     let url: URL
 }
 
+// MARK: - Tab Item
+/// Represents an item that can be displayed in a tab - either a file or a tag
+enum TabItem: Hashable {
+    case file(URL)
+    case tag(String)
+    
+    var displayName: String {
+        switch self {
+        case .file(let url):
+            return url.lastPathComponent
+        case .tag(let tagName):
+            return "#\(tagName)"
+        }
+    }
+    
+    var isFile: Bool {
+        if case .file = self { return true }
+        return false
+    }
+    
+    var isTag: Bool {
+        if case .tag = self { return true }
+        return false
+    }
+    
+    var fileURL: URL? {
+        if case .file(let url) = self { return url }
+        return nil
+    }
+    
+    var tagName: String? {
+        if case .tag(let name) = self { return name }
+        return nil
+    }
+}
+
 class AppState: ObservableObject {
     enum CommandPaletteMode {
         case files
@@ -53,8 +89,15 @@ class AppState: ObservableObject {
     @Published var recentFiles: [URL] = []
     
     // Tabs
-    @Published var tabs: [URL] = []
+    @Published var tabs: [TabItem] = []
     @Published var activeTabIndex: Int? = nil
+    
+    /// Returns the currently active TabItem, if any
+    var activeTab: TabItem? {
+        guard let index = activeTabIndex, index >= 0, index < tabs.count else { return nil }
+        return tabs[index]
+    }
+    
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
     @Published var isCommandPalettePresented: Bool = false
@@ -86,8 +129,8 @@ class AppState: ObservableObject {
     private var historyIndex: Int = -1
     private var navigatingHistory = false
     private var lastObservedModificationDate: Date?
-    private var closedTabs: [(url: URL, index: Int)] = []
-    private var tabMRU: [URL] = []
+    private var closedTabs: [(item: TabItem, index: Int)] = []
+    private var tabMRU: [TabItem] = []
     private let now: () -> Date
 
     private var saveCancellable: AnyCancellable?
@@ -193,9 +236,9 @@ class AppState: ObservableObject {
         }
     }
 
-    private func recordTabRecency(for url: URL) {
-        tabMRU.removeAll { $0 == url }
-        tabMRU.insert(url, at: 0)
+    private func recordTabRecency(for item: TabItem) {
+        tabMRU.removeAll { $0 == item }
+        tabMRU.insert(item, at: 0)
     }
 
     private func activateTab(at index: Int, updateRecency: Bool = true, resetCycle: Bool = true) {
@@ -206,14 +249,23 @@ class AppState: ObservableObject {
         }
 
         activeTabIndex = index
-        let newFile = tabs[index]
-        selectedFile = newFile
-        fileContent = (try? String(contentsOf: newFile, encoding: .utf8)) ?? ""
-        isDirty = false
-        startWatching(newFile)
-
-        if updateRecency {
-            recordTabRecency(for: newFile)
+        let tab = tabs[index]
+        
+        switch tab {
+        case .file(let url):
+            selectedFile = url
+            fileContent = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            isDirty = false
+            startWatching(url)
+            if updateRecency {
+                recordTabRecency(for: tab)
+            }
+        case .tag(let tagName):
+            // Tag tab - clear file state
+            selectedFile = nil
+            fileContent = ""
+            isDirty = false
+            stopWatching()
         }
 
     }
@@ -361,6 +413,47 @@ class AppState: ObservableObject {
             let raw = nsText.substring(with: match.range(at: 1))
             let normalized = normalizedNoteReference(raw)
             return normalized.isEmpty ? nil : normalized
+        }
+    }
+
+    // MARK: - Tags
+
+    /// Extracts all hashtags from text, normalizes to lowercase, removes duplicates
+    func extractTags(from text: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: #"#([a-zA-Z][a-zA-Z0-9_\-\.]*)"#) else { return [] }
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        var uniqueTags = Set<String>()
+        return matches.compactMap { match in
+            guard match.numberOfRanges > 1 else { return nil }
+            let raw = nsText.substring(with: match.range(at: 1))
+            let normalized = raw.lowercased()
+            guard !normalized.isEmpty, normalized.rangeOfCharacter(from: .letters) != nil else { return nil }
+            guard uniqueTags.insert(normalized).inserted else { return nil }
+            return normalized
+        }.sorted()
+    }
+
+    /// Returns all unique tags across all notes with their counts
+    func allTags() -> [String: Int] {
+        var tagCounts: [String: Int] = [:]
+        for url in allFiles {
+            guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let tags = extractTags(from: content)
+            for tag in tags {
+                tagCounts[tag, default: 0] += 1
+            }
+        }
+        return tagCounts
+    }
+
+    /// Returns all notes that contain a specific tag (case-insensitive)
+    func notesWithTag(_ tag: String) -> [URL] {
+        let normalizedTag = tag.lowercased()
+        return allFiles.filter { url in
+            guard let content = try? String(contentsOf: url, encoding: .utf8) else { return false }
+            let tags = extractTags(from: content)
+            return tags.contains(normalizedTag)
         }
     }
 
@@ -793,22 +886,22 @@ class AppState: ObservableObject {
         
         // Tab management: replace current tab (default behavior)
         if let activeIndex = activeTabIndex {
-            tabs[activeIndex] = url
+            tabs[activeIndex] = .file(url)
         } else {
-            tabs.append(url)
+            tabs.append(.file(url))
             activeTabIndex = tabs.count - 1
         }
     }
 
     func openFileInNewTab(_ url: URL) {
         // If file already open in a tab, just switch to it
-        if let existingIndex = tabs.firstIndex(of: url) {
+        if let existingIndex = tabs.firstIndex(of: .file(url)) {
             switchTab(to: existingIndex)
             return
         }
         
         // Add new tab
-        tabs.append(url)
+        tabs.append(.file(url))
         activeTabIndex = tabs.count - 1
         
         // Load file content directly (don't use openFile which replaces current tab)
@@ -831,7 +924,28 @@ class AppState: ObservableObject {
         recentFiles.removeAll { $0 == url }
         recentFiles.insert(url, at: 0)
         if recentFiles.count > 40 { recentFiles = Array(recentFiles.prefix(40)) }
-        recordTabRecency(for: url)
+        recordTabRecency(for: .file(url))
+    }
+    
+    func openTagInNewTab(_ tag: String) {
+        // If tag already open in a tab, just switch to it
+        if let existingIndex = tabs.firstIndex(of: .tag(tag)) {
+            switchTab(to: existingIndex)
+            return
+        }
+        
+        // Add new tag tab
+        tabs.append(.tag(tag))
+        activeTabIndex = tabs.count - 1
+        
+        // Clear file-related state since we're viewing a tag
+        selectedFile = nil
+        fileContent = ""
+        isDirty = false
+        stopWatching()
+        
+        // Update recency
+        recordTabRecency(for: .tag(tag))
     }
 
     func closeTab(at index: Int) {
@@ -844,9 +958,9 @@ class AppState: ObservableObject {
             saveCurrentFile(content: fileContent)
         }
         
-        let closedURL = tabs[index]
-        closedTabs.append((url: closedURL, index: index))
-        tabMRU.removeAll { $0 == closedURL }
+        let closedItem = tabs[index]
+        closedTabs.append((item: closedItem, index: index))
+        tabMRU.removeAll { $0 == closedItem }
         tabs.remove(at: index)
         
         if tabs.isEmpty {
@@ -869,12 +983,7 @@ class AppState: ObservableObject {
         
         // Load the new active tab's content
         if let newIndex = activeTabIndex {
-            let newFile = tabs[newIndex]
-            selectedFile = newFile
-            fileContent = (try? String(contentsOf: newFile, encoding: .utf8)) ?? ""
-            isDirty = false
-            startWatching(newFile)
-            recordTabRecency(for: newFile)
+            activateTab(at: newIndex)
         }
     }
 
@@ -898,7 +1007,7 @@ class AppState: ObservableObject {
     func reopenLastClosedTab() {
         guard let closedTab = closedTabs.popLast() else { return }
 
-        if let existingIndex = tabs.firstIndex(of: closedTab.url) {
+        if let existingIndex = tabs.firstIndex(of: closedTab.item) {
             switchTab(to: existingIndex)
             return
         }
@@ -908,7 +1017,7 @@ class AppState: ObservableObject {
         }
 
         let insertIndex = min(closedTab.index, tabs.count)
-        tabs.insert(closedTab.url, at: insertIndex)
+        tabs.insert(closedTab.item, at: insertIndex)
         switchTab(to: insertIndex)
     }
 
@@ -925,25 +1034,21 @@ class AppState: ObservableObject {
     func closeOtherTabs() {
         guard let activeTabIndex else { return }
 
-        let activeURL = tabs[activeTabIndex]
-        for (index, url) in tabs.enumerated() where index != activeTabIndex {
-            closedTabs.append((url: url, index: index))
+        let activeItem = tabs[activeTabIndex]
+        for (index, item) in tabs.enumerated() where index != activeTabIndex {
+            closedTabs.append((item: item, index: index))
         }
 
-        tabs = [activeURL]
+        tabs = [activeItem]
         self.activeTabIndex = 0
-        selectedFile = activeURL
-        fileContent = (try? String(contentsOf: activeURL, encoding: .utf8)) ?? ""
-        isDirty = false
-        startWatching(activeURL)
-        tabMRU = [activeURL]
+        activateTab(at: 0)
     }
 
     func cycleMostRecentTabs() {
         guard tabs.count > 1 else { return }
 
-        if let selectedFile {
-            recordTabRecency(for: selectedFile)
+        if let activeTabIndex {
+            recordTabRecency(for: tabs[activeTabIndex])
         }
 
         guard tabMRU.count > 1,

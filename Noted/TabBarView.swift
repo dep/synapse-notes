@@ -9,9 +9,9 @@ struct TabBarView: View {
                 // Empty state - show placeholder or nothing
                 EmptyView()
             } else {
-                ForEach(Array(appState.tabs.enumerated()), id: \.offset) { index, url in
+                ForEach(Array(appState.tabs.enumerated()), id: \.offset) { index, tab in
                     TabItemView(
-                        fileName: url.lastPathComponent,
+                        displayName: tab.displayName,
                         isActive: index == appState.activeTabIndex,
                         onSelect: { appState.switchTab(to: index) },
                         onClose: { appState.closeTab(at: index) }
@@ -34,7 +34,7 @@ struct TabBarView: View {
 }
 
 struct TabItemView: View {
-    let fileName: String
+    let displayName: String
     let isActive: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
@@ -42,41 +42,46 @@ struct TabItemView: View {
     @State private var isHovered = false
     
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 4) {
-                Text(fileName)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isActive ? NotedTheme.textPrimary : NotedTheme.textMuted)
-                    .lineLimit(1)
-                
-                if isActive || isHovered {
+        HStack(spacing: 6) {
+            Text(displayName)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundColor(isActive ? NotedTheme.textPrimary : NotedTheme.textSecondary)
+            
+            if isHovered || isActive {
+                Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(NotedTheme.textMuted)
+                        .foregroundColor(NotedTheme.textMuted)
                         .frame(width: 16, height: 16)
                         .contentShape(Rectangle())
-                        .onTapGesture(perform: onClose)
                 }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                Color.clear
+                    .frame(width: 16, height: 16)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(isActive ? NotedTheme.row : Color.clear)
-            .overlay(
-                Rectangle()
-                    .fill(NotedTheme.border)
-                    .frame(width: 1),
-                alignment: .trailing
-            )
-            .overlay(
-                Rectangle()
-                    .fill(isActive ? NotedTheme.accent : Color.clear)
-                    .frame(height: 2),
-                alignment: .bottom
-            )
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(height: 32)
+        .background(
+            isActive ? NotedTheme.tabActive : Color.clear
+        )
+        .contentShape(Rectangle())
         .onHover { hovering in
-            isHovered = hovering
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isHovered = hovering
+            }
+        }
+        .onTapGesture {
+            onSelect()
         }
     }
+}
+
+#Preview {
+    TabBarView()
+        .environmentObject(AppState())
 }

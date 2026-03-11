@@ -11,6 +11,7 @@ enum NotedTheme {
     static let editorShell = Color(white: 0.07)
     static let row = Color.white.opacity(0.04)
     static let rowBorder = Color.white.opacity(0.06)
+    static let tabActive = Color.white.opacity(0.10)
     static let border = Color.white.opacity(0.08)
     static let divider = Color.white.opacity(0.06)
     static let textPrimary = Color.white.opacity(0.92)

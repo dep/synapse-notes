@@ -157,6 +157,7 @@ final class AppStateCoreTests: XCTestCase {
 
     func test_presentRootNoteSheet_withTemplates_presentsCommandPalette() {
         sut.openFolder(tempDir)
+        sut.settings.templatesDirectory = "templates"
         let templatesDirectory = tempDir.appendingPathComponent("templates", isDirectory: true)
         try! FileManager.default.createDirectory(at: templatesDirectory, withIntermediateDirectories: true)
         let template = templatesDirectory.appendingPathComponent("Meeting.md")

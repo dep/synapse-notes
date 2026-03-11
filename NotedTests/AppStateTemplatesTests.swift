@@ -13,6 +13,8 @@ final class AppStateTemplatesTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         sut.openFolder(tempDir)
+        // Ensure templates directory is set to default "templates"
+        sut.settings.templatesDirectory = "templates"
     }
 
     override func tearDown() {
