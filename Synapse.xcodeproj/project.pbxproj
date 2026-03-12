@@ -12,6 +12,7 @@
 		1ED3F09C38165B2493F1F33F /* TabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F24B33A93487844014AF953 /* TabBarView.swift */; };
 		1F887091E0C732D2E108F93F /* GitAutoSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32B4A42DB4CCC2F89A19C2 /* GitAutoSaveTests.swift */; };
 		299185049C56A7F7C6A8EB93 /* RelatedLinksPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62C26BB5AD5C76352C46111E /* RelatedLinksPaneView.swift */; };
+		374896C6C09F48147147D1BD /* AppStateSplitPaneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D4F955DD37FCF31EA4E20E7 /* AppStateSplitPaneTests.swift */; };
 		37D9958A42C0B10CA58FF96E /* AppStateTagsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1AEA1E774C98F1243030F5 /* AppStateTagsTests.swift */; };
 		399BAD4F8D874258D0F43EBB /* GlobalGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3CE451A43640282F817405D /* GlobalGraphView.swift */; };
 		3A7ED42BFA879ABEA38CD06D /* Grape in Frameworks */ = {isa = PBXBuildFile; productRef = E3D1D630282C1FE7995BB335 /* Grape */; };
@@ -25,6 +26,7 @@
 		59A6F7BB258D1FF977C53B25 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CA9E8A87139F33100BCC83 /* CommandPaletteView.swift */; };
 		6044649992300375F1BDB874 /* AppStateGraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF1B8B03D6E5299A4700177 /* AppStateGraphTests.swift */; };
 		61F38C954D4BD659595F04D8 /* AppStateFileOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2819956191CAC51CF76DAFA /* AppStateFileOperationsTests.swift */; };
+		63ED7B40721FC00C49571D34 /* SplitPaneEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7603E5241D305A3BAE781451 /* SplitPaneEditorView.swift */; };
 		716F196A70B019DB1125E38F /* AppStateCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56691DF2CDDFA2DF5F263CF3 /* AppStateCoreTests.swift */; };
 		7FA55FF63CB1CC6E03BEEBCE /* AppStateWikiLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0502C0261847F74C47B810 /* AppStateWikiLinkTests.swift */; };
 		84CE3D3A60AFCABF88D62FFC /* AppStateSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35A600692EB7955AD6BF962D /* AppStateSearchTests.swift */; };
@@ -86,12 +88,14 @@
 		62C26BB5AD5C76352C46111E /* RelatedLinksPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelatedLinksPaneView.swift; sourceTree = "<group>"; };
 		6C665A271CAB4E35735B89A9 /* GitServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitServiceTests.swift; sourceTree = "<group>"; };
 		6DF7018244BB6E635327C670 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		7603E5241D305A3BAE781451 /* SplitPaneEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneEditorView.swift; sourceTree = "<group>"; };
 		78E1B729A125740F1A8C3AAE /* FileTreeHiddenItemsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeHiddenItemsTests.swift; sourceTree = "<group>"; };
 		7F44B71BBF17A11D40E4AF68 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		7F7186E8801E8BC8BAA0678D /* AppStateDailyNotesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateDailyNotesTests.swift; sourceTree = "<group>"; };
 		8F24B33A93487844014AF953 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		928B9D0E079FF89907F205E4 /* TagsPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagsPaneView.swift; sourceTree = "<group>"; };
 		9573DDE37ACEA626605DC7AF /* FileTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeView.swift; sourceTree = "<group>"; };
+		9D4F955DD37FCF31EA4E20E7 /* AppStateSplitPaneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSplitPaneTests.swift; sourceTree = "<group>"; };
 		A798505F66B8166624E3427B /* AppStateTagTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTagTabsTests.swift; sourceTree = "<group>"; };
 		AF32B4A42DB4CCC2F89A19C2 /* GitAutoSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitAutoSaveTests.swift; sourceTree = "<group>"; };
 		B2933BCDF0B2B56488D2D9F4 /* TerminalPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPaneView.swift; sourceTree = "<group>"; };
@@ -139,6 +143,7 @@
 				7F44B71BBF17A11D40E4AF68 /* SearchView.swift */,
 				618D96D297FAC05857339878 /* SettingsManager.swift */,
 				4369EAAC935F20E2DDEE7692 /* SettingsView.swift */,
+				7603E5241D305A3BAE781451 /* SplitPaneEditorView.swift */,
 				5D10844594863C142A8C7D08 /* Synapse.entitlements */,
 				48E13069F2D634A684FAE713 /* SynapseApp.swift */,
 				8F24B33A93487844014AF953 /* TabBarView.swift */,
@@ -172,6 +177,7 @@
 				1609E933DF539DAC00406023 /* AppStateRelativePathTests.swift */,
 				D4482EC8C9915BC9A0022159 /* AppStateSaveTests.swift */,
 				35A600692EB7955AD6BF962D /* AppStateSearchTests.swift */,
+				9D4F955DD37FCF31EA4E20E7 /* AppStateSplitPaneTests.swift */,
 				5A96D01FE3D3F9C3438D9E4A /* AppStateTabsTests.swift */,
 				EE1AEA1E774C98F1243030F5 /* AppStateTagsTests.swift */,
 				A798505F66B8166624E3427B /* AppStateTagTabsTests.swift */,
@@ -297,6 +303,7 @@
 				97EFC86461BB19D45F94FEED /* AppStateRelativePathTests.swift in Sources */,
 				99481587A828F0DD68358B09 /* AppStateSaveTests.swift in Sources */,
 				84CE3D3A60AFCABF88D62FFC /* AppStateSearchTests.swift in Sources */,
+				374896C6C09F48147147D1BD /* AppStateSplitPaneTests.swift in Sources */,
 				CEC89756C5CC8F759BD67615 /* AppStateTabsTests.swift in Sources */,
 				1BC0B2F0938220AACB87EEE5 /* AppStateTagTabsTests.swift in Sources */,
 				37D9958A42C0B10CA58FF96E /* AppStateTagsTests.swift in Sources */,
@@ -327,6 +334,7 @@
 				8E6D96059DE60DF6F6A8EB1F /* SearchView.swift in Sources */,
 				B4518505C126AA57122C59A3 /* SettingsManager.swift in Sources */,
 				3B9F10D03A403CF4EC1042C3 /* SettingsView.swift in Sources */,
+				63ED7B40721FC00C49571D34 /* SplitPaneEditorView.swift in Sources */,
 				F0CC31A93376DEA4A2F12A95 /* SynapseApp.swift in Sources */,
 				1ED3F09C38165B2493F1F33F /* TabBarView.swift in Sources */,
 				95894C3787EAA8AF0D094716 /* TagsPaneView.swift in Sources */,

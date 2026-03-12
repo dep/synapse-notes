@@ -22,25 +22,9 @@ struct ContentView: View {
                             .background(SynapseTheme.panel)
                     }
 
-                    VStack(spacing: 0) {
-                        TabBarView()
-                            .environmentObject(appState)
-
-                        if let activeTab = appState.activeTab, activeTab.isGraph {
-                            GlobalGraphView()
-                                .environmentObject(appState)
-                                .frame(minWidth: 420)
-                        } else if let activeTab = appState.activeTab,
-                           let tagName = activeTab.tagName {
-                            TagPageView(tag: tagName)
-                                .frame(minWidth: 420)
-                                .background(SynapseTheme.editorShell)
-                        } else {
-                            EditorView()
-                                .frame(minWidth: 420)
-                                .background(SynapseTheme.editorShell)
-                        }
-                    }
+                    SplitPaneEditorView()
+                        .environmentObject(appState)
+                        .frame(minWidth: 420)
 
                     if isRightSidebarVisible {
                         SidebarContainerView(settings: appState.settings, isLeft: false)
@@ -137,6 +121,40 @@ struct ContentView: View {
                 Button("") { appState.switchToTabShortcut(9) }
                     .keyboardShortcut("9", modifiers: .command)
                     .hidden()
+                Button("") { appState.splitVertically() }
+                    .keyboardShortcut("d", modifiers: .command)
+                    .hidden()
+                Button("") { appState.splitHorizontally() }
+                    .keyboardShortcut("d", modifiers: [.command, .shift])
+                    .hidden()
+                Button("") {
+                    if let orientation = appState.splitOrientation {
+                        if orientation == .vertical { appState.switchToOtherPane() }
+                    }
+                }
+                .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+                .hidden()
+                Button("") {
+                    if let orientation = appState.splitOrientation {
+                        if orientation == .vertical { appState.switchToOtherPane() }
+                    }
+                }
+                .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+                .hidden()
+                Button("") {
+                    if let orientation = appState.splitOrientation {
+                        if orientation == .horizontal { appState.switchToOtherPane() }
+                    }
+                }
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                .hidden()
+                Button("") {
+                    if let orientation = appState.splitOrientation {
+                        if orientation == .horizontal { appState.switchToOtherPane() }
+                    }
+                }
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                .hidden()
             }
         }
         .animation(.easeInOut(duration: 0.14), value: appState.isCommandPalettePresented)

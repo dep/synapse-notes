@@ -501,6 +501,10 @@ struct FileNodeRow: View {
             .contextMenu {
                 Button("New Note") { appState.presentRootNoteSheet(in: contextDirectory) }
                 Button("New Folder") { onCreateFolder(contextDirectory) }
+                if !node.isDirectory {
+                    Divider()
+                    Button("Open in Split") { appState.openFileInSplit(node.url) }
+                }
                 Divider()
                 Button("Rename") { onRename(node.url, node.isDirectory) }
                 Button("Delete", role: .destructive) { onDelete(node.url, node.isDirectory) }
