@@ -98,6 +98,11 @@ struct ContentView: View {
                     .keyboardShortcut("w", modifiers: [.command, .shift])
                     .hidden()
                 Button("") {
+                    appState.presentRootNoteSheet()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+                .hidden()
+                Button("") {
                     appState.createNewUntitledNote()
                 }
                 .keyboardShortcut("t", modifiers: .command)
@@ -911,7 +916,7 @@ struct SidebarPaneWrapper: View {
             Group {
                 switch pane {
                 case .files:
-                    FileTreeView()
+                    FileTreeView(settings: settings)
                         .frame(minHeight: 150)
                 case .tags:
                     TagsPaneView()

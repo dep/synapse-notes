@@ -131,6 +131,9 @@ class AppState: ObservableObject {
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
     @Published var isCommandPalettePresented: Bool = false
+    @Published var isNewNotePromptRequested: Bool = false
+    @Published var pendingTemplateURL: URL? = nil
+    @Published var pendingCursorPosition: Int? = nil
     @Published var commandPaletteMode: CommandPaletteMode = .files
     @Published var targetDirectoryForTemplate: URL?
     @Published var isRootNoteSheetPresented: Bool = false
@@ -808,6 +811,7 @@ class AppState: ObservableObject {
         isCommandPalettePresented = false
         commandPaletteMode = .files
         targetDirectoryForTemplate = nil
+        pendingTemplateURL = nil
     }
 
     func presentSearch(mode: SearchMode) {
@@ -826,7 +830,7 @@ class AppState: ObservableObject {
         self.targetDirectoryForTemplate = directory
 
         if availableTemplates().isEmpty {
-            createNewUntitledNote()
+            isNewNotePromptRequested = true
         } else {
             pendingTemplateRename = nil
             commandPaletteMode = .templates
@@ -883,6 +887,30 @@ class AppState: ObservableObject {
     }
 
     @discardableResult
+    func createNamedNoteFromTemplate(_ templateURL: URL, named name: String, in directory: URL? = nil) throws -> URL {
+        guard let root = rootURL else { throw FileBrowserError.noWorkspace }
+        let dest = directory ?? targetDirectoryForTemplate ?? currentSynapseirectory() ?? root
+        let fileName = try prepareName(name, defaultExtension: "md")
+        let url = standardized(dest.appendingPathComponent(fileName))
+
+        guard !FileManager.default.fileExists(atPath: url.path) else {
+            throw FileBrowserError.itemAlreadyExists(fileName)
+        }
+
+        let raw = try String(contentsOf: templateURL, encoding: .utf8)
+        let (processed, cursorPosition) = applyTemplateVariables(to: raw)
+        guard FileManager.default.createFile(atPath: url.path, contents: processed.data(using: .utf8), attributes: nil) else {
+            throw FileBrowserError.operationFailed("Could not create the note from the selected template.")
+        }
+
+        refreshAllFiles()
+        targetDirectoryForTemplate = nil
+        openFileInNewTab(url)
+        pendingCursorPosition = cursorPosition
+        return url
+    }
+
+    @discardableResult
     func createNoteFromTemplate(_ templateURL: URL) throws -> URL {
         guard let root = rootURL else { throw FileBrowserError.noWorkspace }
 
@@ -907,6 +935,78 @@ class AppState: ObservableObject {
         pendingTemplateRename = TemplateRenameRequest(url: url)
         targetDirectoryForTemplate = nil
         return url
+    }
+
+    // MARK: - Template Variables
+
+    func applyTemplateVariables(to content: String, date: Date? = nil) -> (content: String, cursorPosition: Int?) {
+        let d = date ?? now()
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: d)
+        let year = String(format: "%04d", components.year ?? 0)
+        let month = String(format: "%02d", components.month ?? 0)
+        let day = String(format: "%02d", components.day ?? 0)
+        let hour24 = components.hour ?? 0
+        let hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12
+        let hourStr = String(format: "%02d", hour12)
+        let minuteStr = String(format: "%02d", components.minute ?? 0)
+        let ampm = hour24 < 12 ? "AM" : "PM"
+        var result = content
+            .replacingOccurrences(of: "{{year}}", with: year)
+            .replacingOccurrences(of: "{{month}}", with: month)
+            .replacingOccurrences(of: "{{day}}", with: day)
+            .replacingOccurrences(of: "{{hour}}", with: hourStr)
+            .replacingOccurrences(of: "{{minute}}", with: minuteStr)
+            .replacingOccurrences(of: "{{ampm}}", with: ampm)
+        let cursorPosition = result.range(of: "{{cursor}}").map { result.distance(from: result.startIndex, to: $0.lowerBound) }
+        result = result.replacingOccurrences(of: "{{cursor}}", with: "")
+        return (result, cursorPosition)
+    }
+
+    // MARK: - Daily Notes
+
+    @discardableResult
+    func openTodayNote() -> URL {
+        let date = now()
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        let year = String(format: "%04d", components.year ?? 0)
+        let month = String(format: "%02d", components.month ?? 0)
+        let day = String(format: "%02d", components.day ?? 0)
+        let fileName = "\(year)-\(month)-\(day).md"
+
+        let root = rootURL ?? FileManager.default.temporaryDirectory
+        let folderName = settings.dailyNotesFolder.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dailyFolderURL = standardized(root.appendingPathComponent(folderName.isEmpty ? "daily" : folderName, isDirectory: true))
+
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: dailyFolderURL.path) {
+            try? fm.createDirectory(at: dailyFolderURL, withIntermediateDirectories: true)
+        }
+
+        let noteURL = standardized(dailyFolderURL.appendingPathComponent(fileName))
+
+        var cursorPosition: Int? = nil
+
+        if !fm.fileExists(atPath: noteURL.path) {
+            var content = ""
+
+            let templateName = settings.dailyNotesTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !templateName.isEmpty, let templatesDir = templatesDirectoryURL() {
+                let templateURL = templatesDir.appendingPathComponent(templateName)
+                if let raw = try? String(contentsOf: templateURL, encoding: .utf8) {
+                    let result = applyTemplateVariables(to: raw, date: date)
+                    content = result.content
+                    cursorPosition = result.cursorPosition
+                }
+            }
+
+            fm.createFile(atPath: noteURL.path, contents: content.data(using: .utf8), attributes: nil)
+            refreshAllFiles()
+        }
+
+        openFileInNewTab(noteURL)
+        pendingCursorPosition = cursorPosition
+        return noteURL
     }
 
     func dismissTemplateRenamePrompt() {

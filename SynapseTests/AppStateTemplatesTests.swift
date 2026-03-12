@@ -23,14 +23,11 @@ final class AppStateTemplatesTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_presentRootNoteSheet_withoutTemplates_createsUntitledBlankNote() throws {
+    func test_presentRootNoteSheet_withoutTemplates_requestsNamePrompt() {
         sut.presentRootNoteSheet()
 
-        let createdNote = try XCTUnwrap(sut.selectedFile)
-        XCTAssertEqual(createdNote.deletingLastPathComponent(), tempDir)
-        XCTAssertTrue(createdNote.lastPathComponent.hasPrefix("Untitled-"))
-        XCTAssertEqual(createdNote.pathExtension, "md")
-        XCTAssertEqual(try String(contentsOf: createdNote, encoding: .utf8), "")
+        XCTAssertTrue(sut.isNewNotePromptRequested)
+        XCTAssertNil(sut.selectedFile)
         XCTAssertFalse(sut.isCommandPalettePresented)
     }
 

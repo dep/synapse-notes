@@ -176,6 +176,13 @@ struct RawEditor: NSViewRepresentable {
         textView.onOpenFile = { appState.openFile($0) }
         textView.onMatchCountUpdate = { count in appState.searchMatchCount = count }
         textView.refreshInlineImagePreviews()
+
+        if let position = appState.pendingCursorPosition {
+            appState.pendingCursorPosition = nil
+            let clamped = min(position, textView.string.count)
+            textView.setSelectedRange(NSRange(location: clamped, length: 0))
+            textView.scrollRangeToVisible(NSRange(location: clamped, length: 0))
+        }
     }
 
     class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {

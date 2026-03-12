@@ -321,12 +321,12 @@ struct CommandPaletteView: View {
         case .files:
             appState.openFile(url)
         case .templates:
-            if url == blankTemplateURL {
-                appState.createNewUntitledNote(promptForRename: true)
-                appState.dismissCommandPalette()
-            } else {
-                _ = try? appState.createNoteFromTemplate(url)
+            appState.isCommandPalettePresented = false
+            appState.commandPaletteMode = .files
+            if url != blankTemplateURL {
+                appState.pendingTemplateURL = url
             }
+            appState.isNewNotePromptRequested = true
         }
     }
 

@@ -32,6 +32,15 @@ class SettingsManager: ObservableObject {
     @Published var templatesDirectory: String {
         didSet { save() }
     }
+    @Published var dailyNotesEnabled: Bool {
+        didSet { save() }
+    }
+    @Published var dailyNotesFolder: String {
+        didSet { save() }
+    }
+    @Published var dailyNotesTemplate: String {
+        didSet { save() }
+    }
     @Published var autoSave: Bool {
         didSet { save() }
     }
@@ -63,6 +72,9 @@ class SettingsManager: ObservableObject {
         var onBootCommand: String
         var fileExtensionFilter: String
         var templatesDirectory: String
+        var dailyNotesEnabled: Bool?
+        var dailyNotesFolder: String?
+        var dailyNotesTemplate: String?
         var autoSave: Bool
         var autoPush: Bool
         var leftSidebarPanes: [SidebarPane]?
@@ -75,6 +87,9 @@ class SettingsManager: ObservableObject {
             onBootCommand: String,
             fileExtensionFilter: String,
             templatesDirectory: String,
+            dailyNotesEnabled: Bool?,
+            dailyNotesFolder: String?,
+            dailyNotesTemplate: String?,
             autoSave: Bool,
             autoPush: Bool,
             leftSidebarPanes: [SidebarPane]?,
@@ -86,6 +101,9 @@ class SettingsManager: ObservableObject {
             self.onBootCommand = onBootCommand
             self.fileExtensionFilter = fileExtensionFilter
             self.templatesDirectory = templatesDirectory
+            self.dailyNotesEnabled = dailyNotesEnabled
+            self.dailyNotesFolder = dailyNotesFolder
+            self.dailyNotesTemplate = dailyNotesTemplate
             self.autoSave = autoSave
             self.autoPush = autoPush
             self.leftSidebarPanes = leftSidebarPanes
@@ -100,6 +118,9 @@ class SettingsManager: ObservableObject {
             onBootCommand = try container.decode(String.self, forKey: .onBootCommand)
             fileExtensionFilter = try container.decode(String.self, forKey: .fileExtensionFilter)
             templatesDirectory = try container.decodeIfPresent(String.self, forKey: .templatesDirectory) ?? "templates"
+            dailyNotesEnabled = try container.decodeIfPresent(Bool.self, forKey: .dailyNotesEnabled)
+            dailyNotesFolder = try container.decodeIfPresent(String.self, forKey: .dailyNotesFolder)
+            dailyNotesTemplate = try container.decodeIfPresent(String.self, forKey: .dailyNotesTemplate)
             autoSave = try container.decodeIfPresent(Bool.self, forKey: .autoSave) ?? false
             autoPush = try container.decodeIfPresent(Bool.self, forKey: .autoPush) ?? false
             leftSidebarPanes = try container.decodeIfPresent([SidebarPane].self, forKey: .leftSidebarPanes)
@@ -128,6 +149,9 @@ class SettingsManager: ObservableObject {
             self.onBootCommand = config.onBootCommand
             self.fileExtensionFilter = config.fileExtensionFilter
             self.templatesDirectory = config.templatesDirectory
+            self.dailyNotesEnabled = config.dailyNotesEnabled ?? false
+            self.dailyNotesFolder = config.dailyNotesFolder ?? "daily"
+            self.dailyNotesTemplate = config.dailyNotesTemplate ?? ""
             self.autoSave = config.autoSave
             self.autoPush = config.autoPush
             self.leftSidebarPanes = config.leftSidebarPanes ?? [.files, .tags, .links]
@@ -139,6 +163,9 @@ class SettingsManager: ObservableObject {
             self.onBootCommand = ""
             self.fileExtensionFilter = "*.md, *.txt"
             self.templatesDirectory = "templates"
+            self.dailyNotesEnabled = false
+            self.dailyNotesFolder = "daily"
+            self.dailyNotesTemplate = ""
             self.autoSave = false
             self.autoPush = false
             self.leftSidebarPanes = [.files, .tags, .links]
@@ -192,6 +219,9 @@ class SettingsManager: ObservableObject {
             onBootCommand: onBootCommand,
             fileExtensionFilter: fileExtensionFilter,
             templatesDirectory: templatesDirectory,
+            dailyNotesEnabled: dailyNotesEnabled,
+            dailyNotesFolder: dailyNotesFolder,
+            dailyNotesTemplate: dailyNotesTemplate,
             autoSave: autoSave,
             autoPush: autoPush,
             leftSidebarPanes: leftSidebarPanes,

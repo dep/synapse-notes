@@ -115,6 +115,7 @@ func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool, s
 
 struct FileTreeView: View {
     @EnvironmentObject var appState: AppState
+    @ObservedObject var settings: SettingsManager
     @State private var nodes: [FileNode] = []
     @State private var expandedDirs: Set<URL> = []
     @State private var editorAction: BrowserEditorAction?
@@ -218,6 +219,32 @@ struct FileTreeView: View {
                 .fill(SynapseTheme.divider)
                 .frame(height: 1)
 
+                if settings.dailyNotesEnabled, appState.rootURL != nil {
+                    Button(action: { appState.openTodayNote() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(SynapseTheme.accent)
+                                .frame(width: 16)
+                            Text("Today")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(SynapseTheme.textPrimary)
+                            Spacer()
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .background {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(SynapseTheme.row)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .stroke(SynapseTheme.rowBorder, lineWidth: 1)
+                                }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 2)
+                }
+
                 ScrollView {
                     if nodes.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -266,11 +293,17 @@ struct FileTreeView: View {
                 expandPath(to: newFile)
                 revealSelection(with: proxy)
             }
-            .onChange(of: appState.settings.fileExtensionFilter) { _, _ in
+            .onChange(of: settings.fileExtensionFilter) { _, _ in
                 refresh()
             }
-            .onChange(of: appState.settings.templatesDirectory) { _, _ in
+            .onChange(of: settings.templatesDirectory) { _, _ in
                 refresh()
+            }
+            .onChange(of: appState.isNewNotePromptRequested) { _, requested in
+                guard requested else { return }
+                appState.isNewNotePromptRequested = false
+                let dir = appState.targetDirectoryForTemplate ?? appState.rootURL
+                presentCreateNote(in: dir)
             }
             .sheet(item: $editorAction) { action in
                 BrowserItemEditorSheet(action: action) { submittedName in
@@ -308,7 +341,7 @@ struct FileTreeView: View {
             nodes = []
             return
         }
-        nodes = buildFileTree(at: root, sortCriterion: appState.sortCriterion, ascending: appState.sortAscending, settings: appState.settings)
+        nodes = buildFileTree(at: root, sortCriterion: appState.sortCriterion, ascending: appState.sortAscending, settings: settings)
         expandPath(to: appState.selectedFile)
     }
 
@@ -370,7 +403,12 @@ struct FileTreeView: View {
         do {
             switch action.kind {
             case .newNote:
-                _ = try appState.createNote(named: submittedName, in: action.parentURL)
+                if let templateURL = appState.pendingTemplateURL {
+                    appState.pendingTemplateURL = nil
+                    _ = try appState.createNamedNoteFromTemplate(templateURL, named: submittedName, in: action.parentURL)
+                } else {
+                    _ = try appState.createNote(named: submittedName, in: action.parentURL)
+                }
                 expandedDirs.insert(action.parentURL)
             case .newFolder:
                 let newURL = try appState.createFolder(named: submittedName, in: action.parentURL)

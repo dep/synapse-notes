@@ -14,9 +14,11 @@ extension View {
 
 struct SettingsView: View {
     @AppStorage(kGitSSHAuthSock) private var sshAuthSock: String = ""
+    @EnvironmentObject var appState: AppState
     @ObservedObject var settings: SettingsManager
     @State private var isDetecting = false
     @State private var detectError: String?
+    @State private var templateVarsExpanded = false
 
     private let settingsFieldWidth: CGFloat = 440
 
@@ -117,10 +119,107 @@ struct SettingsView: View {
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { templateVarsExpanded.toggle() } }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: templateVarsExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Template Variables")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    if templateVarsExpanded {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach([
+                                ("{{year}}", "4-digit year", "2026"),
+                                ("{{month}}", "2-digit month, zero-padded", "03"),
+                                ("{{day}}", "2-digit day, zero-padded", "12"),
+                                ("{{hour}}", "12-hour format, zero-padded", "09"),
+                                ("{{minute}}", "2-digit minute, zero-padded", "45"),
+                                ("{{ampm}}", "AM or PM", "AM"),
+                                ("{{cursor}}", "Initial cursor position", ""),
+                            ], id: \.0) { variable, description, example in
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text(variable)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundStyle(SynapseTheme.accent)
+                                        .frame(width: 100, alignment: .leading)
+                                    Text(description + (example.isEmpty ? "" : " — e.g. \(example)"))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(SynapseTheme.panel)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
                 .padding(.vertical, 4)
             } header: {
                 Text("Templates")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+
+            // MARK: - Daily Notes Section
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Enable Daily Notes", isOn: $settings.dailyNotesEnabled)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+
+                    if settings.dailyNotesEnabled {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Daily Notes Folder")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.secondary)
+
+                            TextField("", text: $settings.dailyNotesFolder)
+                                .font(.system(.body, design: .monospaced))
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.leading)
+                                .frame(width: settingsFieldWidth, alignment: .leading)
+                                .placeholder(when: settings.dailyNotesFolder.isEmpty) {
+                                    Text("daily")
+                                        .foregroundStyle(.tertiary)
+                                }
+
+                            Text("Notes are stored here, relative to the open workspace. The folder is created automatically if it doesn't exist.")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if !settings.templatesDirectory.isEmpty {
+                                let templates = appState.availableTemplates()
+                                if !templates.isEmpty {
+                                    Text("Template")
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.secondary)
+
+                                    Picker("", selection: $settings.dailyNotesTemplate) {
+                                        Text("None").tag("")
+                                        ForEach(templates, id: \.self) { url in
+                                            Text(url.lastPathComponent).tag(url.lastPathComponent)
+                                        }
+                                    }
+                                    .frame(width: settingsFieldWidth, alignment: .leading)
+                                    .labelsHidden()
+
+                                    Text("Applied to new daily notes. Template variables ({{year}}, {{month}}, {{day}}, {{hour}}, {{minute}}, {{ampm}}, {{cursor}}) are substituted on creation.")
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Daily Notes")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
             }
 
@@ -306,5 +405,6 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView(settings: SettingsManager())
+        .environmentObject(AppState())
         .preferredColorScheme(.dark)
 }

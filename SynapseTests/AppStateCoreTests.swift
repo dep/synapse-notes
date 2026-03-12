@@ -148,10 +148,11 @@ final class AppStateCoreTests: XCTestCase {
         XCTAssertNil(sut.selectedFile)
     }
 
-    func test_presentRootNoteSheet_withWorkspaceAndNoTemplates_createsUntitledNote() {
+    func test_presentRootNoteSheet_withWorkspaceAndNoTemplates_requestsNamePrompt() {
         sut.openFolder(tempDir)
         sut.presentRootNoteSheet()
-        XCTAssertNotNil(sut.selectedFile)
+        XCTAssertTrue(sut.isNewNotePromptRequested)
+        XCTAssertNil(sut.selectedFile)
         XCTAssertFalse(sut.isCommandPalettePresented)
     }
 

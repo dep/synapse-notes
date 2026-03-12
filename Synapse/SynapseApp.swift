@@ -86,6 +86,7 @@ struct SynapseApp: App {
 
         Settings {
             SettingsView(settings: appState.settings)
+                .environmentObject(appState)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: 920, minHeight: 760)
         }
