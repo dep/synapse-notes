@@ -347,4 +347,34 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertTrue(manager.configPath.contains("Noted"), "Default config path should be in Application Support/Noted")
         XCTAssertTrue(manager.configPath.hasSuffix(".json"), "Default config should be JSON file")
     }
+
+    // MARK: - Graph Pane
+
+    func test_graphPane_canBeAddedToLeftSidebar() {
+        sut.leftSidebarPanes.append(.graph)
+        XCTAssertTrue(sut.leftSidebarPanes.contains(.graph))
+    }
+
+    func test_graphPane_canBeAddedToRightSidebar() {
+        sut.rightSidebarPanes.append(.graph)
+        XCTAssertTrue(sut.rightSidebarPanes.contains(.graph))
+    }
+
+    func test_graphPane_titleIsGraph() {
+        XCTAssertEqual(SidebarPane.graph.title, "Graph")
+    }
+
+    func test_graphPane_rawValueIsGraph() {
+        XCTAssertEqual(SidebarPane.graph.rawValue, "graph")
+    }
+
+    func test_graphPane_persistsToDisk() {
+        sut.leftSidebarPanes = [.graph]
+        let newManager = SettingsManager(configPath: configFilePath)
+        XCTAssertEqual(newManager.leftSidebarPanes, [.graph])
+    }
+
+    func test_graphPane_includedInCaseIterable() {
+        XCTAssertTrue(SidebarPane.allCases.contains(.graph))
+    }
 }

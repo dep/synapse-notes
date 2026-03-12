@@ -6,6 +6,7 @@ enum SidebarPane: String, Codable, CaseIterable, Identifiable {
     case tags = "tags"
     case links = "links"
     case terminal = "terminal"
+    case graph = "graph"
     
     var id: String { rawValue }
     
@@ -15,6 +16,7 @@ enum SidebarPane: String, Codable, CaseIterable, Identifiable {
         case .tags: return "Tags"
         case .links: return "Related"
         case .terminal: return "Terminal"
+        case .graph: return "Graph"
         }
     }
 }

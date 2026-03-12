@@ -8,6 +8,28 @@ struct NoteLinkRelationships {
     let unresolved: [String]
 }
 
+/// A node in the vault graph.
+/// Real notes have a non-nil `url`; ghost nodes (unresolved link targets) have `url == nil`.
+struct NoteGraphNode: Identifiable, Equatable {
+    let id: String       // stable identifier: normalized note title or ghost key
+    let title: String    // display name (filename without extension, or ghost link text)
+    let url: URL?        // nil for ghost nodes
+    let isGhost: Bool
+}
+
+/// A directed edge in the vault graph (from → to via [[wikilink]]).
+struct NoteGraphEdge: Identifiable {
+    let id: String
+    let fromID: String
+    let toID: String
+}
+
+/// Full or partial vault graph suitable for Grape rendering.
+struct NoteGraph {
+    let nodes: [NoteGraphNode]
+    let edges: [NoteGraphEdge]
+}
+
 enum SortCriterion: String, CaseIterable {
     case name = "Name"
     case modified = "Date"
@@ -496,6 +518,77 @@ class AppState: ObservableObject {
         }
 
         return NoteLinkRelationships(outbound: outbound, inbound: inbound, unresolved: unresolved)
+    }
+
+    // MARK: - Vault Graph
+
+    /// Builds the full vault graph: every note is a node, every [[wikilink]] is a directed edge.
+    /// Unresolved links produce "ghost" nodes (no URL) so the edge graph stays complete.
+    func vaultGraph() -> NoteGraph {
+        let index = noteIndex()
+        var nodes: [String: NoteGraphNode] = [:]
+        var edges: [NoteGraphEdge] = []
+
+        // Create a real node for every file in the vault
+        for url in allFiles {
+            let title = noteTitle(for: url)
+            let nodeID = normalizedNoteReference(title)
+            guard !nodeID.isEmpty else { continue }
+            nodes[nodeID] = NoteGraphNode(id: nodeID, title: title, url: url, isGhost: false)
+        }
+
+        // Walk every file's links to create edges (and ghost nodes for unresolved links)
+        for url in allFiles {
+            guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let fromTitle = noteTitle(for: url)
+            let fromID = normalizedNoteReference(fromTitle)
+            guard !fromID.isEmpty else { continue }
+
+            var seenTargets = Set<String>()
+            for link in wikiLinks(in: content) {
+                guard seenTargets.insert(link).inserted else { continue }
+
+                let toID: String
+                if index[link] != nil {
+                    toID = link
+                } else {
+                    // Ghost node: ensure it exists
+                    toID = link
+                    if nodes[toID] == nil {
+                        nodes[toID] = NoteGraphNode(id: toID, title: link, url: nil, isGhost: true)
+                    }
+                }
+
+                let edgeID = "\(fromID)->\(toID)"
+                edges.append(NoteGraphEdge(id: edgeID, fromID: fromID, toID: toID))
+            }
+        }
+
+        return NoteGraph(nodes: Array(nodes.values), edges: edges)
+    }
+
+    /// Builds a local graph: the selected note plus its direct (1-hop) neighbors.
+    /// Returns nil when no file is selected.
+    func localGraph() -> NoteGraph? {
+        guard let selectedFile else { return nil }
+
+        let fullGraph = vaultGraph()
+        let selectedTitle = noteTitle(for: selectedFile)
+        let selectedID = normalizedNoteReference(selectedTitle)
+
+        // Find all node IDs that are directly connected to the selected node
+        var neighborIDs = Set<String>([selectedID])
+        for edge in fullGraph.edges {
+            if edge.fromID == selectedID { neighborIDs.insert(edge.toID) }
+            if edge.toID == selectedID { neighborIDs.insert(edge.fromID) }
+        }
+
+        let filteredNodes = fullGraph.nodes.filter { neighborIDs.contains($0.id) }
+        let filteredEdges = fullGraph.edges.filter {
+            neighborIDs.contains($0.fromID) && neighborIDs.contains($0.toID)
+        }
+
+        return NoteGraph(nodes: filteredNodes, edges: filteredEdges)
     }
 
     private func reloadSelectedFileFromDiskIfNeeded(force: Bool = false) {

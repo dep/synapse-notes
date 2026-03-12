@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var isLeftSidebarVisible = true
     @State private var isRightSidebarVisible = true
+    @State private var isGlobalGraphPresented = false
     @State private var keyEventMonitor: Any?
 
     var body: some View {
@@ -144,6 +145,10 @@ struct ContentView: View {
             TemplateRenameSheet(request: request)
                 .environmentObject(appState)
         }
+        .sheet(isPresented: $isGlobalGraphPresented) {
+            GlobalGraphView(isPresented: $isGlobalGraphPresented)
+                .environmentObject(appState)
+        }
         .onAppear(perform: installEventMonitor)
         .onDisappear(perform: removeEventMonitor)
     }
@@ -258,6 +263,14 @@ struct ContentView: View {
                     action: { isRightSidebarVisible.toggle() },
                     help: isRightSidebarVisible ? "Hide Right Sidebar" : "Show Right Sidebar"
                 )
+
+                headerToggleButton(
+                    systemName: "circle.grid.2x2",
+                    isActive: isGlobalGraphPresented,
+                    action: { isGlobalGraphPresented.toggle() },
+                    help: "Open Graph View (⌘⇧G)"
+                )
+                .keyboardShortcut("g", modifiers: [.command, .shift])
 
                 Button(action: appState.pickFolder) {
                     Image(systemName: "folder.badge.plus")
@@ -833,6 +846,9 @@ struct SidebarPaneWrapper: View {
                         .frame(minHeight: 150)
                 case .terminal:
                     TerminalPaneView()
+                        .frame(minHeight: 150)
+                case .graph:
+                    GraphPaneView()
                         .frame(minHeight: 150)
                 }
             }
