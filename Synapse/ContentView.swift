@@ -6,6 +6,8 @@ struct ContentView: View {
     @State private var isLeftSidebarVisible = true
     @State private var isRightSidebarVisible = true
     @State private var keyEventMonitor: Any?
+    @State private var leftSidebarWidth: CGFloat = 280
+    @State private var rightSidebarWidth: CGFloat = 340
 
     var body: some View {
         ZStack {
@@ -15,11 +17,14 @@ struct ContentView: View {
                 headerBar
                 Rectangle().fill(SynapseTheme.border).frame(height: 1)
 
-                HSplitView {
+                HStack(spacing: 0) {
                     if isLeftSidebarVisible {
                         leftSidebar
-                            .frame(minWidth: 220, idealWidth: 280, maxWidth: 420)
+                            .frame(width: leftSidebarWidth)
                             .background(SynapseTheme.panel)
+                        ResizeDivider(axis: .vertical) { delta in
+                            leftSidebarWidth = max(220, min(420, leftSidebarWidth + delta))
+                        }
                     }
 
                     SplitPaneEditorView()
@@ -27,8 +32,11 @@ struct ContentView: View {
                         .frame(minWidth: 420)
 
                     if isRightSidebarVisible {
+                        ResizeDivider(axis: .vertical) { delta in
+                            rightSidebarWidth = max(280, min(620, rightSidebarWidth - delta))
+                        }
                         SidebarContainerView(settings: appState.settings, isLeft: false)
-                            .frame(minWidth: 280, idealWidth: 340, maxWidth: 620)
+                            .frame(width: rightSidebarWidth)
                             .background(SynapseTheme.panel)
                     }
                 }
@@ -754,42 +762,51 @@ struct SidebarContainerView: View {
 
 struct ResizeDivider: View {
     var disabled: Bool = false
+    var axis: Axis = .horizontal
     let onDrag: (CGFloat) -> Void
 
     @State private var isDragging = false
-    @State private var lastY: CGFloat = 0
+    @State private var last: CGFloat = 0
 
     var body: some View {
         ZStack {
             Rectangle()
                 .fill(isDragging ? SynapseTheme.accent.opacity(0.6) : SynapseTheme.border)
-                .frame(height: isDragging ? 3 : 1)
+                .frame(
+                    width: axis == .vertical ? (isDragging ? 3 : 1) : nil,
+                    height: axis == .horizontal ? (isDragging ? 3 : 1) : nil
+                )
 
-            // Wider invisible hit area
             Color.clear
-                .frame(height: 6)
+                .frame(
+                    width: axis == .vertical ? 6 : nil,
+                    height: axis == .horizontal ? 6 : nil
+                )
                 .contentShape(Rectangle())
         }
-        .frame(height: 6)
+        .frame(
+            width: axis == .vertical ? 6 : nil,
+            height: axis == .horizontal ? 6 : nil
+        )
         .onHover { inside in
-            if inside && !disabled { NSCursor.resizeUpDown.push() }
-            else { NSCursor.pop() }
+            if inside && !disabled {
+                (axis == .vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
+            } else {
+                NSCursor.pop()
+            }
         }
         .gesture(
             DragGesture(minimumDistance: 1)
                 .onChanged { value in
                     guard !disabled else { return }
-                    if !isDragging {
-                        isDragging = true
-                        lastY = 0
-                    }
-                    let delta = value.translation.height - lastY
-                    lastY = value.translation.height
+                    if !isDragging { isDragging = true; last = 0 }
+                    let delta = (axis == .vertical ? value.translation.width : value.translation.height) - last
+                    last = axis == .vertical ? value.translation.width : value.translation.height
                     onDrag(delta)
                 }
                 .onEnded { _ in
                     isDragging = false
-                    lastY = 0
+                    last = 0
                     NSCursor.pop()
                 }
         )
