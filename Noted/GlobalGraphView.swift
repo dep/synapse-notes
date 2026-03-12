@@ -86,6 +86,37 @@ struct GlobalGraphView: View {
                     Spacer()
 
                     HStack(spacing: 8) {
+                        // Zoom controls
+                        HStack(spacing: 4) {
+                            Button {
+                                graphState.modelTransform.scaling(by: 0.75)
+                            } label: {
+                                Image(systemName: "minus")
+                            }
+                            .buttonStyle(ChromeButtonStyle())
+                            .help("Zoom out")
+
+                            Button {
+                                graphState.modelTransform.scaling(to: 1.0)
+                            } label: {
+                                Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
+                            }
+                            .buttonStyle(ChromeButtonStyle())
+                            .help("Reset zoom")
+
+                            Button {
+                                graphState.modelTransform.scaling(by: 1.33)
+                            } label: {
+                                Image(systemName: "plus")
+                            }
+                            .buttonStyle(ChromeButtonStyle())
+                            .help("Zoom in")
+                        }
+
+                        Divider()
+                            .frame(height: 16)
+                            .opacity(0.4)
+
                         Button {
                             graphState.isRunning.toggle()
                         } label: {
