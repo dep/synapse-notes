@@ -458,46 +458,45 @@ struct FileNodeRow: View {
 
     var body: some View {
         Group {
-            Button(action: handleTap) {
-                HStack(spacing: 4) {
-                    Spacer().frame(width: CGFloat(depth) * 16)
+            HStack(spacing: 4) {
+                Spacer().frame(width: CGFloat(depth) * 16)
 
-                    if node.isDirectory {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.caption2)
-                            .frame(width: 10)
-                        Image(systemName: isTemplatesDirectory ? "folder.badge.gearshape.fill" : "folder.fill")
-                            .foregroundStyle(SynapseTheme.accent)
-                    } else {
-                        Spacer().frame(width: 10)
-                        Image(systemName: node.isMarkdown ? "doc.text" : "doc.plaintext")
-                            .foregroundStyle(node.isMarkdown ? SynapseTheme.textPrimary : SynapseTheme.textSecondary)
-                    }
-
-                    Text(node.name)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium, design: .rounded))
-                        .foregroundStyle(isSelected ? Color.white : SynapseTheme.textPrimary)
-
-                    if isTemplatesDirectory {
-                        TinyBadge(text: "Templates", color: SynapseTheme.accent)
-                    }
-
-                    Spacer()
+                if node.isDirectory {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .frame(width: 10)
+                    Image(systemName: isTemplatesDirectory ? "folder.badge.gearshape.fill" : "folder.fill")
+                        .foregroundStyle(SynapseTheme.accent)
+                } else {
+                    Spacer().frame(width: 10)
+                    Image(systemName: node.isMarkdown ? "doc.text" : "doc.plaintext")
+                        .foregroundStyle(node.isMarkdown ? SynapseTheme.textPrimary : SynapseTheme.textSecondary)
                 }
-                .padding(.vertical, 6)
-                .padding(.horizontal, 8)
-                .background {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(isSelected ? SynapseTheme.accentSoft : SynapseTheme.row)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .stroke(isSelected ? SynapseTheme.accent : SynapseTheme.rowBorder, lineWidth: 1)
-                        }
+
+                Text(node.name)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium, design: .rounded))
+                    .foregroundStyle(isSelected ? Color.white : SynapseTheme.textPrimary)
+
+                if isTemplatesDirectory {
+                    TinyBadge(text: "Templates", color: SynapseTheme.accent)
                 }
+
+                Spacer()
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isSelected ? SynapseTheme.accentSoft : SynapseTheme.row)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .stroke(isSelected ? SynapseTheme.accent : SynapseTheme.rowBorder, lineWidth: 1)
+                    }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: handleTap)
             .contextMenu {
                 Button("New Note") { appState.presentRootNoteSheet(in: contextDirectory) }
                 Button("New Folder") { onCreateFolder(contextDirectory) }
