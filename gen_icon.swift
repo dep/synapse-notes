@@ -46,8 +46,8 @@ image.unlockFocus()
 if let tiffData = image.tiffRepresentation,
    let bitmap = NSBitmapImageRep(data: tiffData),
    let pngData = bitmap.representation(using: .png, properties: [:]) {
-    
-    let path = "/Users/dep/Sites/noted/Noted/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png"
+
+    let path = "/Users/dep/Sites/Synapse/Synapse/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png"
     try? pngData.write(to: URL(fileURLWithPath: path))
     print("Created icon at \(path)")
 }

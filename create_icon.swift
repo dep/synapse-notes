@@ -49,7 +49,7 @@ image.unlockFocus()
 let bitmapRep = NSBitmapImageRep(data: image.tiffRepresentation!)!
 let pngData = bitmapRep.representation(using: .png, properties: [:])!
 
-let fileURL = URL(fileURLWithPath: "/Users/dep/Sites/noted/Noted/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png")
+let fileURL = URL(fileURLWithPath: "/Users/dep/Sites/Synapse/Synapse/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png")
 try! pngData.write(to: fileURL)
 
 print("Created icon_512x512@2x.png")

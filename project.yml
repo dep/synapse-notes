@@ -1,6 +1,6 @@
-name: Noted
+name: Synapse
 options:
-  bundleIdPrefix: com.noted
+  bundleIdPrefix: com.Synapse
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -15,18 +15,19 @@ packages:
     from: 1.1.0
 
 targets:
-  Noted:
+  Synapse:
     type: application
     platform: macOS
     sources:
-      - Noted
-      - Noted/Assets.xcassets
+      - Synapse
+      - Synapse/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.noted.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.Synapse.app
+        PRODUCT_NAME: Synapse
         SWIFT_VERSION: 5.0
         MACOSX_DEPLOYMENT_TARGET: "14.0"
-        INFOPLIST_FILE: Noted/Info.plist
+        INFOPLIST_FILE: Synapse/Info.plist
         ENABLE_HARDENED_RUNTIME: YES
       configs:
         Release:
@@ -37,22 +38,22 @@ targets:
       - package: SwiftTerm
       - package: Grape
     entitlements:
-      path: Noted/Noted.entitlements
+      path: Synapse/Synapse.entitlements
       properties:
         com.apple.security.app-sandbox: false
 
-  NotedTests:
+  SynapseTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - NotedTests
+      - SynapseTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.noted.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.Synapse.app.tests
         SWIFT_VERSION: 5.0
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Noted.app/Contents/MacOS/Noted"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Synapse.app/Contents/MacOS/Synapse"
         BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:
-      - target: Noted
+      - target: Synapse

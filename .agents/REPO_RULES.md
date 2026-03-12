@@ -2,17 +2,17 @@
 
 1. <critical_workflow>
 **MANDATORY BUILD & RELAUNCH**
-Whenever you modify `.swift` files, you MUST rebuild and relaunch the app BEFORE you ask the user for feedback or perform git operations. 
+Whenever you modify `.swift` files, you MUST rebuild and relaunch the app BEFORE you ask the user for feedback or perform git operations.
 
 Do not skip this step, even if unit tests pass. This overrides the "Minimize Verification Loops" rule.
 
 Execute this exact command using the bash tool:
 ```bash
-pkill -9 "Noted" || true && sleep 1 && xcodegen generate && xcodebuild -project "Noted.xcodeproj" -scheme "Noted" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Noted-*/Build/Products/Debug/Noted.app
+pkill -9 "Synapse" || true && sleep 1 && xcodegen generate && xcodebuild -project "Synapse.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Synapse-*/Build/Products/Debug/Synapse.app
 ```
 
 When you do this, you MUST include this exact text in your response to the user:
-"🚀 **Rebuilt and relaunched the Noted app.**"
+"🚀 **Rebuilt and relaunched the Synapse app.**"
 </critical_workflow>
 
 2. Release/distribution changes must be reflected in `project.yml`, not only in Xcode UI. This repo uses `xcodegen`, so signing or hardened runtime changes made only in Xcode will be overwritten the next time the project is generated.
@@ -22,32 +22,32 @@ When you do this, you MUST include this exact text in your response to the user:
 ```
 xcodegen generate && \
 xcodebuild archive \
-  -project "Noted.xcodeproj" \
-  -scheme "Noted" \
+  -project "Synapse.xcodeproj" \
+  -scheme "Synapse" \
   -configuration Release \
   -destination "generic/platform=macOS" \
-  -archivePath "/tmp/Noted.xcarchive"
+  -archivePath "/tmp/Synapse.xcarchive"
 
 ditto -c -k --keepParent \
-  "/tmp/Noted.xcarchive/Products/Applications/Noted.app" \
-  "/tmp/Noted.zip"
+  "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app" \
+  "/tmp/Synapse.zip"
 
-xcrun notarytool submit "/tmp/Noted.zip" --keychain-profile "noted-notary" --wait && \
-xcrun stapler staple "/tmp/Noted.xcarchive/Products/Applications/Noted.app" && \
-spctl --assess --type execute --verbose=4 "/tmp/Noted.xcarchive/Products/Applications/Noted.app"
+xcrun notarytool submit "/tmp/Synapse.zip" --keychain-profile "Synapse-notary" --wait && \
+xcrun stapler staple "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app" && \
+spctl --assess --type execute --verbose=4 "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app"
 ```
 
 4. Release prerequisites:
 
 - `Developer ID Application` certificate with private key installed locally
-- notarization credentials stored in a `notarytool` keychain profile (currently `noted-notary`)
+- notarization credentials stored in a `notarytool` keychain profile (currently `Synapse-notary`)
 - Release signing and hardened runtime configured in `project.yml`
 
 ---
 
 ## Project Overview
 
-**Noted** is a native macOS markdown note-taking app built with SwiftUI. It is Obsidian-inspired: vault-based (user opens a folder), wikilink-aware, with optional git auto-sync.
+**Synapse** is a native macOS markdown note-taking app built with SwiftUI. It is Obsidian-inspired: vault-based (user opens a folder), wikilink-aware, with optional git auto-sync.
 
 ---
 
@@ -67,9 +67,9 @@ spctl --assess --type execute --verbose=4 "/tmp/Noted.xcarchive/Products/Applica
 | `SearchView.swift` | In-file search (CMD-F) and all-files search (CMD-Shift-F). |
 | `TerminalPaneView.swift` | Embedded terminal pane (right sidebar). |
 | `GitService.swift` | Shell-out wrapper around git CLI. |
-| `SettingsManager.swift` | JSON-persisted settings (auto-save, auto-push, file extension filter, on-boot command). Config file at `~/Library/Application Support/Noted/settings.json`. |
-| `Theme.swift` | All colors, button styles, and shared UI components (`NotedTheme`, `ChromeButtonStyle`, `PrimaryChromeButtonStyle`, `TinyBadge`, `PanelSurface`). |
-| `NotedApp.swift` | App entry point. |
+| `SettingsManager.swift` | JSON-persisted settings (auto-save, auto-push, file extension filter, on-boot command). Config file at `~/Library/Application Support/Synapse/settings.json`. |
+| `Theme.swift` | All colors, button styles, and shared UI components (`SynapseTheme`, `ChromeButtonStyle`, `PrimaryChromeButtonStyle`, `TinyBadge`, `PanelSurface`). |
+| `SynapseApp.swift` | App entry point. |
 
 ### Key Data Flow
 
@@ -109,7 +109,7 @@ This is the data foundation for any graph view feature.
 
 - `GitService` wraps git CLI calls (clone, pull --rebase, push, stage, commit, branch, ahead-count, conflict detection).
 - Auto-push: every 5 minutes if enabled, and on app termination. Pulls first (rebase), then commits staged changes, then pushes.
-- Git runs on a private background queue (`com.noted.git`).
+- Git runs on a private background queue (`com.Synapse.git`).
 - `gitSyncStatus` enum: `.notGitRepo`, `.idle`, `.pulling`, `.pushing`, `.committing`, `.cloning`, `.upToDate`, `.conflict(String)`, `.error(String)`.
 
 ---
@@ -126,19 +126,19 @@ Settings persist to JSON. Key fields:
 
 ## Theming
 
-All colors and styles are in `NotedTheme` (dark-only currently). Key tokens:
+All colors and styles are in `SynapseTheme` (dark-only currently). Key tokens:
 - `accent` — blue `#47A8FA`
 - `success` — green
 - `textPrimary / textSecondary / textMuted` — white at 92% / 68% / 45% opacity
 - `panel`, `panelElevated`, `editorShell`, `row`, `rowBorder`, `border`, `divider`
 
-Reusable UI components: `ChromeButtonStyle`, `PrimaryChromeButtonStyle`, `TinyBadge`, `.notedPanel(radius:)` modifier.
+Reusable UI components: `ChromeButtonStyle`, `PrimaryChromeButtonStyle`, `TinyBadge`, `.SynapsePanel(radius:)` modifier.
 
 ---
 
 ## Tests
 
-Tests live in `NotedTests/`. `AppStateTabsTests.swift` covers tab management and MRU cycling. `AppState.init(now:)` is the injectable clock seam for time-dependent tests.
+Tests live in `SynapseTests/`. `AppStateTabsTests.swift` covers tab management and MRU cycling. `AppState.init(now:)` is the injectable clock seam for time-dependent tests.
 
 ---
 

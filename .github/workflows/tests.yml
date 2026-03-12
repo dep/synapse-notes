@@ -39,8 +39,8 @@ jobs:
       - name: Resolve Swift packages
         run: |
           xcodebuild -resolvePackageDependencies \
-            -project Noted.xcodeproj \
-            -scheme Noted
+            -project Synapse.xcodeproj \
+            -scheme Synapse
 
       - name: Install xcpretty
         run: gem install xcpretty --no-document 2>/dev/null || true
@@ -49,8 +49,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild test \
-            -project Noted.xcodeproj \
-            -scheme Noted \
+            -project Synapse.xcodeproj \
+            -scheme Synapse \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \

@@ -1,6 +1,6 @@
-# Noted
+# Synapse
 
-Minimal macOS markdown editor with a built-in terminal, wiki links, quick open, and inline image previews.
+A minimal macOS markdown editor with a built-in terminal, wiki links, quick open, and inline image previews.
 
 <img width="1582" height="1035" alt="image" src="https://github.com/user-attachments/assets/f409440d-0d11-49c2-bb38-04ba16ce61d6" />
 
@@ -30,19 +30,19 @@ xcodegen generate
 2. Build the app:
 
 ```bash
-xcodebuild -project "Noted.xcodeproj" -scheme "Noted" -destination "platform=macOS" build
+xcodebuild -project "Synapse.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build
 ```
 
 3. Launch the built app:
 
 ```bash
-open ~/Library/Developer/Xcode/DerivedData/Noted-*/Build/Products/Debug/Noted.app
+open ~/Library/Developer/Xcode/DerivedData/Synapse-*/Build/Products/Debug/Synapse.app
 ```
 
 Or do all three steps in one shot:
 
 ```bash
-xcodegen generate && xcodebuild -project "Noted.xcodeproj" -scheme "Noted" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Noted-*/Build/Products/Debug/Noted.app
+xcodegen generate && xcodebuild -project "Synapse.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Synapse-*/Build/Products/Debug/Synapse.app
 ```
 
 The app is built into Xcode DerivedData under the Debug products folder.
@@ -52,23 +52,23 @@ The app is built into Xcode DerivedData under the Debug products folder.
 If you prefer Xcode:
 
 ```bash
-open Noted.xcodeproj
+open Synapse.xcodeproj
 ```
 
-Then select the `Noted` scheme and press `Cmd-R`.
+Then select the `Synapse` scheme and press `Cmd-R`.
 
 ## Testing
 
 Run tests from the command line:
 
 ```bash
-xcodebuild test -scheme Noted -destination 'platform=macOS'
+xcodebuild test -scheme Synapse -destination 'platform=macOS'
 ```
 
 Or run tests in Xcode:
 
-1. Open the project: `open Noted.xcodeproj`
-2. Select the `Noted` scheme
+1. Open the project: `open Synapse.xcodeproj`
+2. Select the `Synapse` scheme
 3. Press `Cmd-U` to run all tests
 
 The test suite includes:
@@ -85,7 +85,7 @@ To create a shareable macOS build, use a Release archive signed with `Developer 
 Prerequisites:
 
 - A valid `Developer ID Application` certificate with private key installed in your login keychain
-- A configured notarization profile for `notarytool` (example: `noted-notary`)
+- A configured notarization profile for `notarytool` (example: `Synapse-notary`)
 - `project.yml` must remain the source of truth for release signing settings; do not rely on Xcode-only UI changes because `xcodegen generate` will overwrite them
 
 Create a signed Release archive:
@@ -93,27 +93,27 @@ Create a signed Release archive:
 ```bash
 xcodegen generate && \
 xcodebuild archive \
-  -project "Noted.xcodeproj" \
-  -scheme "Noted" \
+  -project "Synapse.xcodeproj" \
+  -scheme "Synapse" \
   -configuration Release \
   -destination "generic/platform=macOS" \
-  -archivePath "/tmp/Noted.xcarchive"
+  -archivePath "/tmp/Synapse.xcarchive"
 ```
 
 Package the app for notarization:
 
 ```bash
 ditto -c -k --keepParent \
-  "/tmp/Noted.xcarchive/Products/Applications/Noted.app" \
-  "/tmp/Noted.zip"
+  "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app" \
+  "/tmp/Synapse.zip"
 ```
 
 Submit, wait, and staple:
 
 ```bash
-xcrun notarytool submit "/tmp/Noted.zip" --keychain-profile "noted-notary" --wait && \
-xcrun stapler staple "/tmp/Noted.xcarchive/Products/Applications/Noted.app" && \
-spctl --assess --type execute --verbose=4 "/tmp/Noted.xcarchive/Products/Applications/Noted.app"
+xcrun notarytool submit "/tmp/Synapse.zip" --keychain-profile "Synapse-notary" --wait && \
+xcrun stapler staple "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app" && \
+spctl --assess --type execute --verbose=4 "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app"
 ```
 
 Expected successful validation output includes:
@@ -123,8 +123,8 @@ Expected successful validation output includes:
 
 Artifacts:
 
-- notarized app: `/tmp/Noted.xcarchive/Products/Applications/Noted.app`
-- shareable zip: `/tmp/Noted.zip`
+- notarized app: `/tmp/Synapse.xcarchive/Products/Applications/Synapse.app`
+- shareable zip: `/tmp/Synapse.zip`
 
 ## Notes
 
