@@ -636,12 +636,47 @@ struct SidebarContainerView: View {
         }
     }
 
+    /// Panes not currently in either sidebar — available to add
+    private var availablePanes: [SidebarPane] {
+        let used = Set(settings.leftSidebarPanes + settings.rightSidebarPanes)
+        return SidebarPane.allCases.filter { !used.contains($0) }
+    }
+
     var body: some View {
         GeometryReader { geo in
             if panes.isEmpty {
                 EmptyDropZone(settings: settings, isLeft: isLeft)
             } else {
                 VStack(spacing: 0) {
+                    // "Add pane" row — only shown when there are unused panes to add
+                    if !availablePanes.isEmpty {
+                        HStack {
+                            Spacer()
+                            Menu {
+                                ForEach(availablePanes) { pane in
+                                    Button(pane.title) {
+                                        if isLeft { settings.leftSidebarPanes.append(pane) }
+                                        else { settings.rightSidebarPanes.append(pane) }
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("Add Pane")
+                                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                                }
+                                .foregroundStyle(NotedTheme.textMuted)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 10)
+                            .padding(.top, 6)
+                        }
+                    }
+
                     ForEach(Array(panes.enumerated()), id: \.element.id) { index, pane in
                         let h = heights[pane.rawValue] ?? defaultHeight(for: pane, total: geo.size.height)
 
