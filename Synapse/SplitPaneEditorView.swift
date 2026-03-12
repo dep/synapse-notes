@@ -27,7 +27,7 @@ struct SplitPaneEditorView: View {
         VStack(spacing: 0) {
             TabBarView()
                 .environmentObject(appState)
-            editorContent(for: appState.activeTab)
+            editorContent(for: appState.activeTab, paneIndex: 0)
         }
     }
 
@@ -50,7 +50,7 @@ struct PaneView: View {
         VStack(spacing: 0) {
             paneHeader
             if isActive {
-                editorContent(for: appState.activeTab)
+                editorContent(for: appState.activeTab, paneIndex: paneIndex)
                     .background(SynapseTheme.editorShell)
             } else {
                 inactiveContent
@@ -67,7 +67,7 @@ struct PaneView: View {
 
     private var inactiveContent: some View {
         let pane = appState.inactivePane(paneIndex)
-        return EditorView(readOnlyFile: pane.selectedFile, readOnlyContent: pane.fileContent)
+        return EditorView(paneIndex: paneIndex, readOnlyFile: pane.selectedFile, readOnlyContent: pane.fileContent)
     }
 
     private var paneHeader: some View {
@@ -138,7 +138,7 @@ struct InactivePaneTabBar: View {
 
 
 @ViewBuilder
-func editorContent(for tab: TabItem?) -> some View {
+func editorContent(for tab: TabItem?, paneIndex: Int) -> some View {
     Group {
         if let tab, tab.isGraph {
             GlobalGraphView()
@@ -146,7 +146,7 @@ func editorContent(for tab: TabItem?) -> some View {
             TagPageView(tag: tagName)
                 .background(SynapseTheme.editorShell)
         } else {
-            EditorView()
+            EditorView(paneIndex: paneIndex)
                 .background(SynapseTheme.editorShell)
         }
     }

@@ -166,6 +166,7 @@ class AppState: ObservableObject {
     @Published var pendingTemplateURL: URL? = nil
     @Published var pendingCursorPosition: Int? = nil
     @Published var pendingCursorRange: NSRange? = nil
+    @Published var pendingCursorTargetPaneIndex: Int? = nil
     @Published var commandPaletteMode: CommandPaletteMode = .files
     @Published var targetDirectoryForTemplate: URL?
     @Published var isRootNoteSheetPresented: Bool = false
@@ -1432,6 +1433,7 @@ class AppState: ObservableObject {
         paneStates[index].isDirty = isDirty
         paneStates[index].cursorRange = pendingCursorRange
         pendingCursorRange = nil
+        pendingCursorTargetPaneIndex = nil
     }
 
     private func restorePane(index: Int) {
@@ -1443,6 +1445,7 @@ class AppState: ObservableObject {
         fileContent = pane.fileContent
         isDirty = pane.isDirty
         pendingCursorRange = pane.cursorRange
+        pendingCursorTargetPaneIndex = index
         if let file = pane.selectedFile {
             startWatching(file)
         } else {

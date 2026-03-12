@@ -27,6 +27,7 @@
 		6044649992300375F1BDB874 /* AppStateGraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF1B8B03D6E5299A4700177 /* AppStateGraphTests.swift */; };
 		61F38C954D4BD659595F04D8 /* AppStateFileOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2819956191CAC51CF76DAFA /* AppStateFileOperationsTests.swift */; };
 		63ED7B40721FC00C49571D34 /* SplitPaneEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7603E5241D305A3BAE781451 /* SplitPaneEditorView.swift */; };
+		70792E277639E834624DC380 /* SplitPaneKeyboardAndCursorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */; };
 		716F196A70B019DB1125E38F /* AppStateCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56691DF2CDDFA2DF5F263CF3 /* AppStateCoreTests.swift */; };
 		7FA55FF63CB1CC6E03BEEBCE /* AppStateWikiLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0502C0261847F74C47B810 /* AppStateWikiLinkTests.swift */; };
 		84CE3D3A60AFCABF88D62FFC /* AppStateSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35A600692EB7955AD6BF962D /* AppStateSearchTests.swift */; };
@@ -82,6 +83,7 @@
 		48E13069F2D634A684FAE713 /* SynapseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynapseApp.swift; sourceTree = "<group>"; };
 		56691DF2CDDFA2DF5F263CF3 /* AppStateCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateCoreTests.swift; sourceTree = "<group>"; };
 		581F07CA2599C2ED63315D92 /* AppStateFolderOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateFolderOperationsTests.swift; sourceTree = "<group>"; };
+		58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneKeyboardAndCursorTests.swift; sourceTree = "<group>"; };
 		5A96D01FE3D3F9C3438D9E4A /* AppStateTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTabsTests.swift; sourceTree = "<group>"; };
 		5D10844594863C142A8C7D08 /* Synapse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Synapse.entitlements; sourceTree = "<group>"; };
 		618D96D297FAC05857339878 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 				413A5866D2A2397710DDFDE5 /* GitErrorTests.swift */,
 				6C665A271CAB4E35735B89A9 /* GitServiceTests.swift */,
 				3ECDBE060D21A22336AC6312 /* SettingsManagerTests.swift */,
+				58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */,
 			);
 			path = SynapseTests;
 			sourceTree = "<group>";
@@ -314,6 +317,7 @@
 				597D8B7E230D39D912DF4CFF /* GitErrorTests.swift in Sources */,
 				D1DF0C68FA69ABC62DB00659 /* GitServiceTests.swift in Sources */,
 				56E1D8FB1C2F8A356D40A62E /* SettingsManagerTests.swift in Sources */,
+				70792E277639E834624DC380 /* SplitPaneKeyboardAndCursorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,6 +1,29 @@
 import SwiftUI
 import AppKit
 
+func shouldConsumePaneSwitchShortcut(
+    keyCode: UInt16,
+    modifierFlags: NSEvent.ModifierFlags,
+    splitOrientation: SplitOrientation?
+) -> Bool {
+    guard let splitOrientation else { return false }
+
+    let requiredModifiers: NSEvent.ModifierFlags = [.command, .option]
+    let allowedModifiers: NSEvent.ModifierFlags = [.command, .option, .numericPad]
+
+    guard modifierFlags.isSuperset(of: requiredModifiers),
+          allowedModifiers.isSuperset(of: modifierFlags) else {
+        return false
+    }
+
+    switch splitOrientation {
+    case .vertical:
+        return keyCode == 123 || keyCode == 124
+    case .horizontal:
+        return keyCode == 125 || keyCode == 126
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var isLeftSidebarVisible = true
@@ -187,15 +210,28 @@ struct ContentView: View {
         removeEventMonitor()
         keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard !appState.isCommandPalettePresented,
-                  !appState.isSearchPresented,
-                  event.keyCode == 48,
-                  event.modifierFlags.contains(.control),
-                  !event.modifierFlags.contains(.command) else {
+                  !appState.isSearchPresented else {
                 return event
             }
 
-            appState.cycleMostRecentTabs()
-            return nil
+            let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+            // Ctrl-Tab: cycle MRU tabs
+            if event.keyCode == 48, mods == .control {
+                appState.cycleMostRecentTabs()
+                return nil
+            }
+
+            if shouldConsumePaneSwitchShortcut(
+                keyCode: event.keyCode,
+                modifierFlags: mods,
+                splitOrientation: appState.splitOrientation
+            ) {
+                appState.switchToOtherPane()
+                return nil
+            }
+
+            return event
         }
     }
 

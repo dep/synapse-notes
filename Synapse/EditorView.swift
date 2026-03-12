@@ -2,8 +2,27 @@ import SwiftUI
 import AppKit
 import ImageIO
 
+func consumePendingCursorRange(from appState: AppState, for textView: NSTextView, paneIndex: Int) -> NSRange? {
+    guard textView.isEditable,
+          let range = appState.pendingCursorRange,
+          appState.pendingCursorTargetPaneIndex == nil || appState.pendingCursorTargetPaneIndex == paneIndex else { return nil }
+    appState.pendingCursorRange = nil
+    appState.pendingCursorTargetPaneIndex = nil
+    return range
+}
+
+func consumePendingCursorPosition(from appState: AppState, for textView: NSTextView, paneIndex: Int) -> Int? {
+    guard textView.isEditable,
+          let position = appState.pendingCursorPosition,
+          appState.pendingCursorTargetPaneIndex == nil || appState.pendingCursorTargetPaneIndex == paneIndex else { return nil }
+    appState.pendingCursorPosition = nil
+    appState.pendingCursorTargetPaneIndex = nil
+    return position
+}
+
 struct EditorView: View {
     @EnvironmentObject var appState: AppState
+    var paneIndex: Int = 0
 
     /// When set, renders in read-only mode using these values instead of live appState.
     var readOnlyFile: URL? = nil
@@ -29,11 +48,11 @@ struct EditorView: View {
                     }
 
                     if isReadOnly {
-                        RawEditor(text: .constant(displayContent))
+                        RawEditor(text: .constant(displayContent), isEditable: false, paneIndex: paneIndex)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .allowsHitTesting(false)
                     } else {
-                        RawEditor(text: $appState.fileContent)
+                        RawEditor(text: $appState.fileContent, paneIndex: paneIndex)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
 
@@ -129,15 +148,16 @@ struct EditorView: View {
 
 struct RawEditor: NSViewRepresentable {
     @Binding var text: String
+    var isEditable: Bool = true
+    var paneIndex: Int = 0
     @EnvironmentObject var appState: AppState
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    func makeNSView(context: Context) -> NSScrollView {
+    static func configuredTextView(isEditable: Bool) -> LinkAwareTextView {
         let textView = LinkAwareTextView()
-        textView.delegate = context.coordinator
         textView.isRichText = true
-        textView.isEditable = true
+        textView.isEditable = isEditable
         textView.isSelectable = true
         textView.autoresizingMask = [.width]
         textView.isVerticallyResizable = true
@@ -159,6 +179,12 @@ struct RawEditor: NSViewRepresentable {
             .font: MarkdownTheme.body,
             .foregroundColor: SynapseTheme.editorForeground,
         ]
+        return textView
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let textView = Self.configuredTextView(isEditable: isEditable)
+        textView.delegate = context.coordinator
 
         // Use NSTextStorageDelegate to detect ALL text changes reliably
         textView.textStorage?.delegate = context.coordinator
@@ -193,16 +219,14 @@ struct RawEditor: NSViewRepresentable {
         textView.onMatchCountUpdate = { count in appState.searchMatchCount = count }
         textView.refreshInlineImagePreviews()
 
-        if let range = appState.pendingCursorRange {
-            appState.pendingCursorRange = nil
+        if let range = consumePendingCursorRange(from: appState, for: textView, paneIndex: paneIndex) {
             let len = textView.string.count
             let safeLoc = min(range.location, len)
             let safeLen = min(range.length, len - safeLoc)
             let safeRange = NSRange(location: safeLoc, length: safeLen)
             textView.setSelectedRange(safeRange)
             textView.scrollRangeToVisible(safeRange)
-        } else if let position = appState.pendingCursorPosition {
-            appState.pendingCursorPosition = nil
+        } else if let position = consumePendingCursorPosition(from: appState, for: textView, paneIndex: paneIndex) {
             let clamped = min(position, textView.string.count)
             textView.setSelectedRange(NSRange(location: clamped, length: 0))
             textView.scrollRangeToVisible(NSRange(location: clamped, length: 0))
