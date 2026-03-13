@@ -74,6 +74,9 @@ class SettingsManager: ObservableObject {
     @Published var fileTreeMode: FileTreeMode {
         didSet { save() }
     }
+    @Published var pinnedItems: [PinnedItem] {
+        didSet { save() }
+    }
 
     var hasGitHubPAT: Bool {
         !githubPAT.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -98,6 +101,7 @@ class SettingsManager: ObservableObject {
         var collapsedPanes: [String]?
         var githubPAT: String?
         var fileTreeMode: String?
+        var pinnedItems: [PinnedItem]?
 
         init(
             onBootCommand: String,
@@ -115,7 +119,8 @@ class SettingsManager: ObservableObject {
             rightPaneHeights: [String: CGFloat]?,
             collapsedPanes: [String]?,
             githubPAT: String?,
-            fileTreeMode: String?
+            fileTreeMode: String?,
+            pinnedItems: [PinnedItem]?
         ) {
             self.onBootCommand = onBootCommand
             self.fileExtensionFilter = fileExtensionFilter
@@ -133,6 +138,7 @@ class SettingsManager: ObservableObject {
             self.collapsedPanes = collapsedPanes
             self.githubPAT = githubPAT
             self.fileTreeMode = fileTreeMode
+            self.pinnedItems = pinnedItems
         }
 
         init(from decoder: Decoder) throws {
@@ -153,6 +159,7 @@ class SettingsManager: ObservableObject {
             collapsedPanes = try container.decodeIfPresent([String].self, forKey: .collapsedPanes)
             githubPAT = try container.decodeIfPresent(String.self, forKey: .githubPAT)
             fileTreeMode = try container.decodeIfPresent(String.self, forKey: .fileTreeMode)
+            pinnedItems = try container.decodeIfPresent([PinnedItem].self, forKey: .pinnedItems)
         }
     }
 
@@ -187,6 +194,7 @@ class SettingsManager: ObservableObject {
             self.collapsedPanes = Set(config.collapsedPanes ?? [])
             self.githubPAT = config.githubPAT ?? ""
             self.fileTreeMode = FileTreeMode(rawValue: config.fileTreeMode ?? "") ?? .folder
+            self.pinnedItems = config.pinnedItems ?? []
         } else {
             self.onBootCommand = ""
             self.fileExtensionFilter = "*.md, *.txt"
@@ -204,6 +212,7 @@ class SettingsManager: ObservableObject {
             self.collapsedPanes = []
             self.githubPAT = ""
             self.fileTreeMode = .folder
+            self.pinnedItems = []
         }
     }
 
@@ -262,7 +271,8 @@ class SettingsManager: ObservableObject {
             rightPaneHeights: rightPaneHeights,
             collapsedPanes: Array(collapsedPanes),
             githubPAT: githubPAT.isEmpty ? nil : githubPAT,
-            fileTreeMode: fileTreeMode.rawValue
+            fileTreeMode: fileTreeMode.rawValue,
+            pinnedItems: pinnedItems.isEmpty ? nil : pinnedItems
         )
         guard let data = try? JSONEncoder().encode(config) else { return }
         let configURL = URL(fileURLWithPath: configPath)

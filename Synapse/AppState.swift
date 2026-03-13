@@ -198,8 +198,13 @@ class AppState: ObservableObject {
     @AppStorage("sortAscending") var sortAscending: Bool = true
 
     // Settings
-    let settings = SettingsManager()
+    var settings = SettingsManager()
     let gistPublisher = GistPublisher()
+
+    /// Replace settings for testing purposes only
+    func replaceSettingsForTesting(_ newSettings: SettingsManager) {
+        settings = newSettings
+    }
 
     private var history: [URL] {
         get { paneStates[activePaneIndex].history }
@@ -239,6 +244,63 @@ class AppState: ObservableObject {
             name: NSApplication.willTerminateNotification,
             object: nil
         )
+    }
+
+    // MARK: - Pinning
+
+    /// Returns all pinned items that exist in the current vault
+    var pinnedItems: [PinnedItem] {
+        guard let root = rootURL else { return [] }
+        return settings.pinnedItems.filter { $0.vaultPath == root.path && $0.exists }
+    }
+
+    /// Pin a file or folder
+    func pinItem(_ url: URL) {
+        guard let root = rootURL else { return }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return }
+
+        // Check if already pinned
+        guard !settings.pinnedItems.contains(where: { $0.url == url && $0.vaultPath == root.path }) else { return }
+
+        let item = PinnedItem(url: url, isFolder: isDirectory.boolValue, vaultURL: root)
+        settings.pinnedItems.append(item)
+    }
+
+    /// Pin a tag
+    func pinTag(_ tagName: String) {
+        guard let root = rootURL else { return }
+
+        // Check if tag is already pinned
+        guard !settings.pinnedItems.contains(where: { $0.isTag && $0.name == tagName && $0.vaultPath == root.path }) else { return }
+
+        let item = PinnedItem(tagName: tagName, vaultURL: root)
+        settings.pinnedItems.append(item)
+    }
+
+    /// Unpin a file, folder, or tag
+    func unpinItem(_ url: URL) {
+        guard let root = rootURL else { return }
+        settings.pinnedItems.removeAll { $0.url == url && $0.vaultPath == root.path }
+    }
+
+    /// Unpin a tag
+    func unpinTag(_ tagName: String) {
+        guard let root = rootURL else { return }
+        settings.pinnedItems.removeAll { $0.isTag && $0.name == tagName && $0.vaultPath == root.path }
+    }
+
+    /// Check if an item is pinned
+    func isPinned(_ url: URL) -> Bool {
+        guard let root = rootURL else { return false }
+        return settings.pinnedItems.contains { $0.url == url && $0.vaultPath == root.path && $0.exists }
+    }
+
+    /// Check if a tag is pinned
+    func isTagPinned(_ tagName: String) -> Bool {
+        guard let root = rootURL else { return false }
+        return settings.pinnedItems.contains { $0.isTag && $0.name == tagName && $0.vaultPath == root.path }
     }
 
     @objc private func handleAppTermination() {
@@ -1324,6 +1386,15 @@ class AppState: ObservableObject {
             tabs.append(.file(url))
             activeTabIndex = tabs.count - 1
         }
+    }
+
+    // MARK: - Folder Navigation for Pinned Items
+
+    /// Expands the folder in the file tree (called when a pinned folder is clicked)
+    func expandAndScrollToFolder(_ url: URL) {
+        // For now, just ensure the folder path is expanded
+        // The actual scrolling will be handled by the UI observing fileTreeSelection
+        selectedFile = url
     }
 
     func openFileInNewTab(_ url: URL) {
