@@ -1018,18 +1018,10 @@ class LinkAwareTextView: NSTextView {
     }
 
     func inlineEmbedPreviewHeight(for match: InlineEmbedMatch) -> CGFloat {
-        let availableWidth = max(120, bounds.width - textContainerInset.width * 2 - 20)
-        let width = min(availableWidth, 520)
-
-        // Calculate height based on content or show placeholder
-        if match.content != nil {
-            // Estimate height: title (20) + content + padding (36) + button (28)
-            let contentHeight: CGFloat = 120  // Default content height
-            return 20 + contentHeight + 36 + 28
-        } else {
-            // Unresolved: just title + padding + button
-            return 20 + 36 + 28
-        }
+        // Get the preferred size from the EmbeddedNoteView
+        let tempView = EmbeddedNoteView()
+        let preferredSize = tempView.preferredSize(for: match.content)
+        return preferredSize.height
     }
 
     func refreshInlineEmbedPreviews() {
@@ -1046,30 +1038,28 @@ class LinkAwareTextView: NSTextView {
             inlineEmbedViews.removeValue(forKey: key)
         }
 
-        let availableWidth = max(120, bounds.width - textContainerInset.width * 2 - 20)
-        let maxWidth = min(availableWidth, 520)
+        // Calculate right-edge position
+        let textViewWidth = bounds.width
+        let panelWidth: CGFloat = 280
+        let rightMargin: CGFloat = 20
+
+        // Track vertical positions for multiple embeds
+        var currentY: CGFloat = textContainerInset.height + 20
 
         for match in matches {
-            placeInlineEmbed(for: match, layoutManager: layoutManager, textContainer: textContainer, maxWidth: maxWidth)
+            let embedFrame = placeInlineEmbed(
+                for: match,
+                layoutManager: layoutManager,
+                textContainer: textContainer,
+                rightEdgeX: textViewWidth - panelWidth - rightMargin,
+                startY: currentY
+            )
+            currentY = embedFrame.maxY + 16 // 16px spacing between embeds
         }
     }
 
-    private func placeInlineEmbed(for match: InlineEmbedMatch, layoutManager: NSLayoutManager, textContainer: NSTextContainer, maxWidth: CGFloat) {
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: match.paragraphRange, actualCharacterRange: nil)
-        var paragraphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        paragraphRect.origin.x += textContainerOrigin.x
-        paragraphRect.origin.y += textContainerOrigin.y
-
+    private func placeInlineEmbed(for match: InlineEmbedMatch, layoutManager: NSLayoutManager, textContainer: NSTextContainer, rightEdgeX: CGFloat, startY: CGFloat) -> NSRect {
         let isUnresolved = match.noteURL == nil
-        let height = inlineEmbedPreviewHeight(for: match)
-
-        // Position below the embed syntax line
-        let frame = NSRect(
-            x: textContainerOrigin.x + 14,
-            y: paragraphRect.maxY + 8,
-            width: maxWidth,
-            height: height
-        )
 
         let embedView = inlineEmbedViews[match.id] ?? {
             let view = EmbeddedNoteView()
@@ -1087,7 +1077,20 @@ class LinkAwareTextView: NSTextView {
             noteURL: match.noteURL,
             isUnresolved: isUnresolved
         )
+
+        // Calculate the preferred size
+        let preferredSize = embedView.preferredSize(for: match.content)
+
+        // Position at the right edge, starting from startY
+        let frame = NSRect(
+            x: rightEdgeX,
+            y: startY,
+            width: preferredSize.width,
+            height: preferredSize.height
+        )
+
         embedView.frame = frame
+        return frame
     }
 
     func inlineImageMatches() -> [InlineImageMatch] {
@@ -1401,12 +1404,18 @@ struct InlineYouTubeMatch {
 }
 
 final class EmbeddedNoteView: NSView {
-    private let contentField = NSTextField(labelWithString: "")
+    private let contentScrollView = NSScrollView()
+    private let contentTextView = NSTextView()
     private let titleField = NSTextField(labelWithString: "")
     private let borderView = NSView()
     private let openButton = NSButton()
     private var targetURL: URL?
     var onOpenNote: ((URL) -> Void)?
+
+    // Fixed dimensions for the right-aligned panel
+    private let panelWidth: CGFloat = 280
+    private let maxPanelHeight: CGFloat = 400
+    private let minPanelHeight: CGFloat = 120
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -1423,15 +1432,15 @@ final class EmbeddedNoteView: NSView {
         titleField.stringValue = isUnresolved ? "Note not found: \(noteName)" : noteName
 
         if isUnresolved {
-            contentField.stringValue = ""
-            contentField.isHidden = true
-            borderView.layer?.backgroundColor = NSColor(SynapseTheme.panelElevated).cgColor
-            borderView.layer?.borderColor = NSColor(SynapseTheme.error).cgColor
+            contentTextView.string = ""
+            contentScrollView.isHidden = true
+            borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
+            borderView.layer?.borderColor = SynapseTheme.nsError.cgColor
         } else if let content = content {
-            contentField.stringValue = content
-            contentField.isHidden = false
-            borderView.layer?.backgroundColor = NSColor(SynapseTheme.panelElevated).cgColor
-            borderView.layer?.borderColor = NSColor(SynapseTheme.border).cgColor
+            contentTextView.string = content
+            contentScrollView.isHidden = false
+            borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
+            borderView.layer?.borderColor = SynapseTheme.nsBorder.cgColor
         }
 
         openButton.isHidden = (noteURL == nil)
@@ -1445,6 +1454,8 @@ final class EmbeddedNoteView: NSView {
 
         let padding: CGFloat = 12
         let buttonHeight: CGFloat = 28
+        let titleHeight: CGFloat = 20
+        let spacing: CGFloat = 8
 
         // Border view fills the entire frame
         borderView.frame = bounds
@@ -1452,28 +1463,30 @@ final class EmbeddedNoteView: NSView {
         // Title at top
         titleField.frame = NSRect(
             x: padding,
-            y: bounds.height - padding - 20,
+            y: bounds.height - padding - titleHeight,
             width: bounds.width - padding * 2,
-            height: 20
+            height: titleHeight
         )
-
-        // Content field below title
-        if !contentField.isHidden {
-            contentField.frame = NSRect(
-                x: padding,
-                y: buttonHeight + padding,
-                width: bounds.width - padding * 2,
-                height: bounds.height - buttonHeight - padding * 3 - 20
-            )
-        }
 
         // Open button at bottom
         openButton.frame = NSRect(
-            x: padding,
+            x: bounds.width - padding - 80,
             y: padding,
-            width: 100,
+            width: 80,
             height: buttonHeight
         )
+
+        // Content scroll view fills the middle area
+        if !contentScrollView.isHidden {
+            let contentY = buttonHeight + padding + spacing
+            let contentHeight = bounds.height - contentY - titleHeight - spacing * 2
+            contentScrollView.frame = NSRect(
+                x: padding,
+                y: contentY,
+                width: bounds.width - padding * 2,
+                height: max(0, contentHeight)
+            )
+        }
     }
 
     @objc private func openNote() {
@@ -1487,24 +1500,34 @@ final class EmbeddedNoteView: NSView {
         borderView.layer?.cornerRadius = 6
         borderView.layer?.masksToBounds = true
         borderView.layer?.borderWidth = 1
-        borderView.layer?.backgroundColor = NSColor(SynapseTheme.panelElevated).cgColor
-        borderView.layer?.borderColor = NSColor(SynapseTheme.border).cgColor
+        borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
+        borderView.layer?.borderColor = SynapseTheme.nsBorder.cgColor
         borderView.autoresizingMask = [.width, .height]
         addSubview(borderView)
 
         // Title field
         titleField.font = .systemFont(ofSize: 13, weight: .semibold)
-        titleField.textColor = NSColor(SynapseTheme.textPrimary)
+        titleField.textColor = SynapseTheme.nsTextPrimary
         titleField.lineBreakMode = .byTruncatingTail
         addSubview(titleField)
 
-        // Content field
-        contentField.font = .systemFont(ofSize: 12)
-        contentField.textColor = NSColor(SynapseTheme.textSecondary)
-        contentField.lineBreakMode = .byWordWrapping
-        contentField.maximumNumberOfLines = 0
-        contentField.isHidden = true
-        addSubview(contentField)
+        // Content text view (read-only)
+        contentTextView.isEditable = false
+        contentTextView.isSelectable = true
+        contentTextView.isRichText = false
+        contentTextView.backgroundColor = SynapseTheme.editorCodeBackground
+        contentTextView.textContainerInset = NSSize(width: 8, height: 8)
+        contentTextView.font = .systemFont(ofSize: 11)
+        contentTextView.textColor = SynapseTheme.nsTextSecondary
+
+        // Content scroll view
+        contentScrollView.documentView = contentTextView
+        contentScrollView.hasVerticalScroller = true
+        contentScrollView.autohidesScrollers = true
+        contentScrollView.borderType = .bezelBorder
+        contentScrollView.backgroundColor = SynapseTheme.editorCodeBackground
+        contentScrollView.isHidden = true
+        addSubview(contentScrollView)
 
         // Open button
         openButton.title = "Open"
@@ -1513,6 +1536,34 @@ final class EmbeddedNoteView: NSView {
         openButton.bezelStyle = .rounded
         openButton.font = .systemFont(ofSize: 11, weight: .medium)
         addSubview(openButton)
+    }
+
+    // Return the preferred size for this panel
+    func preferredSize(for content: String?) -> NSSize {
+        let padding: CGFloat = 12
+        let buttonHeight: CGFloat = 28
+        let titleHeight: CGFloat = 20
+        let spacing: CGFloat = 8
+
+        if content == nil {
+            // Unresolved: just title + button
+            return NSSize(width: panelWidth, height: minPanelHeight)
+        }
+
+        // Calculate content height based on text
+        let textStorage = NSTextStorage(string: content!)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(containerSize: NSSize(width: panelWidth - padding * 2 - 20, height: .greatestFiniteMagnitude))
+        textContainer.lineFragmentPadding = 0
+
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let contentHeight = layoutManager.usedRect(for: textContainer).height + 16 // +16 for insets
+        let totalHeight = padding + buttonHeight + spacing + min(contentHeight, 300) + spacing + titleHeight + padding
+
+        return NSSize(width: panelWidth, height: min(max(totalHeight, minPanelHeight), maxPanelHeight))
     }
 }
 
