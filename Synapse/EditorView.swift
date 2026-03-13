@@ -293,6 +293,18 @@ struct RawEditor: NSViewRepresentable {
         textView.installSearchObservers()
         textView.installFocusObserver()
         textView.installSaveCursorObserver(appState: context.coordinator.parent.appState)
+        
+        // Set up wiki link callbacks
+        textView.onWikiLinkRequest = { [weak appState, weak textView] in
+            // Store the typing range and set up completion handler
+            appState?.wikiLinkCompletionHandler = { url in
+                textView?.onWikiLinkComplete?(url)
+            }
+            appState?.presentCommandPalette(mode: .wikiLink)
+        }
+        textView.onWikiLinkComplete = { [weak textView] url in
+            textView?.insertLink(url)
+        }
 
         let scroll = NSScrollView()
         scroll.documentView = textView
@@ -808,6 +820,8 @@ class LinkAwareTextView: NSTextView {
     var onActivatePane: (() -> Void)?
     var currentFileURL: URL?
     var onMatchCountUpdate: ((Int) -> Void)?
+    var onWikiLinkRequest: (() -> Void)?  // Called when [[ is typed
+    var onWikiLinkComplete: ((URL) -> Void)?  // Called when a file is selected for wiki link
 
     private var completionPopover: NSPopover?
     private var completionVC: CompletionViewController?
@@ -1028,7 +1042,8 @@ class LinkAwareTextView: NSTextView {
             // Limit completion to the actively typed token only.
             if !query.contains("]]") && query.count <= 120 {
                 linkTypingRange = tokenRange
-                showCompletion(query: query)
+                // Use command palette for wiki link picker instead of completion popover
+                onWikiLinkRequest?()
                 return
             }
         }
@@ -1126,7 +1141,7 @@ class LinkAwareTextView: NSTextView {
         if let m = eventMonitor { NSEvent.removeMonitor(m); eventMonitor = nil }
     }
 
-    private func insertLink(_ url: URL) {
+    func insertLink(_ url: URL) {
         guard let range = linkTypingRange else { return }
         guard range.location >= 0, range.location + range.length <= (string as NSString).length else {
             dismissCompletion()

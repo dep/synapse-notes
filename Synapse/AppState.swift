@@ -129,6 +129,7 @@ class AppState: ObservableObject {
     enum CommandPaletteMode {
         case files
         case templates
+        case wikiLink
     }
 
     @Published var rootURL: URL?
@@ -179,6 +180,8 @@ class AppState: ObservableObject {
     @Published var isSearchPresented: Bool = false
     @Published var pendingTemplateRename: TemplateRenameRequest?
     @Published var searchMode: SearchMode = .currentFile
+    // Wiki link completion handler - called when a file is selected in wiki link mode
+    var wikiLinkCompletionHandler: ((URL) -> Void)?
     // Current-file find state (shared so CMD-G works globally)
     @Published var searchQuery: String = ""
     @Published var searchMatchIndex: Int = 0
@@ -1008,9 +1011,9 @@ class AppState: ObservableObject {
         allFiles = discoveredFiles.filter { settings.shouldShowFile($0) }
     }
 
-    func presentCommandPalette() {
+    func presentCommandPalette(mode: CommandPaletteMode = .files) {
         guard rootURL != nil else { return }
-        commandPaletteMode = .files
+        commandPaletteMode = mode
         isCommandPalettePresented = true
     }
 
@@ -1019,6 +1022,16 @@ class AppState: ObservableObject {
         commandPaletteMode = .files
         targetDirectoryForTemplate = nil
         pendingTemplateURL = nil
+    }
+
+    /// Handles selection of a wiki link from the command palette
+    func handleWikiLinkSelection(fileURL: URL, cursorPosition: Int) {
+        // Close the command palette
+        dismissCommandPalette()
+        
+        // Call the completion handler if one is set
+        wikiLinkCompletionHandler?(fileURL)
+        wikiLinkCompletionHandler = nil
     }
 
     func presentSearch(mode: SearchMode) {

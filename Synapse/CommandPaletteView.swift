@@ -89,7 +89,7 @@ struct CommandPaletteView: View {
 
     private var sourceFiles: [URL] {
         switch appState.commandPaletteMode {
-        case .files:
+        case .files, .wikiLink:
             return appState.allProjectFiles
         case .templates:
             return appState.availableTemplates()
@@ -102,12 +102,14 @@ struct CommandPaletteView: View {
             return "Open any file in the workspace"
         case .templates:
             return "Choose a template for the new note"
+        case .wikiLink:
+            return "Insert a wiki link"
         }
     }
 
     private var resultsBadgeText: String {
         switch appState.commandPaletteMode {
-        case .files:
+        case .files, .wikiLink:
             return "\(results.count) matches"
         case .templates:
             return "\(results.count) templates"
@@ -116,7 +118,7 @@ struct CommandPaletteView: View {
 
     private var emptyTitle: String {
         switch appState.commandPaletteMode {
-        case .files:
+        case .files, .wikiLink:
             return "No matching files"
         case .templates:
             return "No matching templates"
@@ -125,7 +127,7 @@ struct CommandPaletteView: View {
 
     private var emptyMessage: String {
         switch appState.commandPaletteMode {
-        case .files:
+        case .files, .wikiLink:
             return "Try a file name, path fragment, or extension."
         case .templates:
             return "Try a template name or path fragment."
@@ -327,6 +329,8 @@ struct CommandPaletteView: View {
                 appState.pendingTemplateURL = url
             }
             appState.isNewNotePromptRequested = true
+        case .wikiLink:
+            appState.handleWikiLinkSelection(fileURL: url, cursorPosition: 0)
         }
     }
 
