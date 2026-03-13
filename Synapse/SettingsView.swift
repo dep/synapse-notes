@@ -214,6 +214,9 @@ struct SettingsView: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
+
+                            Toggle("Open today's note on startup", isOn: $settings.dailyNotesOpenOnStartup)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
                         }
                     }
                 }

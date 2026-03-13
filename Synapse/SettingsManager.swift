@@ -41,6 +41,9 @@ class SettingsManager: ObservableObject {
     @Published var dailyNotesTemplate: String {
         didSet { save() }
     }
+    @Published var dailyNotesOpenOnStartup: Bool {
+        didSet { save() }
+    }
     @Published var autoSave: Bool {
         didSet { save() }
     }
@@ -82,6 +85,7 @@ class SettingsManager: ObservableObject {
         var dailyNotesEnabled: Bool?
         var dailyNotesFolder: String?
         var dailyNotesTemplate: String?
+        var dailyNotesOpenOnStartup: Bool?
         var autoSave: Bool
         var autoPush: Bool
         var leftSidebarPanes: [SidebarPane]?
@@ -98,6 +102,7 @@ class SettingsManager: ObservableObject {
             dailyNotesEnabled: Bool?,
             dailyNotesFolder: String?,
             dailyNotesTemplate: String?,
+            dailyNotesOpenOnStartup: Bool?,
             autoSave: Bool,
             autoPush: Bool,
             leftSidebarPanes: [SidebarPane]?,
@@ -113,6 +118,7 @@ class SettingsManager: ObservableObject {
             self.dailyNotesEnabled = dailyNotesEnabled
             self.dailyNotesFolder = dailyNotesFolder
             self.dailyNotesTemplate = dailyNotesTemplate
+            self.dailyNotesOpenOnStartup = dailyNotesOpenOnStartup
             self.autoSave = autoSave
             self.autoPush = autoPush
             self.leftSidebarPanes = leftSidebarPanes
@@ -131,6 +137,7 @@ class SettingsManager: ObservableObject {
             dailyNotesEnabled = try container.decodeIfPresent(Bool.self, forKey: .dailyNotesEnabled)
             dailyNotesFolder = try container.decodeIfPresent(String.self, forKey: .dailyNotesFolder)
             dailyNotesTemplate = try container.decodeIfPresent(String.self, forKey: .dailyNotesTemplate)
+            dailyNotesOpenOnStartup = try container.decodeIfPresent(Bool.self, forKey: .dailyNotesOpenOnStartup)
             autoSave = try container.decodeIfPresent(Bool.self, forKey: .autoSave) ?? false
             autoPush = try container.decodeIfPresent(Bool.self, forKey: .autoPush) ?? false
             leftSidebarPanes = try container.decodeIfPresent([SidebarPane].self, forKey: .leftSidebarPanes)
@@ -163,6 +170,7 @@ class SettingsManager: ObservableObject {
             self.dailyNotesEnabled = config.dailyNotesEnabled ?? false
             self.dailyNotesFolder = config.dailyNotesFolder ?? "daily"
             self.dailyNotesTemplate = config.dailyNotesTemplate ?? ""
+            self.dailyNotesOpenOnStartup = config.dailyNotesOpenOnStartup ?? false
             self.autoSave = config.autoSave
             self.autoPush = config.autoPush
             self.leftSidebarPanes = config.leftSidebarPanes ?? [.files, .tags, .links]
@@ -178,6 +186,7 @@ class SettingsManager: ObservableObject {
             self.dailyNotesEnabled = false
             self.dailyNotesFolder = "daily"
             self.dailyNotesTemplate = ""
+            self.dailyNotesOpenOnStartup = false
             self.autoSave = false
             self.autoPush = false
             self.leftSidebarPanes = [.files, .tags, .links]
@@ -235,6 +244,7 @@ class SettingsManager: ObservableObject {
             dailyNotesEnabled: dailyNotesEnabled,
             dailyNotesFolder: dailyNotesFolder,
             dailyNotesTemplate: dailyNotesTemplate,
+            dailyNotesOpenOnStartup: dailyNotesOpenOnStartup,
             autoSave: autoSave,
             autoPush: autoPush,
             leftSidebarPanes: leftSidebarPanes,

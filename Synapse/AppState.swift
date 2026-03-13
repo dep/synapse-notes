@@ -768,6 +768,12 @@ class AppState: ObservableObject {
         historyIndex = -1
         updateHistoryState()
         refreshAllFiles()
+        
+        // Open today's note on startup if settings allow
+        if settings.dailyNotesEnabled && settings.dailyNotesOpenOnStartup {
+            _ = openTodayNote()
+        }
+        
         setupGit(for: url)
     }
 
