@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum FileTreeMode: String, CaseIterable {
+    case folder = "folder"
+    case file = "file"
+}
+
 struct FileNode: Identifiable {
     let id = UUID()
     let url: URL
@@ -164,8 +169,52 @@ struct FileTreeView: View {
                 }
             }
 
-            // Sort Controls
+                if settings.dailyNotesEnabled, appState.rootURL != nil {
+                    Button(action: { appState.openTodayNote() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(SynapseTheme.accent)
+                                .frame(width: 16)
+                            Text("Today")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(SynapseTheme.textPrimary)
+                            Spacer()
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .background {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(SynapseTheme.row)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .stroke(SynapseTheme.rowBorder, lineWidth: 1)
+                                }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 2)
+                }
+
+            // View mode toggle + Sort Controls
             HStack(spacing: 8) {
+                // Folder / File view toggle
+                HStack(spacing: 0) {
+                    ForEach([FileTreeMode.folder, .file], id: \.self) { mode in
+                        Button(action: { settings.fileTreeMode = mode }) {
+                            Image(systemName: mode == .folder ? "folder" : "list.bullet")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(settings.fileTreeMode == mode ? SynapseTheme.textPrimary : SynapseTheme.textMuted)
+                                .frame(width: 28, height: 24)
+                                .background(settings.fileTreeMode == mode ? SynapseTheme.row : Color.clear)
+                        }
+                        .buttonStyle(.plain)
+                        .help(mode == .folder ? "Folder View" : "File View")
+                    }
+                }
+                .background(SynapseTheme.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(SynapseTheme.border, lineWidth: 1))
+
                 HStack(spacing: 0) {
                     ForEach(SortCriterion.allCases, id: \.self) { criterion in
                         Button(action: {
@@ -219,59 +268,73 @@ struct FileTreeView: View {
                 .fill(SynapseTheme.divider)
                 .frame(height: 1)
 
-                if settings.dailyNotesEnabled, appState.rootURL != nil {
-                    Button(action: { appState.openTodayNote() }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .foregroundStyle(SynapseTheme.accent)
-                                .frame(width: 16)
-                            Text("Today")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(SynapseTheme.textPrimary)
-                            Spacer()
-                        }
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 8)
-                        .background {
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(SynapseTheme.row)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .stroke(SynapseTheme.rowBorder, lineWidth: 1)
-                                }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 2)
-                }
-
                 ScrollView {
-                    if nodes.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
+                    if settings.fileTreeMode == .file {
+                        let flatFiles = flatSortedFiles()
+                        if flatFiles.isEmpty {
                             Text("No notes yet")
                                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                                 .foregroundStyle(SynapseTheme.textPrimary)
-                            Text("Create a note or folder to start organizing your workspace.")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(SynapseTheme.textMuted)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 8)
-                    } else {
-                        LazyVStack(alignment: .leading, spacing: 6) {
-                            ForEach(nodes) { node in
-                                FileNodeRow(
-                                    node: node,
-                                    depth: 0,
-                                    expandedDirs: $expandedDirs,
-                                    onCreateNote: { presentCreateNote(in: $0) },
-                                    onCreateFolder: { presentCreateFolder(in: $0) },
-                                    onRename: { presentRename(for: $0, isDirectory: $1) },
-                                    onDelete: { presentDelete(for: $0, isDirectory: $1) }
-                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 8)
+                        } else {
+                            LazyVStack(alignment: .leading, spacing: 2) {
+                                ForEach(flatFiles, id: \.self) { url in
+                                    Button(action: { appState.openFile(url) }) {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "doc.text")
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(appState.selectedFile == url ? SynapseTheme.accent : SynapseTheme.textMuted)
+                                                .frame(width: 14)
+                                            VStack(alignment: .leading, spacing: 1) {
+                                                Text(url.deletingPathExtension().lastPathComponent)
+                                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                                    .foregroundStyle(appState.selectedFile == url ? SynapseTheme.accent : SynapseTheme.textPrimary)
+                                                    .lineLimit(1)
+                                                Text(appState.relativePath(for: url))
+                                                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                                                    .foregroundStyle(SynapseTheme.textMuted)
+                                                    .lineLimit(1)
+                                            }
+                                            Spacer()
+                                        }
+                                        .padding(.vertical, 5)
+                                        .padding(.horizontal, 6)
+                                        .background(appState.selectedFile == url ? SynapseTheme.accentSoft : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
+                    } else {
+                        if nodes.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("No notes yet")
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(SynapseTheme.textPrimary)
+                                Text("Create a note or folder to start organizing your workspace.")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(SynapseTheme.textMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                        } else {
+                            LazyVStack(alignment: .leading, spacing: 6) {
+                                ForEach(nodes) { node in
+                                    FileNodeRow(
+                                        node: node,
+                                        depth: 0,
+                                        expandedDirs: $expandedDirs,
+                                        onCreateNote: { presentCreateNote(in: $0) },
+                                        onCreateFolder: { presentCreateFolder(in: $0) },
+                                        onRename: { presentRename(for: $0, isDirectory: $1) },
+                                        onDelete: { presentDelete(for: $0, isDirectory: $1) }
+                                    )
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
                 }
             }
@@ -332,6 +395,24 @@ struct FileTreeView: View {
                 Button("OK", role: .cancel) { errorMessage = nil }
             } message: {
                 Text(errorMessage ?? "")
+            }
+        }
+    }
+
+    private func flatSortedFiles() -> [URL] {
+        let files = appState.allFiles
+        switch appState.sortCriterion {
+        case .name:
+            return files.sorted {
+                let a = $0.lastPathComponent.lowercased()
+                let b = $1.lastPathComponent.lowercased()
+                return appState.sortAscending ? a < b : a > b
+            }
+        case .modified:
+            return files.sorted {
+                let aDate = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let bDate = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return appState.sortAscending ? aDate < bDate : aDate > bDate
             }
         }
     }

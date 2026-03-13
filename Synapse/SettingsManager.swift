@@ -71,6 +71,9 @@ class SettingsManager: ObservableObject {
     @Published var githubPAT: String {
         didSet { save() }
     }
+    @Published var fileTreeMode: FileTreeMode {
+        didSet { save() }
+    }
 
     var hasGitHubPAT: Bool {
         !githubPAT.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -94,6 +97,7 @@ class SettingsManager: ObservableObject {
         var rightPaneHeights: [String: CGFloat]?
         var collapsedPanes: [String]?
         var githubPAT: String?
+        var fileTreeMode: String?
 
         init(
             onBootCommand: String,
@@ -110,7 +114,8 @@ class SettingsManager: ObservableObject {
             leftPaneHeights: [String: CGFloat]?,
             rightPaneHeights: [String: CGFloat]?,
             collapsedPanes: [String]?,
-            githubPAT: String?
+            githubPAT: String?,
+            fileTreeMode: String?
         ) {
             self.onBootCommand = onBootCommand
             self.fileExtensionFilter = fileExtensionFilter
@@ -127,6 +132,7 @@ class SettingsManager: ObservableObject {
             self.rightPaneHeights = rightPaneHeights
             self.collapsedPanes = collapsedPanes
             self.githubPAT = githubPAT
+            self.fileTreeMode = fileTreeMode
         }
 
         init(from decoder: Decoder) throws {
@@ -146,6 +152,7 @@ class SettingsManager: ObservableObject {
             rightPaneHeights = try container.decodeIfPresent([String: CGFloat].self, forKey: .rightPaneHeights)
             collapsedPanes = try container.decodeIfPresent([String].self, forKey: .collapsedPanes)
             githubPAT = try container.decodeIfPresent(String.self, forKey: .githubPAT)
+            fileTreeMode = try container.decodeIfPresent(String.self, forKey: .fileTreeMode)
         }
     }
 
@@ -179,6 +186,7 @@ class SettingsManager: ObservableObject {
             self.rightPaneHeights = config.rightPaneHeights ?? [:]
             self.collapsedPanes = Set(config.collapsedPanes ?? [])
             self.githubPAT = config.githubPAT ?? ""
+            self.fileTreeMode = FileTreeMode(rawValue: config.fileTreeMode ?? "") ?? .folder
         } else {
             self.onBootCommand = ""
             self.fileExtensionFilter = "*.md, *.txt"
@@ -195,6 +203,7 @@ class SettingsManager: ObservableObject {
             self.rightPaneHeights = [:]
             self.collapsedPanes = []
             self.githubPAT = ""
+            self.fileTreeMode = .folder
         }
     }
 
@@ -252,7 +261,8 @@ class SettingsManager: ObservableObject {
             leftPaneHeights: leftPaneHeights,
             rightPaneHeights: rightPaneHeights,
             collapsedPanes: Array(collapsedPanes),
-            githubPAT: githubPAT.isEmpty ? nil : githubPAT
+            githubPAT: githubPAT.isEmpty ? nil : githubPAT,
+            fileTreeMode: fileTreeMode.rawValue
         )
         guard let data = try? JSONEncoder().encode(config) else { return }
         let configURL = URL(fileURLWithPath: configPath)

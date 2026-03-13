@@ -68,6 +68,7 @@ private struct GraphCanvas: View {
         initialModelTransform: .identity
     )
     @State private var scrollMonitor: Any?
+    @State private var isHovered = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -114,6 +115,7 @@ private struct GraphCanvas: View {
             // Zoom controls
             zoomControls
         }
+        .onHover { isHovered = $0 }
         .onAppear { installScrollMonitor() }
         .onDisappear { removeScrollMonitor() }
     }
@@ -155,11 +157,10 @@ private struct GraphCanvas: View {
 
     private func installScrollMonitor() {
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
-            // Only handle events that are not in a momentum phase (avoids runaway zoom)
-            guard event.momentumPhase == [] else { return event }
+            guard isHovered, event.momentumPhase == [] else { return event }
             let factor = pow(1.0015, event.scrollingDeltaY)
             graphState.modelTransform.scaling(by: factor)
-            return event
+            return nil
         }
     }
 
