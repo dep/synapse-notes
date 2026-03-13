@@ -6,8 +6,6 @@ layout: doc
 
 Synapse is a powerful Markdown-based knowledge management application exclusively built for macOS using SwiftUI. It serves as your second brain, supercharged with local graph visualization, Git sync, and seamless workflows.
 
----
-
 ## Setup & Installation
 
 1. **Download the App:** [Download the latest release of Synapse](https://github.com/dep/synapse/releases).
@@ -21,8 +19,6 @@ Synapse is a powerful Markdown-based knowledge management application exclusivel
 Once your vault is opened, consider configuring the following:
 - **Git Sync:** Navigate to `Settings > Auto-save` to ensure your vault is backed up or synced with a remote Git repository.
 - **Terminal Integration:** If you use the built-in terminal, set your preferred "On-boot command" in the Settings.
-
----
 
 ## Features
 
@@ -62,8 +58,6 @@ Customize left and right sidebars with panes:
 
 ### Gist Publishing
 Easily publish specific notes to GitHub Gists using your Personal Access Token (PAT).
-
----
 
 ## Settings
 
