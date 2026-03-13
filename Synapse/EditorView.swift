@@ -1544,7 +1544,7 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.backgroundColor = .clear
 
-        let documentView = NSView()
+        let documentView = FlippedNSView()
         documentView.autoresizingMask = [.width]
         scrollView.documentView = documentView
 
@@ -1587,6 +1587,11 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
         let totalHeight = max(currentY - spacing + 8, scrollView.bounds.height)
         documentView.frame = NSRect(x: 0, y: 0, width: width, height: totalHeight)
     }
+}
+
+// NSView subclass with flipped coordinate system so (0,0) is at top-left
+final class FlippedNSView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 final class EmbeddedNoteView: NSView {
