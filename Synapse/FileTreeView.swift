@@ -195,6 +195,23 @@ struct FileTreeView: View {
                     .padding(.horizontal, 2)
                 }
 
+                // MARK: - Pinned Section
+                if !appState.pinnedItems.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Pinned")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.8)
+                            .foregroundStyle(SynapseTheme.textMuted)
+                            .padding(.horizontal, 8)
+                            .padding(.top, 4)
+
+                        ForEach(appState.pinnedItems) { item in
+                            PinnedItemRow(item: item)
+                        }
+                    }
+                    .padding(.bottom, 8)
+                }
+
             // View mode toggle + Sort Controls
             HStack(spacing: 8) {
                 // Folder / File view toggle
@@ -267,23 +284,6 @@ struct FileTreeView: View {
             Rectangle()
                 .fill(SynapseTheme.divider)
                 .frame(height: 1)
-
-                // MARK: - Pinned Section
-                if !appState.pinnedItems.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Pinned")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .tracking(1.8)
-                            .foregroundStyle(SynapseTheme.textMuted)
-                            .padding(.horizontal, 8)
-                            .padding(.top, 4)
-
-                        ForEach(appState.pinnedItems) { item in
-                            PinnedItemRow(item: item)
-                        }
-                    }
-                    .padding(.bottom, 8)
-                }
 
                 ScrollView {
                     if settings.fileTreeMode == .file {
@@ -655,9 +655,15 @@ struct PinnedItemRow: View {
     var body: some View {
         Button(action: handleTap) {
             HStack(spacing: 6) {
-                Image(systemName: item.isFolder ? "folder.fill" : "pin.fill")
-                    .foregroundStyle(SynapseTheme.accent)
-                    .frame(width: 16)
+                if item.isTag {
+                    Image(systemName: "number")
+                        .foregroundStyle(SynapseTheme.accent)
+                        .frame(width: 16)
+                } else {
+                    Image(systemName: item.isFolder ? "folder.fill" : "pin.fill")
+                        .foregroundStyle(SynapseTheme.accent)
+                        .frame(width: 16)
+                }
                 Text(item.name)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(SynapseTheme.textPrimary)
@@ -678,19 +684,49 @@ struct PinnedItemRow: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 2)
+        .simultaneousGesture(
+            TapGesture()
+                .modifiers(.command)
+                .onEnded { _ in
+                    handleCmdClick()
+                }
+        )
         .contextMenu {
-            Button("Unpin") { appState.unpinItem(item.url) }
+            if item.isTag {
+                Button("Unpin") { appState.unpinTag(item.name) }
+            } else {
+                Button("Unpin") { appState.unpinItem(item.url!) }
+            }
             Divider()
             Button("Open") { handleTap() }
+            if !item.isTag && !item.isFolder {
+                Button("Open in New Tab") { handleCmdClick() }
+            }
         }
     }
 
     private func handleTap() {
-        if item.isFolder {
+        if item.isTag {
+            // Open tag in new tab
+            appState.openTagInNewTab(item.name)
+        } else if item.isFolder {
             // Expand/collapse folder in tree and scroll to it
-            appState.expandAndScrollToFolder(item.url)
+            appState.expandAndScrollToFolder(item.url!)
         } else {
-            appState.openFile(item.url)
+            appState.openFile(item.url!)
+        }
+    }
+
+    private func handleCmdClick() {
+        if item.isTag {
+            // Open tag in new tab
+            appState.openTagInNewTab(item.name)
+        } else if item.isFolder {
+            // Just navigate to folder for cmd-click
+            appState.expandAndScrollToFolder(item.url!)
+        } else {
+            // Open in new tab for files
+            appState.openFileInNewTab(item.url!)
         }
     }
 }

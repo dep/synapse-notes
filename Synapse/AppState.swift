@@ -265,16 +265,39 @@ class AppState: ObservableObject {
         settings.pinnedItems.append(item)
     }
 
-    /// Unpin a file or folder
+    /// Pin a tag
+    func pinTag(_ tagName: String) {
+        guard let root = rootURL else { return }
+
+        // Check if tag is already pinned
+        guard !settings.pinnedItems.contains(where: { $0.isTag && $0.name == tagName && $0.vaultPath == root.path }) else { return }
+
+        let item = PinnedItem(tagName: tagName, vaultURL: root)
+        settings.pinnedItems.append(item)
+    }
+
+    /// Unpin a file, folder, or tag
     func unpinItem(_ url: URL) {
         guard let root = rootURL else { return }
         settings.pinnedItems.removeAll { $0.url == url && $0.vaultPath == root.path }
+    }
+
+    /// Unpin a tag
+    func unpinTag(_ tagName: String) {
+        guard let root = rootURL else { return }
+        settings.pinnedItems.removeAll { $0.isTag && $0.name == tagName && $0.vaultPath == root.path }
     }
 
     /// Check if an item is pinned
     func isPinned(_ url: URL) -> Bool {
         guard let root = rootURL else { return false }
         return settings.pinnedItems.contains { $0.url == url && $0.vaultPath == root.path && $0.exists }
+    }
+
+    /// Check if a tag is pinned
+    func isTagPinned(_ tagName: String) -> Bool {
+        guard let root = rootURL else { return false }
+        return settings.pinnedItems.contains { $0.isTag && $0.name == tagName && $0.vaultPath == root.path }
     }
 
     @objc private func handleAppTermination() {

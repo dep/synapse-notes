@@ -92,6 +92,13 @@ struct TagsPaneView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                if appState.isTagPinned(tag) {
+                                    Button("Unpin") { appState.unpinTag(tag) }
+                                } else {
+                                    Button("Pin") { appState.pinTag(tag) }
+                                }
+                            }
                         }
                     }
                     .padding(12)
