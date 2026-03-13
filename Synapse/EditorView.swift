@@ -65,6 +65,8 @@ struct EditorView: View {
     var readOnlyFile: URL? = nil
     var readOnlyContent: String? = nil
 
+    @State private var embeddedNotes: [EmbeddedNoteInfo] = []
+
     private var isReadOnly: Bool { readOnlyFile != nil }
     private var displayFile: URL? { readOnlyFile ?? appState.selectedFile }
     private var displayContent: String { readOnlyContent ?? appState.fileContent }
@@ -84,12 +86,39 @@ struct EditorView: View {
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
-                    if isReadOnly {
-                        RawEditor(text: .constant(displayContent), isEditable: false, paneIndex: paneIndex)
+                    HStack(spacing: 0) {
+                        // Editor takes available space
+                        if isReadOnly {
+                            RawEditor(
+                                text: .constant(displayContent),
+                                isEditable: false,
+                                paneIndex: paneIndex,
+                                embeddedNotes: .constant([])
+                            )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        RawEditor(text: $appState.fileContent, paneIndex: paneIndex)
+                        } else {
+                            RawEditor(
+                                text: $appState.fileContent,
+                                paneIndex: paneIndex,
+                                embeddedNotes: $embeddedNotes
+                            )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+
+                        // Embedded notes panel on the right
+                        if !embeddedNotes.isEmpty {
+                            EmbeddedNotesPanel(
+                                notes: embeddedNotes,
+                                allFiles: appState.allFiles,
+                                onOpenFile: { url in
+                                    appState.openFile(url)
+                                }
+                            )
+                            .frame(width: 320)
+                            .padding(.trailing, 12)
+                            .padding(.vertical, 8)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                        }
                     }
 
                     HStack {
@@ -204,6 +233,7 @@ struct RawEditor: NSViewRepresentable {
     @Binding var text: String
     var isEditable: Bool = true
     var paneIndex: Int = 0
+    @Binding var embeddedNotes: [EmbeddedNoteInfo]
     @EnvironmentObject var appState: AppState
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -274,6 +304,23 @@ struct RawEditor: NSViewRepresentable {
         textView.onMatchCountUpdate = { count in appState.searchMatchCount = count }
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
         textView.refreshInlineImagePreviews()
+
+        // Update embedded notes for side panel
+        DispatchQueue.main.async {
+            let matches = textView.inlineEmbedMatches()
+            let newNotes = matches.map { match in
+                EmbeddedNoteInfo(
+                    id: match.id,
+                    noteName: match.noteName,
+                    content: match.content,
+                    noteURL: match.noteURL,
+                    isUnresolved: match.noteURL == nil
+                )
+            }
+            if newNotes != embeddedNotes {
+                embeddedNotes = newNotes
+            }
+        }
 
         if let range = consumePendingCursorRange(from: appState, for: textView, paneIndex: paneIndex) {
             let len = textView.string.count
@@ -745,9 +792,7 @@ class LinkAwareTextView: NSTextView {
     private var cachedYouTubeMatches: [InlineYouTubeMatch] = []
     private var lastYouTubeScanText: String = ""
 
-    // MARK: - Embedded Notes
-    private var inlineEmbedViews: [String: EmbeddedNoteView] = [:]
-
+    // MARK: - Embedded Notes (for side panel)
     private static let embedRegex = try? NSRegularExpression(pattern: #"!\[\[([^\]]+)\]\]"#)
 
     private static let inlineImageCache = NSCache<NSString, NSImage>()
@@ -1110,9 +1155,6 @@ class LinkAwareTextView: NSTextView {
                 loadInlineImage(from: resolvedURL, cacheKey: cacheKey, maxPixelSize: maxPreviewWidth * 2)
             }
         }
-
-        // Refresh embedded note previews
-        refreshInlineEmbedPreviews()
     }
 
     // MARK: - Embedded Notes
@@ -1157,82 +1199,6 @@ class LinkAwareTextView: NSTextView {
                 noteURL: noteURL
             )
         }
-    }
-
-    func inlineEmbedPreviewHeight(for match: InlineEmbedMatch) -> CGFloat {
-        // Get the preferred size from the EmbeddedNoteView
-        let tempView = EmbeddedNoteView()
-        let preferredSize = tempView.preferredSize(for: match.content)
-        return preferredSize.height
-    }
-
-    func refreshInlineEmbedPreviews() {
-        guard let layoutManager, let textContainer else { return }
-        layoutManager.ensureLayout(for: textContainer)
-
-        let matches = inlineEmbedMatches()
-        let activeKeys = Set(matches.map(\.id))
-
-        // Remove views for matches that no longer exist
-        for key in Array(inlineEmbedViews.keys) where !activeKeys.contains(key) {
-            guard let view = inlineEmbedViews[key] else { continue }
-            view.removeFromSuperview()
-            inlineEmbedViews.removeValue(forKey: key)
-        }
-
-        // Calculate right-edge position
-        let textViewWidth = bounds.width
-        let panelWidth: CGFloat = 280
-        let rightMargin: CGFloat = 20
-
-        // Track vertical positions for multiple embeds
-        var currentY: CGFloat = textContainerInset.height + 20
-
-        for match in matches {
-            let embedFrame = placeInlineEmbed(
-                for: match,
-                layoutManager: layoutManager,
-                textContainer: textContainer,
-                rightEdgeX: textViewWidth - panelWidth - rightMargin,
-                startY: currentY
-            )
-            currentY = embedFrame.maxY + 16 // 16px spacing between embeds
-        }
-    }
-
-    private func placeInlineEmbed(for match: InlineEmbedMatch, layoutManager: NSLayoutManager, textContainer: NSTextContainer, rightEdgeX: CGFloat, startY: CGFloat) -> NSRect {
-        let isUnresolved = match.noteURL == nil
-
-        let embedView = inlineEmbedViews[match.id] ?? {
-            let view = EmbeddedNoteView()
-            view.onOpenNote = { [weak self] url in
-                self?.onOpenFile?(url)
-            }
-            addSubview(view)
-            inlineEmbedViews[match.id] = view
-            return view
-        }()
-
-        embedView.configure(
-            noteName: match.noteName,
-            content: match.content,
-            noteURL: match.noteURL,
-            isUnresolved: isUnresolved
-        )
-
-        // Calculate the preferred size
-        let preferredSize = embedView.preferredSize(for: match.content)
-
-        // Position at the right edge, starting from startY
-        let frame = NSRect(
-            x: rightEdgeX,
-            y: startY,
-            width: preferredSize.width,
-            height: preferredSize.height
-        )
-
-        embedView.frame = frame
-        return frame
     }
 
     func inlineImageMatches() -> [InlineImageMatch] {
@@ -1543,6 +1509,84 @@ struct InlineYouTubeMatch {
     let paragraphRange: NSRange
     let videoID: String
     let sourceURL: URL
+}
+
+// MARK: - Embedded Notes Data Model
+
+/// Information about an embedded note for the side panel
+struct EmbeddedNoteInfo: Identifiable, Equatable {
+    let id: String
+    let noteName: String
+    let content: String?
+    let noteURL: URL?
+    let isUnresolved: Bool
+    
+    static func == (lhs: EmbeddedNoteInfo, rhs: EmbeddedNoteInfo) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.noteName == rhs.noteName &&
+        lhs.content == rhs.content &&
+        lhs.noteURL == rhs.noteURL &&
+        lhs.isUnresolved == rhs.isUnresolved
+    }
+}
+
+// MARK: - Embedded Notes Side Panel
+
+struct EmbeddedNotesPanel: NSViewRepresentable {
+    let notes: [EmbeddedNoteInfo]
+    let allFiles: [URL]
+    let onOpenFile: (URL) -> Void
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.backgroundColor = .clear
+
+        let documentView = NSView()
+        documentView.autoresizingMask = [.width]
+        scrollView.documentView = documentView
+
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let documentView = scrollView.documentView else { return }
+
+        // Remove existing embed views
+        documentView.subviews.forEach { $0.removeFromSuperview() }
+
+        let width: CGFloat = 304 // 320 - 16 padding
+        var currentY: CGFloat = 8
+        let spacing: CGFloat = 12
+
+        for note in notes {
+            let embedView = EmbeddedNoteView()
+            embedView.onOpenNote = { url in
+                onOpenFile(url)
+            }
+            embedView.configure(
+                noteName: note.noteName,
+                content: note.content,
+                noteURL: note.noteURL,
+                isUnresolved: note.isUnresolved
+            )
+
+            // Calculate height
+            let preferredSize = embedView.preferredSize(for: note.content)
+            let height = min(preferredSize.height, 400) // Max 400px per embed
+
+            embedView.frame = NSRect(x: 0, y: currentY, width: width, height: height)
+            documentView.addSubview(embedView)
+
+            currentY += height + spacing
+        }
+
+        // Set document view size
+        let totalHeight = max(currentY - spacing + 8, scrollView.bounds.height)
+        documentView.frame = NSRect(x: 0, y: 0, width: width, height: totalHeight)
+    }
 }
 
 final class EmbeddedNoteView: NSView {
