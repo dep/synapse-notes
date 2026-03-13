@@ -2,9 +2,7 @@
 layout: doc
 ---
 
-# Synapse User Guide
-
-Welcome to Synapse! 
+# Welcome to Synapse!
 
 Synapse is a powerful Markdown-based knowledge management application exclusively built for macOS using SwiftUI. It serves as your second brain, supercharged with local graph visualization, Git sync, and seamless workflows.
 
@@ -12,8 +10,7 @@ Synapse is a powerful Markdown-based knowledge management application exclusivel
 
 ## Setup & Installation
 
-1. **Download the App:**
-   [Download the latest release of Synapse](https://github.com/dep/synapse/releases).
+1. **Download the App:** [Download the latest release of Synapse](https://github.com/dep/synapse/releases).
 2. **Installation:**
    Drag the Synapse application to your `Applications` folder.
 3. **Open a Vault:**
@@ -73,11 +70,11 @@ Easily publish specific notes to GitHub Gists using your Personal Access Token (
 To access Synapse settings, press `CMD + ,` or navigate to `Synapse > Settings` in the menu bar.
 
 ### General
-- **On-boot terminal command:** Set a command that runs automatically when the Terminal pane is loaded (e.g., loading an environment).
+- **On-boot terminal command:** Set a command that runs automatically when the Terminal pane is loaded (e.g., loading an environment, starting Claude Code, etc).
 - **File extension filters:** Define which file extensions are visible in your vault's File Tree.
 
 ### Workflows
-- **Daily Notes:** 
+- **Daily Notes:**
   - Enable/disable auto-creation.
   - Set the default folder for daily notes.
   - Choose a template for daily notes.

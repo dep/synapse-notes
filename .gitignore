@@ -1,6 +1,7 @@
 .DS_Store
 
-marketing-site/package-lock.json
+**/node_modules/
+**/package-lock.json
 
 marketing-site/docs/.vitepress/cache/
 
