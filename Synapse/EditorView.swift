@@ -273,6 +273,11 @@ struct RawEditor: NSViewRepresentable {
             .font: MarkdownTheme.body,
             .foregroundColor: SynapseTheme.editorForeground,
         ]
+        // Disable automatic substitutions to preserve markdown syntax
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
         return textView
     }
 

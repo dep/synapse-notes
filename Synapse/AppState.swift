@@ -578,19 +578,38 @@ class AppState: ObservableObject {
 
     private static let extractTagsRegex = try? NSRegularExpression(pattern: #"#([a-zA-Z0-9][a-zA-Z0-9_\-\.]*)"#)
     private static let urlDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    private static let codeBlockRegex = try? NSRegularExpression(pattern: #"```[\s\S]*?```"#, options: [.dotMatchesLineSeparators])
+    private static let inlineCodeRegex = try? NSRegularExpression(pattern: #"`[^`]*?`"#)
 
     /// Extracts all hashtags from text, normalizes to lowercase, removes duplicates
+    /// Ignores hashtags inside code blocks (```), inline code (`), and URLs
     func extractTags(from text: String) -> [String] {
         guard let regex = AppState.extractTagsRegex else { return [] }
         let nsText = text as NSString
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
-        let urlRanges = AppState.urlDetector?.matches(in: text, range: NSRange(location: 0, length: nsText.length)).map(\.range) ?? []
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        
+        // Find all code block ranges to exclude (both fenced and inline)
+        var codeRanges: [NSRange] = []
+        codeRanges += AppState.codeBlockRegex?.matches(in: text, range: fullRange).map { $0.range } ?? []
+        codeRanges += AppState.inlineCodeRegex?.matches(in: text, range: fullRange).map { $0.range } ?? []
+        
+        let matches = regex.matches(in: text, range: fullRange)
+        let urlRanges = AppState.urlDetector?.matches(in: text, range: fullRange).map(\.range) ?? []
+        
         var uniqueTags = Set<String>()
         return matches.compactMap { match in
             guard match.numberOfRanges > 1 else { return nil }
+            
+            // Skip if inside a code block (fenced or inline)
+            if codeRanges.contains(where: { NSLocationInRange(match.range.location, $0) }) {
+                return nil
+            }
+            
+            // Skip if inside a URL
             if urlRanges.contains(where: { NSLocationInRange(match.range.location, $0) }) {
                 return nil
             }
+            
             if match.range.location > 0 {
                 let previousCharacter = nsText.substring(with: NSRange(location: match.range.location - 1, length: 1))
                 if previousCharacter == "/" {

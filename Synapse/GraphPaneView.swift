@@ -82,7 +82,7 @@ private struct GraphCanvas: View {
                         .foregroundStyle(nodeColor(isSelected: isSelected, isGhost: isGhost))
                         .annotation(node.id, offset: .zero) {
                             Text(node.title)
-                                .font(.system(size: 28, weight: isSelected ? .semibold : .medium))
+                                .font(.system(size: 16, weight: isSelected ? .semibold : .medium))
                                 .foregroundStyle(
                                     isSelected ? Color.white : SynapseTheme.textPrimary
                                 )

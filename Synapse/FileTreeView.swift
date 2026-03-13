@@ -284,23 +284,23 @@ struct FileTreeView: View {
                                         HStack(spacing: 8) {
                                             Image(systemName: "doc.text")
                                                 .font(.system(size: 11))
-                                                .foregroundStyle(appState.selectedFile == url ? SynapseTheme.accent : SynapseTheme.textMuted)
+                                                .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textMuted)
                                                 .frame(width: 14)
                                             VStack(alignment: .leading, spacing: 1) {
                                                 Text(url.deletingPathExtension().lastPathComponent)
                                                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                                                    .foregroundStyle(appState.selectedFile == url ? SynapseTheme.accent : SynapseTheme.textPrimary)
+                                                    .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textPrimary)
                                                     .lineLimit(1)
                                                 Text(appState.relativePath(for: url))
                                                     .font(.system(size: 10, weight: .regular, design: .rounded))
-                                                    .foregroundStyle(SynapseTheme.textMuted)
+                                                    .foregroundStyle(appState.selectedFile == url ? Color.white.opacity(0.8) : SynapseTheme.textMuted)
                                                     .lineLimit(1)
                                             }
                                             Spacer()
                                         }
                                         .padding(.vertical, 5)
                                         .padding(.horizontal, 6)
-                                        .background(appState.selectedFile == url ? SynapseTheme.accentSoft : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                                        .background(appState.selectedFile == url ? SynapseTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 4))
                                     }
                                     .buttonStyle(.plain)
                                 }

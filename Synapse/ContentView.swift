@@ -320,6 +320,52 @@ struct ContentView: View {
                     action: { isRightSidebarVisible.toggle() },
                     help: isRightSidebarVisible ? "Hide Right Sidebar" : "Show Right Sidebar"
                 )
+                
+                // Global Add Pane menu
+                Menu {
+                    let used = Set(appState.settings.leftSidebarPanes + appState.settings.rightSidebarPanes)
+                    let available = SidebarPane.allCases.filter { !used.contains($0) }
+                    
+                    if available.isEmpty {
+                        Text("All panes are visible")
+                            .foregroundStyle(SynapseTheme.textMuted)
+                    } else {
+                        ForEach(available) { pane in
+                            Button(pane.title) {
+                                // Add to right sidebar by default, or left if right is hidden
+                                if isRightSidebarVisible {
+                                    appState.settings.rightSidebarPanes.append(pane)
+                                } else if isLeftSidebarVisible {
+                                    appState.settings.leftSidebarPanes.append(pane)
+                                } else {
+                                    // If both hidden, show right sidebar and add there
+                                    isRightSidebarVisible = true
+                                    appState.settings.rightSidebarPanes.append(pane)
+                                }
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // Show current panes with option to hide
+                    if !appState.settings.leftSidebarPanes.isEmpty || !appState.settings.rightSidebarPanes.isEmpty {
+                        Text("Current Panes")
+                            .font(.caption)
+                            .foregroundStyle(SynapseTheme.textMuted)
+                        
+                        ForEach(appState.settings.leftSidebarPanes + appState.settings.rightSidebarPanes) { pane in
+                            Button("Hide \(pane.title)") {
+                                appState.settings.leftSidebarPanes.removeAll { $0 == pane }
+                                appState.settings.rightSidebarPanes.removeAll { $0 == pane }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus.rectangle")
+                }
+                .buttonStyle(ChromeButtonStyle())
+                .help("Add or Remove Sidebar Panes")
 
                 Button(action: { appState.openGraphTab() }) {
                     Image(systemName: "circle.grid.2x2")
@@ -704,35 +750,6 @@ struct SidebarContainerView: View {
                 EmptyDropZone(settings: settings, isLeft: isLeft)
             } else {
                 VStack(spacing: 0) {
-                    // "Add pane" row — only shown when there are unused panes to add
-                    if !availablePanes.isEmpty {
-                        HStack {
-                            Spacer()
-                            Menu {
-                                ForEach(availablePanes) { pane in
-                                    Button(pane.title) {
-                                        if isLeft { settings.leftSidebarPanes.append(pane) }
-                                        else { settings.rightSidebarPanes.append(pane) }
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 10, weight: .bold))
-                                    Text("Add Pane")
-                                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                                }
-                                .foregroundStyle(SynapseTheme.textMuted)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
-                                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.trailing, 10)
-                            .padding(.top, 6)
-                        }
-                    }
-
                     ForEach(Array(panes.enumerated()), id: \.element.id) { index, pane in
                         let collapsed = settings.collapsedPanes.contains(pane.rawValue)
                         let h = collapsed

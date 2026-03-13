@@ -101,6 +101,46 @@ final class AppStateTagsTests: XCTestCase {
         XCTAssertEqual(tags.sorted(), ["my-tag", "my_tag"])
     }
 
+    func test_extractTags_ignoresTagsInsideCodeBlocks() throws {
+        let text = """
+        This is a note with #realtag
+        
+        ```text
+        yarn check v1.19.1
+        error "@storybook/addon-docs#@mdx-js/mdx"
+        ```
+        
+        Another #anothertag outside
+        """
+        let tags = sut.extractTags(from: text)
+        XCTAssertEqual(tags.sorted(), ["anothertag", "realtag"])
+    }
+
+    func test_extractTags_ignoresTagsInsideMultilineCodeBlocks() throws {
+        let text = """
+        #outside tag
+        ```
+        line 1 #inside1
+        line 2 #inside2
+        ```
+        #outside2
+        """
+        let tags = sut.extractTags(from: text)
+        XCTAssertEqual(tags.sorted(), ["outside", "outside2"])
+    }
+
+    func test_extractTags_ignoresTagsInsideInlineCode() throws {
+        let text = "My pass is `foobar#123` but this is #realtag"
+        let tags = sut.extractTags(from: text)
+        XCTAssertEqual(tags, ["realtag"])
+    }
+
+    func test_extractTags_ignoresMultipleTagsInsideInlineCode() throws {
+        let text = "Check `config #v2.1 #beta` and see #production"
+        let tags = sut.extractTags(from: text)
+        XCTAssertEqual(tags, ["production"])
+    }
+
     // MARK: - Tag Index
 
     func test_allTags_returnsAllUniqueTags() throws {
