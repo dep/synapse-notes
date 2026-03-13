@@ -172,6 +172,7 @@ class AppState: ObservableObject {
     @Published var pendingCursorRange: NSRange? = nil
     @Published var pendingCursorTargetPaneIndex: Int? = nil
     @Published var pendingScrollOffsetY: CGFloat? = nil
+    @Published var pendingSearchQuery: String? = nil
     @Published var commandPaletteMode: CommandPaletteMode = .files
     @Published var targetDirectoryForTemplate: URL?
     @Published var isRootNoteSheetPresented: Bool = false

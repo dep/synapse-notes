@@ -2,6 +2,12 @@ import SwiftUI
 import AppKit
 import ImageIO
 
+func consumePendingSearchQuery(from appState: AppState) -> String? {
+    guard let q = appState.pendingSearchQuery else { return nil }
+    appState.pendingSearchQuery = nil
+    return q
+}
+
 func consumePendingCursorRange(from appState: AppState, for textView: NSTextView, paneIndex: Int) -> NSRange? {
     guard textView.isEditable,
           let range = appState.pendingCursorRange,
@@ -341,6 +347,16 @@ struct RawEditor: NSViewRepresentable {
             let clamped = min(position, textView.string.count)
             textView.setSelectedRange(NSRange(location: clamped, length: 0))
             textView.scrollRangeToVisible(NSRange(location: clamped, length: 0))
+        }
+
+        if isEditable, let q = consumePendingSearchQuery(from: appState) {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: .scrollToSearchMatch,
+                    object: nil,
+                    userInfo: [SearchMatchKey.query: q, SearchMatchKey.matchIndex: 0]
+                )
+            }
         }
     }
 
@@ -714,6 +730,7 @@ extension LinkAwareTextView {
         }
 
         storage.endEditing()
+        reapplySearchHighlights()
         DispatchQueue.main.async { [weak self] in
             self?.refreshInlineImagePreviews()
         }
@@ -852,6 +869,7 @@ class LinkAwareTextView: NSTextView {
     private var searchObserver: Any?
     private var searchClearObserver: Any?
     private var lastSearchHighlightRanges: [NSRange] = []
+    private var lastSearchFocusIndex: Int = -1
 
     func installSearchObservers() {
         guard searchObserver == nil else { return }
@@ -897,26 +915,30 @@ class LinkAwareTextView: NSTextView {
             if matches.count > 2000 { break }
         }
 
-        let dimHighlight = NSColor.yellow.withAlphaComponent(0.25)
-        let focusHighlight = NSColor.yellow.withAlphaComponent(0.70)
+        let dimHighlight = NSColor.yellow.withAlphaComponent(0.30)
+        let focusHighlight = NSColor.yellow
         storage.beginEditing()
         for range in lastSearchHighlightRanges {
             storage.removeAttribute(.backgroundColor, range: range)
         }
         for (i, range) in matches.enumerated() {
-            storage.addAttribute(.backgroundColor, value: i == focusIndex ? focusHighlight : dimHighlight, range: range)
+            if i == focusIndex {
+                storage.addAttribute(.backgroundColor, value: focusHighlight, range: range)
+                storage.addAttribute(.foregroundColor, value: NSColor.black, range: range)
+            } else {
+                storage.addAttribute(.backgroundColor, value: dimHighlight, range: range)
+            }
         }
         storage.endEditing()
         lastSearchHighlightRanges = matches
+        lastSearchFocusIndex = focusIndex
 
         // Report match count back to SwiftUI
         onMatchCountUpdate?(matches.count)
 
-        // Scroll focused match into view
+        // Scroll focused match into view (don't select — selection rendering overwrites highlight attributes)
         if matches.indices.contains(focusIndex) {
-            let range = matches[focusIndex]
-            scrollRangeToVisible(range)
-            setSelectedRange(range)
+            scrollRangeToVisible(matches[focusIndex])
         }
     }
 
@@ -928,6 +950,24 @@ class LinkAwareTextView: NSTextView {
         }
         storage.endEditing()
         lastSearchHighlightRanges = []
+        lastSearchFocusIndex = -1
+        applyMarkdownStyling()
+    }
+
+    private func reapplySearchHighlights() {
+        guard !lastSearchHighlightRanges.isEmpty, let storage = textStorage else { return }
+        let dimHighlight = NSColor.yellow.withAlphaComponent(0.30)
+        let focusHighlight = NSColor.yellow
+        storage.beginEditing()
+        for (i, range) in lastSearchHighlightRanges.enumerated() {
+            if i == lastSearchFocusIndex {
+                storage.addAttribute(.backgroundColor, value: focusHighlight, range: range)
+                storage.addAttribute(.foregroundColor, value: NSColor.black, range: range)
+            } else {
+                storage.addAttribute(.backgroundColor, value: dimHighlight, range: range)
+            }
+        }
+        storage.endEditing()
     }
 
     override func setFrameSize(_ newSize: NSSize) {

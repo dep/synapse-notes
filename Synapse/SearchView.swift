@@ -311,6 +311,7 @@ struct AllFilesSearchView: View {
     private func openSelected() {
         let idx = selectedIndex < 0 ? 0 : selectedIndex
         guard results.indices.contains(idx) else { return }
+        appState.pendingSearchQuery = query
         appState.openFile(results[idx].url)
         dismiss()
     }
