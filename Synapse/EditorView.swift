@@ -318,6 +318,10 @@ struct RawEditor: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? LinkAwareTextView else { return }
+        // Set currentFileURL before setPlainText so applyCollapsibleStyling
+        // looks up state for the correct file when the note changes.
+        textView.currentFileURL = appState.selectedFile
+        textView.allFiles = appState.allFiles
         if textView.string != text {
             context.coordinator.suppressSync = true
             let selected = textView.selectedRanges
@@ -325,8 +329,6 @@ struct RawEditor: NSViewRepresentable {
             textView.selectedRanges = selected
             context.coordinator.suppressSync = false
         }
-        textView.allFiles = appState.allFiles
-        textView.currentFileURL = appState.selectedFile
         textView.onOpenFile = { appState.openFile($0) }
         textView.onMatchCountUpdate = { count in appState.searchMatchCount = count }
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
@@ -598,6 +600,10 @@ extension LinkAwareTextView {
         let fullRange = NSRange(location: 0, length: storage.length)
         guard fullRange.length > 0 else {
             clearInlineImagePreviews()
+            for key in Array(collapsibleToggleButtons.keys) {
+                collapsibleToggleButtons[key]?.removeFromSuperview()
+            }
+            collapsibleToggleButtons.removeAll()
             return
         }
         let text = storage.string as NSString
@@ -749,10 +755,12 @@ extension LinkAwareTextView {
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: match.range)
         }
 
+        applyCollapsibleStyling(storage: storage)
         storage.endEditing()
         reapplySearchHighlights()
         DispatchQueue.main.async { [weak self] in
             self?.refreshInlineImagePreviews()
+            self?.refreshCollapsibleToggles()
         }
     }
 
@@ -782,6 +790,134 @@ extension LinkAwareTextView {
         guard outerRange.length >= delimLen * 2 else { return }
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: outerRange.location, length: delimLen))
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: outerRange.location + outerRange.length - delimLen, length: delimLen))
+    }
+
+    // MARK: - Collapsible section toggle buttons
+
+    /// Applies collapsed-content hiding to the text storage and positions toggle arrow buttons.
+    /// Must be called from within or after `applyMarkdownStyling` once layout is ready.
+    func applyCollapsibleStyling(storage: NSTextStorage) {
+        guard storage.length > 0 else { return }
+
+        let text = storage.string
+        let sections = collapsibleParser.parse(text)
+        let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
+
+        // When the file has no session state yet, auto-initialise each section:
+        // collapse it if it has >= 10 lines, expand it otherwise.
+        if !collapsibleStateManager.hasSessionState(for: fileURL) {
+            for section in sections {
+                guard section.contentRange.length > 0 else { continue }
+                let shouldCollapse = section.contentLineCount(in: text) >= 10
+                collapsibleStateManager.setCollapsed(shouldCollapse,
+                                                     for: section.getIdentifier(),
+                                                     in: fileURL)
+            }
+        }
+
+        for section in sections {
+            let sectionId = section.getIdentifier()
+            let isCollapsed = collapsibleStateManager.isCollapsed(sectionId, in: fileURL)
+
+            guard section.contentRange.length > 0 else { continue }
+            let contentRange = section.contentRange
+
+            // Safety: clamp to storage length
+            let safeLocation = min(contentRange.location, storage.length)
+            let safeLength = min(contentRange.length, storage.length - safeLocation)
+            guard safeLength > 0 else { continue }
+            let safeRange = NSRange(location: safeLocation, length: safeLength)
+
+            if isCollapsed {
+                // Hide content: make it invisible and zero-height
+                let hiddenStyle = NSMutableParagraphStyle()
+                hiddenStyle.maximumLineHeight = 0.001
+                hiddenStyle.minimumLineHeight = 0.001
+                storage.addAttributes([
+                    .foregroundColor: NSColor.clear,
+                    .font: NSFont.systemFont(ofSize: 0.001),
+                    .paragraphStyle: hiddenStyle,
+                ], range: safeRange)
+            }
+        }
+    }
+
+    /// Positions (or creates) a small arrow toggle button in the left margin of each
+    /// collapsible section header line, and removes buttons for sections that no longer exist.
+    func refreshCollapsibleToggles() {
+        guard let layoutManager, let textContainer else { return }
+        layoutManager.ensureLayout(for: textContainer)
+
+        let text = string
+        let sections = collapsibleParser.parse(text)
+        let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
+
+        let activeKeys = Set(sections.map { $0.getIdentifier() })
+
+        // Remove stale buttons
+        for key in Array(collapsibleToggleButtons.keys) where !activeKeys.contains(key) {
+            collapsibleToggleButtons[key]?.removeFromSuperview()
+            collapsibleToggleButtons.removeValue(forKey: key)
+        }
+
+        for section in sections {
+            guard section.contentRange.length > 0 else {
+                // No indented content — remove button if present
+                let key = section.getIdentifier()
+                collapsibleToggleButtons[key]?.removeFromSuperview()
+                collapsibleToggleButtons.removeValue(forKey: key)
+                continue
+            }
+
+            let sectionId = section.getIdentifier()
+            let isCollapsed = collapsibleStateManager.isCollapsed(sectionId, in: fileURL)
+
+            // Get the rect of the header line
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: section.headerRange, actualCharacterRange: nil)
+            var lineRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            lineRect.origin.x += textContainerOrigin.x
+            lineRect.origin.y += textContainerOrigin.y
+
+            let buttonSize: CGFloat = 14
+            let buttonX = textContainerOrigin.x - buttonSize - 4
+            let buttonY = lineRect.midY - buttonSize / 2
+
+            let button: NSButton
+            if let existing = collapsibleToggleButtons[sectionId] {
+                button = existing
+            } else {
+                button = NSButton(frame: NSRect(x: buttonX, y: buttonY, width: buttonSize, height: buttonSize))
+                button.bezelStyle = .inline
+                button.isBordered = false
+                button.wantsLayer = true
+                button.layer?.cornerRadius = 2
+                addSubview(button)
+                collapsibleToggleButtons[sectionId] = button
+            }
+
+            button.title = isCollapsed ? "▶" : "▼"
+            button.font = NSFont.systemFont(ofSize: 9, weight: .medium)
+            button.contentTintColor = NSColor.secondaryLabelColor
+            button.frame = NSRect(x: buttonX, y: buttonY, width: buttonSize, height: buttonSize)
+            button.toolTip = isCollapsed ? "Expand section" : "Collapse section"
+
+            // Use target/action — capture the identifier by value
+            let capturedId = sectionId
+            button.target = self
+            button.action = #selector(collapsibleToggleTapped(_:))
+            button.identifier = NSUserInterfaceItemIdentifier(capturedId)
+        }
+    }
+
+    @objc private func collapsibleToggleTapped(_ sender: NSButton) {
+        let sectionId = sender.identifier?.rawValue ?? ""
+        guard !sectionId.isEmpty else { return }
+        let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
+        let current = collapsibleStateManager.isCollapsed(sectionId, in: fileURL)
+        collapsibleStateManager.setCollapsed(!current, for: sectionId, in: fileURL)
+        preserveScrollOffset(for: self) {
+            self.applyMarkdownStyling()
+        }
     }
 
     private func clearInlineImagePreviews() {
@@ -834,6 +970,12 @@ class LinkAwareTextView: NSTextView {
     private var loadingYouTubeMetadataKeys: Set<String> = []
     private var cachedYouTubeMatches: [InlineYouTubeMatch] = []
     private var lastYouTubeScanText: String = ""
+
+    // MARK: - Collapsible sections
+    private let collapsibleParser = CollapsibleSectionParser()
+    private let collapsibleStateManager = CollapsibleStateManager()
+    /// Toggle buttons keyed by section identifier ("headerOffset-headerLength")
+    private var collapsibleToggleButtons: [String: NSButton] = [:]
 
     // MARK: - Embedded Notes (for side panel)
     private static let embedRegex = try? NSRegularExpression(pattern: #"!\[\[([^\]]+)\]\]"#)
@@ -996,6 +1138,107 @@ class LinkAwareTextView: NSTextView {
         super.setFrameSize(newSize)
         DispatchQueue.main.async { [weak self] in
             self?.refreshInlineImagePreviews()
+            self?.refreshCollapsibleToggles()
+        }
+    }
+
+    // MARK: - Block indent / dedent
+
+    private static let indentString = "    " // 4 spaces
+
+    /// Tab with a multi-line selection → indent every selected line.
+    /// Tab with a cursor or single-line selection → insert a literal tab (default).
+    override func insertTab(_ sender: Any?) {
+        let sel = selectedRange()
+        let nsText = string as NSString
+
+        // Determine whether the selection spans more than one line.
+        let selText = sel.length > 0 ? nsText.substring(with: sel) : ""
+        let spansMultipleLines = selText.contains("\n")
+
+        guard spansMultipleLines else {
+            super.insertTab(sender)
+            return
+        }
+
+        indentSelectedLines(dedent: false)
+    }
+
+    /// Shift-Tab: dedent every line touched by the selection.
+    /// Intercept via keyDown so we catch the Shift modifier.
+    private func indentSelectedLines(dedent: Bool) {
+        guard let storage = textStorage else { return }
+        let nsText = string as NSString
+        let sel = selectedRange()
+
+        // Expand selection to cover full lines.
+        let linesRange = nsText.lineRange(for: sel)
+
+        let linesText = nsText.substring(with: linesRange)
+        var lines = linesText.components(separatedBy: "\n")
+
+        // The last component after the trailing newline is always an empty
+        // string artifact — keep it so we don't drop the terminating newline.
+        let indent = Self.indentString
+
+        var newLines: [String] = []
+        for (i, line) in lines.enumerated() {
+            // Don't modify the empty artifact at the end.
+            if i == lines.count - 1 && line.isEmpty {
+                newLines.append(line)
+                continue
+            }
+            if dedent {
+                if line.hasPrefix(indent) {
+                    newLines.append(String(line.dropFirst(indent.count)))
+                } else if line.hasPrefix("\t") {
+                    newLines.append(String(line.dropFirst(1)))
+                } else {
+                    newLines.append(line) // nothing to dedent
+                }
+            } else {
+                newLines.append(indent + line)
+            }
+        }
+
+        let newText = newLines.joined(separator: "\n")
+        if shouldChangeText(in: linesRange, replacementString: newText) {
+            storage.beginEditing()
+            storage.replaceCharacters(in: linesRange, with: newText)
+            storage.endEditing()
+            didChangeText()
+
+            // Restore a selection that covers the same lines.
+            let newLinesRange = NSRange(location: linesRange.location, length: (newText as NSString).length)
+            setSelectedRange(newLinesRange)
+        }
+    }
+
+    override func insertNewline(_ sender: Any?) {
+        // Preserve the leading whitespace of the current line on the new line.
+        let nsText = string as NSString
+        let cursor = selectedRange().location
+        guard cursor != NSNotFound else { super.insertNewline(sender); return }
+
+        // Find the start of the current line.
+        let lineRange = nsText.lineRange(for: NSRange(location: cursor, length: 0))
+        let lineText = nsText.substring(with: lineRange)
+
+        // Measure leading whitespace (spaces or tabs only).
+        var indentEnd = lineText.startIndex
+        for ch in lineText {
+            if ch == " " || ch == "\t" {
+                indentEnd = lineText.index(after: indentEnd)
+            } else {
+                break
+            }
+        }
+        let indent = String(lineText[lineText.startIndex..<indentEnd])
+
+        super.insertNewline(sender)
+
+        if !indent.isEmpty {
+            insertText(indent, replacementRange: selectedRange())
         }
     }
 
@@ -1007,6 +1250,15 @@ class LinkAwareTextView: NSTextView {
             case 36, 76: completionVC?.selectCurrentItem();  return  // return / numpad enter
             case 53: dismissCompletion();                    return  // escape
             default: break
+            }
+        }
+        // Shift-Tab on a multi-line selection → dedent.
+        if event.keyCode == 48, event.modifierFlags.contains(.shift) {
+            let sel = selectedRange()
+            let selText = sel.length > 0 ? (string as NSString).substring(with: sel) : ""
+            if selText.contains("\n") {
+                indentSelectedLines(dedent: true)
+                return
             }
         }
         super.keyDown(with: event)
