@@ -173,6 +173,14 @@ Artifacts:
   - `{{cursor}}` - Position cursor here after insertion
 - **Template Picker** - Choose from available templates when creating notes
 
+### Pinning
+- **Pin Notes, Folders, and Tags** - Right-click any file or folder in the file tree, or any tag in the Tags pane, and select **Pin** to add it to the Pinned section
+- Pinned items appear above the file tree for instant access
+- Click a pinned note to open it; `Cmd+click` to open in a new tab
+- Click a pinned folder to expand/scroll to it in the tree
+- Click a pinned tag to open a filtered tag view in a new tab
+- Pins are vault-specific and persist across restarts; stale pins are cleaned up automatically
+
 ### Customizable Sidebar
 Drag and drop panes between left and right sidebars:
 - **Files** - File tree with folders and markdown files
@@ -230,7 +238,7 @@ Drag and drop panes between left and right sidebars:
 | Action | Shortcut |
 |--------|----------|
 | Open Global Graph | `⇧⌘G` |
-| Open Today's Note | `⌘D` |
+| Open Today's Note | `⌃⌘H` |
 | Toggle Sidebar | Click sidebar icons |
 
 ## Markdown Guide

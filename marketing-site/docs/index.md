@@ -50,6 +50,16 @@ Visualize connections between your notes.
 - **Daily Notes:** Start each day with a fresh note created automatically using customizable templates.
 - **Templates:** Use templates for dynamic note creation with variables like <code v-pre>{{year}}</code>, <code v-pre>{{month}}</code>, <code v-pre>{{day}}</code>, and <code v-pre>{{cursor}}</code> (where the cursor lands after template insertion).
 
+### Pinning
+Pin frequently used notes, folders, and tags for quick access directly from the sidebar.
+- **Right-click** any file or folder in the file tree and select **Pin**
+- **Right-click** any tag in the Tags pane and select **Pin**
+- Pinned items appear in a **Pinned** section above the file tree
+- Click a pinned note to open it; `Cmd+click` opens it in a new tab
+- Click a pinned folder to expand and scroll to it in the file tree
+- Click a pinned tag to open a filtered view of that tag in a new tab
+- Pins are vault-specific and persist across app restarts
+
 ### Extensible Sidebar
 Customize left and right sidebars with panes:
 - **Files:** A file tree view.
@@ -135,3 +145,4 @@ Synapse relies heavily on keyboard shortcuts to help you navigate and edit quick
 | Action | Shortcut |
 | --- | --- |
 | Open Global Graph | `CMD + SHIFT + G` |
+| Open Today's Note | `CTRL + CMD + H` |

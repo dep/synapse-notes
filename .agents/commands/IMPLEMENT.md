@@ -14,4 +14,5 @@ Use this command to implement a feature or bugfix.
 4. Once you are satisfied with the test and implementation, use the @test-and-lint command to run the tests and lint the code.
 5. If the tests or linting fail, fix the issues and repeat the process until the tests and linting pass.
 6. Once the tests and linting pass, rebuild, quit, and restart the app so I can test the changes.
-7. Now use the @open-pr command to open a pull request with the changes in DRAFT mode.
+7. Update the documentation using the @UPDATE-DOCS command
+8. Now use the @open-pr command to open a pull request with the changes in DRAFT mode.

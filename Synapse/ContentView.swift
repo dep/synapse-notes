@@ -152,6 +152,13 @@ struct ContentView: View {
                 Button("") { appState.switchToTabShortcut(9) }
                     .keyboardShortcut("9", modifiers: .command)
                     .hidden()
+                Button("") {
+                    if appState.settings.dailyNotesEnabled {
+                        appState.openTodayNote()
+                    }
+                }
+                .keyboardShortcut("h", modifiers: [.command, .control])
+                .hidden()
                 Button("") { appState.splitVertically() }
                     .keyboardShortcut("d", modifiers: .command)
                     .hidden()
