@@ -97,7 +97,7 @@ struct SettingsView: View {
                         .multilineTextAlignment(.leading)
                         .frame(width: settingsFieldWidth, alignment: .leading)
                         .placeholder(when: settings.hiddenFileFolderFilter.isEmpty) {
-                            Text("*.project, .git, .private-*")
+                            Text(".git, .noted, .images")
                                 .foregroundStyle(.tertiary)
                         }
 
@@ -108,7 +108,7 @@ struct SettingsView: View {
                         .font(.system(size: 11))
                     }
 
-                    Text("Filter which files appear in the sidebar. Use commas to list multiple patterns (e.g. *.md, *.txt) or * for all files. You can also hide matching files or folders with patterns like *.project, .git, or .private-*. Changes apply immediately.")
+                    Text("Filter which files appear in the sidebar. Use commas to list multiple patterns (e.g. *.md, *.txt) or * for all files. You can also hide matching files or folders with patterns like .git, .noted, or .images. Changes apply immediately.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -1075,8 +1075,7 @@ class AppState: ObservableObject {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
             at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey]
         ) else { return }
 
         var discoveredFiles: [URL] = []
