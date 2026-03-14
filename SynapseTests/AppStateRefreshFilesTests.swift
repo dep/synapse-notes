@@ -132,19 +132,32 @@ final class AppStateRefreshFilesTests: XCTestCase {
         XCTAssertTrue(sut.allProjectFiles.isEmpty)
     }
 
-    // MARK: - Hidden files are excluded
+    // MARK: - Hidden files visibility
 
-    func test_refreshAllFiles_hiddenFilesAreExcluded() {
+    func test_refreshAllFiles_dotFilesAreVisibleByDefault() {
         sut.settings.fileExtensionFilter = "*"
         createFile("visible.md")
-        // Hidden files (dot-prefixed) should be skipped by .skipsHiddenFiles
+        let hiddenURL = tempDir.appendingPathComponent(".hidden")
+        FileManager.default.createFile(atPath: hiddenURL.path, contents: Data())
+
+        sut.refreshAllFiles()
+
+        XCTAssertTrue(sut.allProjectFiles.contains { $0.lastPathComponent == ".hidden" },
+                      "Dot-files should be visible by default — user controls visibility via hide patterns")
+        XCTAssertTrue(sut.allProjectFiles.contains { $0.lastPathComponent == "visible.md" })
+    }
+
+    func test_refreshAllFiles_dotFilesHiddenWhenPatternMatches() {
+        sut.settings.fileExtensionFilter = "*"
+        sut.settings.hiddenFileFolderFilter = ".*"
+        createFile("visible.md")
         let hiddenURL = tempDir.appendingPathComponent(".hidden")
         FileManager.default.createFile(atPath: hiddenURL.path, contents: Data())
 
         sut.refreshAllFiles()
 
         XCTAssertFalse(sut.allProjectFiles.contains { $0.lastPathComponent == ".hidden" },
-                       "Hidden dot-files should be excluded from allProjectFiles")
+                       "Dot-files should be excluded when hide pattern matches")
         XCTAssertTrue(sut.allProjectFiles.contains { $0.lastPathComponent == "visible.md" })
     }
 
