@@ -227,4 +227,23 @@ final class PinnedItemStructTests: XCTestCase {
 
         XCTAssertEqual(original, decoded)
     }
+
+    func test_decodeLegacyPinnedItemWithoutIsTag_defaultsToFalse() throws {
+        let legacyJSON = """
+        {
+          "id": "\(UUID().uuidString)",
+          "url": "file:///tmp/legacy-note.md",
+          "name": "legacy-note.md",
+          "isFolder": false,
+          "vaultPath": "/tmp/vault"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(PinnedItem.self, from: legacyJSON)
+
+        XCTAssertEqual(decoded.name, "legacy-note.md")
+        XCTAssertFalse(decoded.isFolder)
+        XCTAssertFalse(decoded.isTag, "Legacy pinned items should decode as non-tag items")
+        XCTAssertEqual(decoded.url?.path, "/tmp/legacy-note.md")
+    }
 }
