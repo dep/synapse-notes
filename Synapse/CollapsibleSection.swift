@@ -41,6 +41,23 @@ struct CollapsibleSection: Identifiable, Equatable {
     func getIdentifier() -> String {
         return headerText
     }
+
+    /// Number of lines (including blank lines) inside the content range of the
+    /// full document text.  Returns 0 when `contentRange.length == 0`.
+    func contentLineCount(in fullText: String) -> Int {
+        guard contentRange.length > 0 else { return 0 }
+        let ns = fullText as NSString
+        let totalLength = ns.length
+        let safeEnd = min(contentRange.location + contentRange.length, totalLength)
+        guard safeEnd > contentRange.location else { return 0 }
+        let slice = ns.substring(with: NSRange(location: contentRange.location,
+                                               length: safeEnd - contentRange.location))
+        // Split on newlines; a trailing newline produces an empty final component —
+        // don't count it as an extra line.
+        var lines = slice.components(separatedBy: "\n")
+        if lines.last == "" { lines.removeLast() }
+        return lines.count
+    }
 }
 
 /// Parses markdown text to identify collapsible sections.
@@ -162,6 +179,9 @@ class CollapsibleSectionParser {
 /// Manages per-file collapsed state (in-memory; not persisted to disk).
 class CollapsibleStateManager {
     private var state: [String: Set<String>] = [:] // filePath -> collapsed section IDs
+    /// Tracks files for which explicit state has been recorded this session.
+    /// Used to distinguish "file never opened" from "file opened, all sections expanded".
+    private var seenFiles: Set<String> = []
 
     func isCollapsed(_ sectionId: String, in file: URL) -> Bool {
         return state[file.path]?.contains(sectionId) ?? false
@@ -176,6 +196,13 @@ class CollapsibleStateManager {
         } else {
             state[file.path]?.remove(sectionId)
         }
+        seenFiles.insert(file.path)
+    }
+
+    /// Returns true if any explicit collapse/expand decision has been recorded
+    /// for this file during the current session.
+    func hasSessionState(for file: URL) -> Bool {
+        return seenFiles.contains(file.path)
     }
 
     func getCollapsedSections(in file: URL) -> Set<String> {
@@ -184,5 +211,6 @@ class CollapsibleStateManager {
 
     func clearState(for file: URL) {
         state.removeValue(forKey: file.path)
+        seenFiles.remove(file.path)
     }
 }

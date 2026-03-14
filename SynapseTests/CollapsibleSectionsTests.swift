@@ -161,6 +161,81 @@ final class CollapsibleSectionsTests: XCTestCase {
         XCTAssertEqual(visibleText, "- 11:20 Presentation\nNext section", "Only header should be visible when collapsed")
     }
     
+    // MARK: - Session State Tests
+
+    func test_hasSessionState_falseBeforeAnyWrite() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test.md")
+        let manager = CollapsibleStateManager()
+        XCTAssertFalse(manager.hasSessionState(for: fileURL),
+                       "No session state should exist before any writes")
+    }
+
+    func test_hasSessionState_trueAfterWrite() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test.md")
+        let manager = CollapsibleStateManager()
+        manager.setCollapsed(false, for: "section-1", in: fileURL)
+        XCTAssertTrue(manager.hasSessionState(for: fileURL),
+                      "Session state should exist after a write")
+    }
+
+    func test_hasSessionState_clearedAfterClearState() {
+        let fileURL = URL(fileURLWithPath: "/tmp/test.md")
+        let manager = CollapsibleStateManager()
+        manager.setCollapsed(true, for: "section-1", in: fileURL)
+        manager.clearState(for: fileURL)
+        XCTAssertFalse(manager.hasSessionState(for: fileURL),
+                       "Session state should be gone after clearState")
+    }
+
+    func test_hasSessionState_isolatedPerFile() {
+        let file1 = URL(fileURLWithPath: "/tmp/file1.md")
+        let file2 = URL(fileURLWithPath: "/tmp/file2.md")
+        let manager = CollapsibleStateManager()
+        manager.setCollapsed(true, for: "section-1", in: file1)
+        XCTAssertFalse(manager.hasSessionState(for: file2),
+                       "Session state for file1 should not affect file2")
+    }
+
+    // MARK: - Content Line Count Tests
+
+    func test_contentLineCount_emptyContentRange() {
+        let section = CollapsibleSection(
+            headerRange: NSRange(location: 0, length: 10),
+            contentRange: NSRange(location: 10, length: 0),
+            isCollapsed: false,
+            headerText: "- Header"
+        )
+        XCTAssertEqual(section.contentLineCount(in: "- Header"), 0)
+    }
+
+    func test_contentLineCount_fewLines() {
+        let text = "- Header\n    line1\n    line2\n    line3\n"
+        let sections = parser.parse(text)
+        XCTAssertEqual(sections.count, 1)
+        XCTAssertEqual(sections[0].contentLineCount(in: text), 3,
+                       "Three content lines should be counted")
+    }
+
+    func test_contentLineCount_tenLines() {
+        var lines = ["- Header"]
+        for i in 1...10 { lines.append("    line\(i)") }
+        let text = lines.joined(separator: "\n") + "\n"
+        let sections = parser.parse(text)
+        XCTAssertEqual(sections.count, 1)
+        XCTAssertEqual(sections[0].contentLineCount(in: text), 10,
+                       "Ten content lines should be counted")
+    }
+
+    func test_contentLineCount_blankLinesIncluded() {
+        // Blank lines within an indented block are part of contentRange
+        let text = "- Header\n    line1\n\n    line3\n"
+        let sections = parser.parse(text)
+        XCTAssertEqual(sections.count, 1)
+        // content: "    line1\n\n    line3\n" = 3 lines (including blank)
+        XCTAssertEqual(sections[0].contentLineCount(in: text), 3,
+                       "Blank lines within the content block should be counted")
+    }
+
     // MARK: - Edge Cases
     
     func test_handlesEmptyDocument() {

@@ -803,6 +803,18 @@ extension LinkAwareTextView {
         let sections = collapsibleParser.parse(text)
         let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
 
+        // When the file has no session state yet, auto-initialise each section:
+        // collapse it if it has >= 10 lines, expand it otherwise.
+        if !collapsibleStateManager.hasSessionState(for: fileURL) {
+            for section in sections {
+                guard section.contentRange.length > 0 else { continue }
+                let shouldCollapse = section.contentLineCount(in: text) >= 10
+                collapsibleStateManager.setCollapsed(shouldCollapse,
+                                                     for: section.getIdentifier(),
+                                                     in: fileURL)
+            }
+        }
+
         for section in sections {
             let sectionId = section.getIdentifier()
             let isCollapsed = collapsibleStateManager.isCollapsed(sectionId, in: fileURL)
