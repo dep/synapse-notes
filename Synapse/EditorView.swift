@@ -746,7 +746,7 @@ extension LinkAwareTextView {
             }
         }
 
-        for match in self.inlineImageMatches() {
+        for match in self.visibleInlineImageMatches() {
             let paragraphStyle = (storage.attribute(.paragraphStyle, at: match.paragraphRange.location, effectiveRange: nil) as? NSMutableParagraphStyle)
                 ?? NSMutableParagraphStyle()
             let updatedStyle = paragraphStyle.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
@@ -965,6 +965,7 @@ class LinkAwareTextView: NSTextView {
     private var eventMonitor: Any?
     private var inlineImageViews: [String: NSImageView] = [:]
     private var inlineVideoViews: [String: YouTubePreviewView] = [:]
+    private var animatedInlineImageKeys: Set<String> = []
     private var failedInlineImageKeys: Set<String> = []
     private var loadingInlineImageKeys: Set<String> = []
     private var loadingYouTubeMetadataKeys: Set<String> = []
@@ -1264,6 +1265,15 @@ class LinkAwareTextView: NSTextView {
         super.keyDown(with: event)
     }
 
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "v" {
+            paste(self)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     func checkForLinkTrigger(plainText: String? = nil, cursor cursorOverride: Int? = nil) {
         let text = plainText ?? string
         let nsText = text as NSString
@@ -1444,7 +1454,7 @@ class LinkAwareTextView: NSTextView {
         guard let layoutManager, let textContainer else { return }
         layoutManager.ensureLayout(for: textContainer)
 
-        let matches = inlineImageMatches()
+        let matches = visibleInlineImageMatches()
         let activeKeys = Set(matches.map(\.id))
 
         for key in Array(inlineImageViews.keys) where !activeKeys.contains(key) {
@@ -1534,6 +1544,24 @@ class LinkAwareTextView: NSTextView {
         }
     }
 
+    func visibleInlineImageMatches() -> [InlineImageMatch] {
+        let matches = inlineImageMatches()
+        guard !matches.isEmpty else { return [] }
+
+        let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
+        let sections = collapsibleParser.parse(string)
+        let collapsedRanges = sections.compactMap { section -> NSRange? in
+            guard section.contentRange.length > 0 else { return nil }
+            let sectionId = section.getIdentifier()
+            return collapsibleStateManager.isCollapsed(sectionId, in: fileURL) ? section.contentRange : nil
+        }
+
+        guard !collapsedRanges.isEmpty else { return matches }
+        return matches.filter { match in
+            !collapsedRanges.contains { NSIntersectionRange($0, match.range).length > 0 }
+        }
+    }
+
     func inlinePreviewHeight(for source: String) -> CGFloat {
         guard let resolvedURL = resolvedInlineImageURL(for: source) else { return 0 }
         let key = resolvedURL.absoluteString
@@ -1575,6 +1603,7 @@ class LinkAwareTextView: NSTextView {
         let imageView = inlineImageViews[match.id] ?? {
             let view = NSImageView()
             view.imageScaling = .scaleProportionallyUpOrDown
+            view.canDrawSubviewsIntoLayer = true
             view.wantsLayer = true
             view.layer?.cornerRadius = 4
             view.layer?.masksToBounds = true
@@ -1587,6 +1616,7 @@ class LinkAwareTextView: NSTextView {
         }()
 
         imageView.image = image
+        imageView.animates = animatedInlineImageKeys.contains((resolvedInlineImageURL(for: match.source)?.absoluteString) ?? "")
         imageView.frame = frame
     }
 
@@ -1627,8 +1657,13 @@ class LinkAwareTextView: NSTextView {
         loadingInlineImageKeys.insert(key)
 
         if url.isFileURL {
-            if let image = downsampledImage(fromFileURL: url, maxPixelSize: maxPixelSize) ?? NSImage(contentsOf: url) {
-                Self.inlineImageCache.setObject(image, forKey: cacheKey)
+            if let asset = inlinePreviewAsset(fromFileURL: url, maxPixelSize: maxPixelSize) {
+                Self.inlineImageCache.setObject(asset.image, forKey: cacheKey)
+                if asset.preservesAnimation {
+                    animatedInlineImageKeys.insert(key)
+                } else {
+                    animatedInlineImageKeys.remove(key)
+                }
             } else {
                 failedInlineImageKeys.insert(key)
             }
@@ -1646,14 +1681,48 @@ class LinkAwareTextView: NSTextView {
                 defer { self.loadingInlineImageKeys.remove(key) }
 
                 let isImageResponse = (response?.mimeType?.hasPrefix("image/") ?? true)
-                if isImageResponse, let data, let image = self.downsampledImage(from: data, maxPixelSize: maxPixelSize) ?? NSImage(data: data) {
-                    Self.inlineImageCache.setObject(image, forKey: cacheKey)
+                if isImageResponse, let data, let asset = self.inlinePreviewAsset(from: data, maxPixelSize: maxPixelSize) {
+                    Self.inlineImageCache.setObject(asset.image, forKey: cacheKey)
+                    if asset.preservesAnimation {
+                        self.animatedInlineImageKeys.insert(key)
+                    } else {
+                        self.animatedInlineImageKeys.remove(key)
+                    }
                 } else {
                     self.failedInlineImageKeys.insert(key)
                 }
                 self.applyMarkdownStyling()
             }
         }.resume()
+    }
+
+    struct InlinePreviewAsset {
+        let image: NSImage
+        let imageDataType: NSPasteboard.PasteboardType
+        let preservesAnimation: Bool
+    }
+
+    func inlinePreviewAsset(fromFileURL url: URL, maxPixelSize: CGFloat) -> InlinePreviewAsset? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return inlinePreviewAsset(from: data, maxPixelSize: maxPixelSize)
+    }
+
+    func inlinePreviewAsset(from data: Data, maxPixelSize: CGFloat) -> InlinePreviewAsset? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let imageType = (CGImageSourceGetType(source) as String?) ?? "public.image"
+        let pasteboardType = NSPasteboard.PasteboardType(imageType)
+        let frameCount = CGImageSourceGetCount(source)
+        let preservesAnimation = (imageType == "com.compuserve.gif" || imageType == "public.gif") && frameCount > 1
+
+        if preservesAnimation, let image = NSImage(data: data) {
+            return InlinePreviewAsset(image: image, imageDataType: pasteboardType, preservesAnimation: true)
+        }
+
+        if let image = downsampledImage(from: source, maxPixelSize: maxPixelSize) ?? NSImage(data: data) {
+            return InlinePreviewAsset(image: image, imageDataType: pasteboardType, preservesAnimation: false)
+        }
+
+        return nil
     }
 
     private func downsampledImage(fromFileURL url: URL, maxPixelSize: CGFloat) -> NSImage? {
@@ -1798,6 +1867,201 @@ class LinkAwareTextView: NSTextView {
         }.resume()
     }
 
+    // MARK: - Image paste handling
+    
+    /// Handles paste events for images. Saves image to .images folder and inserts markdown.
+    override func paste(_ sender: Any?) {
+        if !handlePaste(from: .general) {
+            super.paste(sender)
+        }
+    }
+
+    @discardableResult
+    func handlePaste(from pasteboard: NSPasteboard) -> Bool {
+        guard let asset = readPastedImageAsset(from: pasteboard) else {
+            return false
+        }
+        handleImagePaste(asset: asset)
+        return true
+    }
+
+    private struct PastedImageAsset {
+        let image: NSImage
+        let originalData: Data?
+        let fileExtension: String
+    }
+
+    private func readPastedImageAsset(from pasteboard: NSPasteboard) -> PastedImageAsset? {
+        let gifTypes: [NSPasteboard.PasteboardType] = [
+            NSPasteboard.PasteboardType(rawValue: "com.compuserve.gif"),
+            NSPasteboard.PasteboardType(rawValue: "public.gif"),
+            NSPasteboard.PasteboardType(rawValue: "GIF"),
+            NSPasteboard.PasteboardType(rawValue: "GIFf"),
+        ]
+
+        for type in gifTypes {
+            if let gifData = pasteboard.data(forType: type),
+               let image = NSImage(data: gifData) {
+                return PastedImageAsset(image: image, originalData: gifData, fileExtension: "gif")
+            }
+        }
+
+        if let fileURLs = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingContentsConformToTypes: ["public.image"]]) as? [URL],
+           let firstURL = fileURLs.first,
+           let image = NSImage(contentsOf: firstURL) {
+            let ext = firstURL.pathExtension.lowercased()
+            if ext == "gif", let data = try? Data(contentsOf: firstURL) {
+                return PastedImageAsset(image: image, originalData: data, fileExtension: ext)
+            }
+            return PastedImageAsset(image: image, originalData: nil, fileExtension: "png")
+        }
+
+        if let urlData = pasteboard.data(forType: NSPasteboard.PasteboardType(rawValue: "public.file-url")),
+           let urlString = String(data: urlData, encoding: .utf8),
+           let url = URL(string: urlString),
+           let image = NSImage(contentsOf: url) {
+            let ext = url.pathExtension.lowercased()
+            if ext == "gif", let data = try? Data(contentsOf: url) {
+                return PastedImageAsset(image: image, originalData: data, fileExtension: ext)
+            }
+            return PastedImageAsset(image: image, originalData: nil, fileExtension: "png")
+        }
+
+        guard let image = readImage(from: pasteboard) else { return nil }
+        return PastedImageAsset(image: image, originalData: nil, fileExtension: "png")
+    }
+    
+    /// Reads an image from the pasteboard using various methods
+    private func readImage(from pasteboard: NSPasteboard) -> NSImage? {
+        if let images = pasteboard.readObjects(forClasses: [NSImage.self]) as? [NSImage],
+           let firstImage = images.first {
+            return firstImage
+        }
+        
+        if NSImage.canInit(with: pasteboard) {
+            if let image = NSImage(pasteboard: pasteboard) {
+                return image
+            }
+        }
+        
+        let tiffTypes: [NSPasteboard.PasteboardType] = [
+            .tiff,
+            NSPasteboard.PasteboardType(rawValue: "public.tiff"),
+            NSPasteboard.PasteboardType(rawValue: "TIFF"),
+            NSPasteboard.PasteboardType(rawValue: "com.apple.tiff"),
+            NSPasteboard.PasteboardType(rawValue: "NeXT TIFF v4.0 pasteboard type"),
+        ]
+        
+        for type in tiffTypes {
+            if let tiffData = pasteboard.data(forType: type) {
+                if let image = NSImage(data: tiffData) {
+                    return image
+                }
+            }
+        }
+        
+        let pngTypes: [NSPasteboard.PasteboardType] = [
+            .png,
+            NSPasteboard.PasteboardType(rawValue: "public.png"),
+            NSPasteboard.PasteboardType(rawValue: "PNG"),
+            NSPasteboard.PasteboardType(rawValue: "PNGf"),
+            NSPasteboard.PasteboardType(rawValue: "Apple PNG pasteboard type"),
+        ]
+        
+        for type in pngTypes {
+            if let pngData = pasteboard.data(forType: type) {
+                if let image = NSImage(data: pngData) {
+                    return image
+                }
+            }
+        }
+        
+        let otherImageTypes: [NSPasteboard.PasteboardType] = [
+            NSPasteboard.PasteboardType(rawValue: "public.jpeg"),
+            NSPasteboard.PasteboardType(rawValue: "public.jpg"),
+            NSPasteboard.PasteboardType(rawValue: "JPEG"),
+            NSPasteboard.PasteboardType(rawValue: "JFIF"),
+            NSPasteboard.PasteboardType(rawValue: "public.image"),
+            NSPasteboard.PasteboardType(rawValue: "com.apple.pict"),
+            NSPasteboard.PasteboardType(rawValue: "GIF"),
+            NSPasteboard.PasteboardType(rawValue: "GIFf"),
+            NSPasteboard.PasteboardType(rawValue: "BMP"),
+            NSPasteboard.PasteboardType(rawValue: "BMPf"),
+        ]
+        
+        for type in otherImageTypes {
+            if let data = pasteboard.data(forType: type),
+               let image = NSImage(data: data) {
+                return image
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Handles image paste: saves to .images folder and inserts markdown
+    func handleImagePaste(image: NSImage) {
+        handleImagePaste(asset: PastedImageAsset(image: image, originalData: nil, fileExtension: "png"))
+    }
+
+    private func handleImagePaste(asset: PastedImageAsset) {
+        guard let currentFileURL = currentFileURL else {
+            // No current file, fall back to regular paste (but images can't be pasted without a file context)
+            return
+        }
+        
+        let fileFolder = currentFileURL.deletingLastPathComponent()
+        let imagesFolder = fileFolder.appendingPathComponent(".images")
+        
+        // Create .images folder if it doesn't exist
+        let fileManager = FileManager.default
+        if !fileManager.fileExists(atPath: imagesFolder.path) {
+            do {
+                try fileManager.createDirectory(at: imagesFolder, withIntermediateDirectories: true)
+            } catch {
+                debugLog("Failed to create .images folder: \(error)")
+                return
+            }
+        }
+        
+        // Generate unique filename with timestamp and random component
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let random = Int.random(in: 1000...9999)
+        let filename = "image_\(timestamp)_\(random).\(asset.fileExtension)"
+        let imagePath = imagesFolder.appendingPathComponent(filename)
+
+        let dataToWrite: Data
+        if let originalData = asset.originalData {
+            dataToWrite = originalData
+        } else {
+            guard let tiffData = asset.image.tiffRepresentation,
+                  let bitmap = NSBitmapImageRep(data: tiffData),
+                  let pngData = bitmap.representation(using: .png, properties: [:]) else {
+                debugLog("Failed to convert image to PNG")
+                return
+            }
+            dataToWrite = pngData
+        }
+        
+        do {
+            try dataToWrite.write(to: imagePath)
+        } catch {
+            debugLog("Failed to save image: \(error)")
+            return
+        }
+        
+        // Calculate relative path from current file to image
+        let relativePath = ".images/\(filename)"
+        let markdown = "![](\(relativePath))"
+        
+        // Insert markdown at current cursor position
+        let currentRange = selectedRange()
+        if shouldChangeText(in: currentRange, replacementString: markdown) {
+            replaceCharacters(in: currentRange, with: markdown)
+            didChangeText()
+        }
+    }
+    
     private func scaledInlineImageSize(for image: NSImage, maxWidth: CGFloat) -> NSSize {
         let originalSize = image.size.width > 0 && image.size.height > 0 ? image.size : NSSize(width: maxWidth, height: 180)
         let width = min(maxWidth, originalSize.width)

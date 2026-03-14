@@ -236,6 +236,43 @@ final class CollapsibleSectionsTests: XCTestCase {
                        "Blank lines within the content block should be counted")
     }
 
+    func test_visibleInlineImageMatches_excludesImagesInsideCollapsedSections() {
+        let textView = LinkAwareTextView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
+        textView.currentFileURL = URL(fileURLWithPath: "/tmp/collapsed-images.md")
+        textView.string = """
+        - Image
+            line 1
+            line 2
+            ![](.images/test.png)
+            line 4
+            line 5
+            line 6
+            line 7
+            line 8
+            line 9
+            line 10
+        """
+
+        textView.applyCollapsibleStyling(storage: textView.textStorage!)
+
+        XCTAssertTrue(textView.visibleInlineImageMatches().isEmpty)
+    }
+
+    func test_visibleInlineImageMatches_keepsImagesInsideExpandedSections() {
+        let textView = LinkAwareTextView(frame: NSRect(x: 0, y: 0, width: 640, height: 480))
+        textView.currentFileURL = URL(fileURLWithPath: "/tmp/expanded-images.md")
+        textView.string = """
+        - Image
+            line 1
+            ![](.images/test.png)
+            line 3
+        """
+
+        textView.applyCollapsibleStyling(storage: textView.textStorage!)
+
+        XCTAssertEqual(textView.visibleInlineImageMatches().count, 1)
+    }
+
     // MARK: - Edge Cases
     
     func test_handlesEmptyDocument() {

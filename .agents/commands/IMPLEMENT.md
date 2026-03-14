@@ -13,4 +13,5 @@ Use this command to implement a feature or bugfix.
 3. When you feel satisfied with the requirements, use the @test-driven-development skill to write the test first, watch it fail, write minimal code to pass.
 4. Once you are satisfied with the test and implementation, use the @test-and-lint command to run the tests and lint the code.
 5. If the tests or linting fail, fix the issues and repeat the process until the tests and linting pass.
-6. Once the tests and linting pass, use the @open-pr command to open a pull request with the changes in DRAFT mode.
+6. Once the tests and linting pass, rebuild, quit, and restart the app so I can test the changes.
+7. Now use the @open-pr command to open a pull request with the changes in DRAFT mode.
