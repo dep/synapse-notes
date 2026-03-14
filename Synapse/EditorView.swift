@@ -598,6 +598,10 @@ extension LinkAwareTextView {
         let fullRange = NSRange(location: 0, length: storage.length)
         guard fullRange.length > 0 else {
             clearInlineImagePreviews()
+            for key in Array(collapsibleToggleButtons.keys) {
+                collapsibleToggleButtons[key]?.removeFromSuperview()
+            }
+            collapsibleToggleButtons.removeAll()
             return
         }
         let text = storage.string as NSString
@@ -749,10 +753,12 @@ extension LinkAwareTextView {
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: match.range)
         }
 
+        applyCollapsibleStyling(storage: storage)
         storage.endEditing()
         reapplySearchHighlights()
         DispatchQueue.main.async { [weak self] in
             self?.refreshInlineImagePreviews()
+            self?.refreshCollapsibleToggles()
         }
     }
 
@@ -782,6 +788,122 @@ extension LinkAwareTextView {
         guard outerRange.length >= delimLen * 2 else { return }
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: outerRange.location, length: delimLen))
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: outerRange.location + outerRange.length - delimLen, length: delimLen))
+    }
+
+    // MARK: - Collapsible section toggle buttons
+
+    /// Applies collapsed-content hiding to the text storage and positions toggle arrow buttons.
+    /// Must be called from within or after `applyMarkdownStyling` once layout is ready.
+    func applyCollapsibleStyling(storage: NSTextStorage) {
+        guard storage.length > 0 else { return }
+
+        let text = storage.string
+        let sections = collapsibleParser.parse(text)
+        let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
+
+        for section in sections {
+            let sectionId = section.getIdentifier()
+            let isCollapsed = collapsibleStateManager.isCollapsed(sectionId, in: fileURL)
+
+            guard section.contentRange.length > 0 else { continue }
+            let contentRange = section.contentRange
+
+            // Safety: clamp to storage length
+            let safeLocation = min(contentRange.location, storage.length)
+            let safeLength = min(contentRange.length, storage.length - safeLocation)
+            guard safeLength > 0 else { continue }
+            let safeRange = NSRange(location: safeLocation, length: safeLength)
+
+            if isCollapsed {
+                // Hide content: make it invisible and zero-height
+                let hiddenStyle = NSMutableParagraphStyle()
+                hiddenStyle.maximumLineHeight = 0.001
+                hiddenStyle.minimumLineHeight = 0.001
+                storage.addAttributes([
+                    .foregroundColor: NSColor.clear,
+                    .font: NSFont.systemFont(ofSize: 0.001),
+                    .paragraphStyle: hiddenStyle,
+                ], range: safeRange)
+            }
+        }
+    }
+
+    /// Positions (or creates) a small arrow toggle button in the left margin of each
+    /// collapsible section header line, and removes buttons for sections that no longer exist.
+    func refreshCollapsibleToggles() {
+        guard let layoutManager, let textContainer else { return }
+        layoutManager.ensureLayout(for: textContainer)
+
+        let text = string
+        let sections = collapsibleParser.parse(text)
+        let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
+
+        let activeKeys = Set(sections.map { $0.getIdentifier() })
+
+        // Remove stale buttons
+        for key in Array(collapsibleToggleButtons.keys) where !activeKeys.contains(key) {
+            collapsibleToggleButtons[key]?.removeFromSuperview()
+            collapsibleToggleButtons.removeValue(forKey: key)
+        }
+
+        for section in sections {
+            guard section.contentRange.length > 0 else {
+                // No indented content — remove button if present
+                let key = section.getIdentifier()
+                collapsibleToggleButtons[key]?.removeFromSuperview()
+                collapsibleToggleButtons.removeValue(forKey: key)
+                continue
+            }
+
+            let sectionId = section.getIdentifier()
+            let isCollapsed = collapsibleStateManager.isCollapsed(sectionId, in: fileURL)
+
+            // Get the rect of the header line
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: section.headerRange, actualCharacterRange: nil)
+            var lineRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            lineRect.origin.x += textContainerOrigin.x
+            lineRect.origin.y += textContainerOrigin.y
+
+            let buttonSize: CGFloat = 14
+            let buttonX = textContainerOrigin.x - buttonSize - 4
+            let buttonY = lineRect.midY - buttonSize / 2
+
+            let button: NSButton
+            if let existing = collapsibleToggleButtons[sectionId] {
+                button = existing
+            } else {
+                button = NSButton(frame: NSRect(x: buttonX, y: buttonY, width: buttonSize, height: buttonSize))
+                button.bezelStyle = .inline
+                button.isBordered = false
+                button.wantsLayer = true
+                button.layer?.cornerRadius = 2
+                addSubview(button)
+                collapsibleToggleButtons[sectionId] = button
+            }
+
+            button.title = isCollapsed ? "▶" : "▼"
+            button.font = NSFont.systemFont(ofSize: 9, weight: .medium)
+            button.contentTintColor = NSColor.secondaryLabelColor
+            button.frame = NSRect(x: buttonX, y: buttonY, width: buttonSize, height: buttonSize)
+            button.toolTip = isCollapsed ? "Expand section" : "Collapse section"
+
+            // Use target/action — capture the identifier by value
+            let capturedId = sectionId
+            button.target = self
+            button.action = #selector(collapsibleToggleTapped(_:))
+            button.identifier = NSUserInterfaceItemIdentifier(capturedId)
+        }
+    }
+
+    @objc private func collapsibleToggleTapped(_ sender: NSButton) {
+        let sectionId = sender.identifier?.rawValue ?? ""
+        guard !sectionId.isEmpty else { return }
+        let fileURL = currentFileURL ?? URL(fileURLWithPath: "/tmp/unsaved.md")
+        let current = collapsibleStateManager.isCollapsed(sectionId, in: fileURL)
+        collapsibleStateManager.setCollapsed(!current, for: sectionId, in: fileURL)
+        preserveScrollOffset(for: self) {
+            self.applyMarkdownStyling()
+        }
     }
 
     private func clearInlineImagePreviews() {
@@ -834,6 +956,12 @@ class LinkAwareTextView: NSTextView {
     private var loadingYouTubeMetadataKeys: Set<String> = []
     private var cachedYouTubeMatches: [InlineYouTubeMatch] = []
     private var lastYouTubeScanText: String = ""
+
+    // MARK: - Collapsible sections
+    private let collapsibleParser = CollapsibleSectionParser()
+    private let collapsibleStateManager = CollapsibleStateManager()
+    /// Toggle buttons keyed by section identifier ("headerOffset-headerLength")
+    private var collapsibleToggleButtons: [String: NSButton] = [:]
 
     // MARK: - Embedded Notes (for side panel)
     private static let embedRegex = try? NSRegularExpression(pattern: #"!\[\[([^\]]+)\]\]"#)
@@ -996,6 +1124,7 @@ class LinkAwareTextView: NSTextView {
         super.setFrameSize(newSize)
         DispatchQueue.main.async { [weak self] in
             self?.refreshInlineImagePreviews()
+            self?.refreshCollapsibleToggles()
         }
     }
 
