@@ -447,9 +447,10 @@ final class SettingsManagerTests: XCTestCase {
         // Create a mock vault directory
         let vaultDir = tempDir.appendingPathComponent("TestVault", isDirectory: true)
         try! FileManager.default.createDirectory(at: vaultDir, withIntermediateDirectories: true)
+        let globalConfigPath = makeGlobalConfigPath(named: "TestVault")
 
         // Initialize SettingsManager with vault root
-        let notedSettings = SettingsManager(vaultRoot: vaultDir)
+        let notedSettings = SettingsManager(vaultRoot: vaultDir, globalConfigPath: globalConfigPath)
 
         // Change a setting
         notedSettings.fileExtensionFilter = "*.swift"
@@ -461,7 +462,7 @@ final class SettingsManagerTests: XCTestCase {
                       "Settings file should be created in .noted folder")
 
         // Create new manager pointing to same vault and verify settings persisted
-        let newManager = SettingsManager(vaultRoot: vaultDir)
+        let newManager = SettingsManager(vaultRoot: vaultDir, globalConfigPath: globalConfigPath)
         XCTAssertEqual(newManager.fileExtensionFilter, "*.swift",
                        "Settings should persist to .noted/settings.yml")
     }
@@ -469,6 +470,7 @@ final class SettingsManagerTests: XCTestCase {
     func test_vaultSpecificSettings_createsNotedFolderAutomatically() {
         let vaultDir = tempDir.appendingPathComponent("TestVault", isDirectory: true)
         try! FileManager.default.createDirectory(at: vaultDir, withIntermediateDirectories: true)
+        let globalConfigPath = makeGlobalConfigPath(named: "CreateNoted")
 
         // .noted folder should not exist initially
         let notedDir = vaultDir.appendingPathComponent(".noted", isDirectory: true)
@@ -476,7 +478,7 @@ final class SettingsManagerTests: XCTestCase {
                        ".noted folder should not exist initially")
 
         // Initialize SettingsManager - should create .noted folder
-        let _ = SettingsManager(vaultRoot: vaultDir)
+        let _ = SettingsManager(vaultRoot: vaultDir, globalConfigPath: globalConfigPath)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: notedDir.path),
                       ".noted folder should be created automatically")
@@ -596,8 +598,9 @@ final class SettingsManagerTests: XCTestCase {
     func test_vaultSpecificSettings_otherSettingsGoToNotedFolder() {
         let vaultDir = tempDir.appendingPathComponent("TestVault", isDirectory: true)
         try! FileManager.default.createDirectory(at: vaultDir, withIntermediateDirectories: true)
+        let globalConfigPath = makeGlobalConfigPath(named: "OtherSettings")
 
-        let manager = SettingsManager(vaultRoot: vaultDir)
+        let manager = SettingsManager(vaultRoot: vaultDir, globalConfigPath: globalConfigPath)
 
         // Set various non-sensitive settings
         manager.onBootCommand = "npm start"
@@ -640,23 +643,24 @@ final class SettingsManagerTests: XCTestCase {
         let vault2 = tempDir.appendingPathComponent("Vault2", isDirectory: true)
         try! FileManager.default.createDirectory(at: vault1, withIntermediateDirectories: true)
         try! FileManager.default.createDirectory(at: vault2, withIntermediateDirectories: true)
+        let globalConfigPath = makeGlobalConfigPath(named: "VaultSwitch")
 
         // Set up different settings in each vault
-        let manager1 = SettingsManager(vaultRoot: vault1)
+        let manager1 = SettingsManager(vaultRoot: vault1, globalConfigPath: globalConfigPath)
         manager1.fileExtensionFilter = "*.md"
         manager1.onBootCommand = "vault1-cmd"
 
-        let manager2 = SettingsManager(vaultRoot: vault2)
+        let manager2 = SettingsManager(vaultRoot: vault2, globalConfigPath: globalConfigPath)
         manager2.fileExtensionFilter = "*.swift"
         manager2.onBootCommand = "vault2-cmd"
 
         // Create new manager for vault1 and verify it loads vault1's settings
-        let newManager1 = SettingsManager(vaultRoot: vault1)
+        let newManager1 = SettingsManager(vaultRoot: vault1, globalConfigPath: globalConfigPath)
         XCTAssertEqual(newManager1.fileExtensionFilter, "*.md")
         XCTAssertEqual(newManager1.onBootCommand, "vault1-cmd")
 
         // Create new manager for vault2 and verify it loads vault2's settings
-        let newManager2 = SettingsManager(vaultRoot: vault2)
+        let newManager2 = SettingsManager(vaultRoot: vault2, globalConfigPath: globalConfigPath)
         XCTAssertEqual(newManager2.fileExtensionFilter, "*.swift")
         XCTAssertEqual(newManager2.onBootCommand, "vault2-cmd")
     }
@@ -665,6 +669,7 @@ final class SettingsManagerTests: XCTestCase {
         let vaultDir = tempDir.appendingPathComponent("VaultYAML", isDirectory: true)
         let notedDir = vaultDir.appendingPathComponent(".noted", isDirectory: true)
         try! FileManager.default.createDirectory(at: notedDir, withIntermediateDirectories: true)
+        let globalConfigPath = makeGlobalConfigPath(named: "VaultYAML")
 
         let yaml = """
         onBootCommand: opencode
@@ -690,7 +695,7 @@ final class SettingsManagerTests: XCTestCase {
         """
         try! yaml.write(to: notedDir.appendingPathComponent("settings.yml"), atomically: true, encoding: .utf8)
 
-        let manager = SettingsManager(vaultRoot: vaultDir)
+        let manager = SettingsManager(vaultRoot: vaultDir, globalConfigPath: globalConfigPath)
 
         XCTAssertEqual(manager.onBootCommand, "opencode")
         XCTAssertEqual(manager.fileExtensionFilter, "*.md, *.swift")
@@ -699,5 +704,11 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertTrue(manager.autoSave)
         XCTAssertEqual(manager.leftSidebarPanes, [.files, .tags, .links])
         XCTAssertEqual(manager.rightSidebarPanes, [.terminal])
+    }
+
+    private func makeGlobalConfigPath(named name: String) -> String {
+        let appSupportDir = tempDir.appendingPathComponent("AppSupport-\(name)", isDirectory: true)
+        try! FileManager.default.createDirectory(at: appSupportDir, withIntermediateDirectories: true)
+        return appSupportDir.appendingPathComponent("settings.yml").path
     }
 }

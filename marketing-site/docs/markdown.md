@@ -134,6 +134,17 @@ ___
 
 ## Synapse Extensions
 
+### Slash Commands
+
+Type a slash command at the start of a line or after a space — it expands automatically as you finish typing, no confirmation needed.
+
+| Command | Inserts |
+| --- | --- |
+| `/time` | Current time like `2:34 pm` |
+| `/date` | Current date like `2026-03-14` |
+| `/todo` | `- [ ] ` |
+| `/note` | `> **Note:** ` |
+
 ### Wiki Links
 
 Wiki links are the foundation of connected notes in Synapse. They create bidirectional links between notes.
@@ -371,6 +382,7 @@ While editing:
 - **⌘F** - Find in note
 - **⌘G** - Find next
 - **⇧⌘G** - Find previous
+- **/command** - Slash commands expand inline at line start or after a space
 
 ### Navigation Tips
 

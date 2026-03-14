@@ -404,6 +404,7 @@ struct RawEditor: NSViewRepresentable {
                 DispatchQueue.main.async { [weak self, weak tv] in
                     guard let self, let tv else { return }
                     self.linkCheckScheduled = false
+                    tv.expandSlashCommandIfNeeded()
                     tv.checkForLinkTrigger()
                 }
             }
@@ -961,6 +962,8 @@ class LinkAwareTextView: NSTextView {
     var onMatchCountUpdate: ((Int) -> Void)?
     var onWikiLinkRequest: (() -> Void)?  // Called when [[ is typed
     var onWikiLinkComplete: ((URL) -> Void)?  // Called when a file is selected for wiki link
+    var slashCommandNowProvider: () -> Date = Date.init
+    var slashCommandTimeZone: TimeZone = .current
 
     private var completionPopover: NSPopover?
     private var completionVC: CompletionViewController?
@@ -1221,8 +1224,8 @@ class LinkAwareTextView: NSTextView {
 
     override func insertNewline(_ sender: Any?) {
         // Preserve the leading whitespace of the current line on the new line.
-        let nsText = string as NSString
         let cursor = selectedRange().location
+        let nsText = string as NSString
         guard cursor != NSNotFound else { super.insertNewline(sender); return }
 
         // Find the start of the current line.
@@ -1276,6 +1279,27 @@ class LinkAwareTextView: NSTextView {
             return true
         }
         return super.performKeyEquivalent(with: event)
+    }
+
+    func expandSlashCommandIfNeeded() {
+        let cursor = selectedRange().location
+        guard cursor != NSNotFound,
+              let context = slashCommandContext(in: string, cursor: cursor),
+              let command = SlashCommand(rawValue: context.query) else { return }
+
+        let output = resolveSlashCommandOutput(
+            command,
+            context: SlashCommandResolverContext(
+                now: slashCommandNowProvider(),
+                currentFileURL: currentFileURL,
+                locale: Locale(identifier: "en_US_POSIX"),
+                timeZone: slashCommandTimeZone
+            )
+        )
+        guard shouldChangeText(in: context.range, replacementString: output) else { return }
+        replaceCharacters(in: context.range, with: output)
+        didChangeText()
+        setSelectedRange(NSRange(location: context.range.location + (output as NSString).length, length: 0))
     }
 
     func checkForLinkTrigger(plainText: String? = nil, cursor cursorOverride: Int? = nil) {
@@ -1453,6 +1477,7 @@ class LinkAwareTextView: NSTextView {
         rect.origin.y += textContainerOrigin.y
         return rect
     }
+
 
     func refreshInlineImagePreviews() {
         guard let layoutManager, let textContainer else { return }

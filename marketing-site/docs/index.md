@@ -28,6 +28,7 @@ Synapse packs a robust set of features to boost your productivity.
 
 ### Markdown Editor
 - **Live Styling:** Write in plain text, but see bold, italics, links, and code blocks styled live.
+- **Slash Commands:** Type `/time`, `/date`, `/todo`, or `/note` at the start of a line or after a space — expands instantly as you type.
 - **Wikilinks:** Easily link to other notes using `[[Note Name]]`.
 - **Embedded Notes:** Include other notes directly using `![[Note Name]]`.
 - **Media Previews:** Inline support for image rendering and YouTube video previews.

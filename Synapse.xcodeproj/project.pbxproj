@@ -27,6 +27,7 @@
 		45EBBE248217B2FE2005E428 /* AppStateDailyNotesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F7186E8801E8BC8BAA0678D /* AppStateDailyNotesTests.swift */; };
 		4DCEA0C615CA64683100C661 /* TemplatesDirectoryUIBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47250559CE52FF1D2C46C549 /* TemplatesDirectoryUIBehaviorTests.swift */; };
 		5027113BDFD3F4EFCBB359A4 /* FileTreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9573DDE37ACEA626605DC7AF /* FileTreeView.swift */; };
+		563EA784036219818F794EFE /* SlashCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 625A829CF8CCA20BA72C67E4 /* SlashCommands.swift */; };
 		56B9F87560AB403FFFE5784F /* TabItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5652CD83D79D9861456325B /* TabItemTests.swift */; };
 		56E1D8FB1C2F8A356D40A62E /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECDBE060D21A22336AC6312 /* SettingsManagerTests.swift */; };
 		5705294841067700B4957F48 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45E413806B3F56C9791BDD79 /* ContentView.swift */; };
@@ -59,6 +60,7 @@
 		97F1AC38016EBF6D20DA80F5 /* CommandPaletteWikiLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C6CE68315BD0E501C83B675 /* CommandPaletteWikiLinkTests.swift */; };
 		9826D148FDB25BE367FE775A /* FileTreeHiddenItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E1B729A125740F1A8C3AAE /* FileTreeHiddenItemsTests.swift */; };
 		99481587A828F0DD68358B09 /* AppStateSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4482EC8C9915BC9A0022159 /* AppStateSaveTests.swift */; };
+		AA87DDE9D7A227F45AFF75F0 /* SlashCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0584EC822EFEC9CD5AA1241C /* SlashCommandsTests.swift */; };
 		AB321E7C9F6DEF1D8296BBD2 /* EmbeddableNotesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24898CF86DAC494714686ED0 /* EmbeddableNotesTests.swift */; };
 		ABF3038429B24C3FAF0AEB70 /* SettingsManagerPaneHeightsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC200C902B321AE32F2F634C /* SettingsManagerPaneHeightsTests.swift */; };
 		B0B6400BA0E32822AB81A020 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466921F2CFCBF80C26417D68 /* Theme.swift */; };
@@ -94,6 +96,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0584EC822EFEC9CD5AA1241C /* SlashCommandsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlashCommandsTests.swift; sourceTree = "<group>"; };
 		07462473C99EA91E27849EEA /* DailyNoteStartupBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyNoteStartupBehaviorTests.swift; sourceTree = "<group>"; };
 		0A550D18D4F2CA38FCA1D0B8 /* CodeBlockCopyButtonTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlockCopyButtonTests.swift; sourceTree = "<group>"; };
 		0BCDAA7EF51BC5642E126414 /* SettingsManagerCollapsedPanesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerCollapsedPanesTests.swift; sourceTree = "<group>"; };
@@ -124,6 +127,7 @@
 		5A96D01FE3D3F9C3438D9E4A /* AppStateTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTabsTests.swift; sourceTree = "<group>"; };
 		5D10844594863C142A8C7D08 /* Synapse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Synapse.entitlements; sourceTree = "<group>"; };
 		618D96D297FAC05857339878 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
+		625A829CF8CCA20BA72C67E4 /* SlashCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlashCommands.swift; sourceTree = "<group>"; };
 		62C26BB5AD5C76352C46111E /* RelatedLinksPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelatedLinksPaneView.swift; sourceTree = "<group>"; };
 		670E10F779C6DB84F830893C /* PinnedItemStructTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemStructTests.swift; sourceTree = "<group>"; };
 		69131C0C1C0EAB9BC5CADE83 /* PinnedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItem.swift; sourceTree = "<group>"; };
@@ -206,6 +210,7 @@
 				7F44B71BBF17A11D40E4AF68 /* SearchView.swift */,
 				618D96D297FAC05857339878 /* SettingsManager.swift */,
 				4369EAAC935F20E2DDEE7692 /* SettingsView.swift */,
+				625A829CF8CCA20BA72C67E4 /* SlashCommands.swift */,
 				7603E5241D305A3BAE781451 /* SplitPaneEditorView.swift */,
 				5D10844594863C142A8C7D08 /* Synapse.entitlements */,
 				48E13069F2D634A684FAE713 /* SynapseApp.swift */,
@@ -273,6 +278,7 @@
 				12936BAA078D86D1DC91F861 /* SettingsManagerGitHubPATTests.swift */,
 				AC200C902B321AE32F2F634C /* SettingsManagerPaneHeightsTests.swift */,
 				3ECDBE060D21A22336AC6312 /* SettingsManagerTests.swift */,
+				0584EC822EFEC9CD5AA1241C /* SlashCommandsTests.swift */,
 				58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */,
 				A5652CD83D79D9861456325B /* TabItemTests.swift */,
 				FEFD465FCA255C7225417AB1 /* TemplatesDirectoryHiddenFolderTests.swift */,
@@ -429,6 +435,7 @@
 				27A417FEB8C3977F970C53BD /* SettingsManagerGitHubPATTests.swift in Sources */,
 				ABF3038429B24C3FAF0AEB70 /* SettingsManagerPaneHeightsTests.swift in Sources */,
 				56E1D8FB1C2F8A356D40A62E /* SettingsManagerTests.swift in Sources */,
+				AA87DDE9D7A227F45AFF75F0 /* SlashCommandsTests.swift in Sources */,
 				70792E277639E834624DC380 /* SplitPaneKeyboardAndCursorTests.swift in Sources */,
 				56B9F87560AB403FFFE5784F /* TabItemTests.swift in Sources */,
 				0BAD97ABBAA364DB85827080 /* TemplatesDirectoryHiddenFolderTests.swift in Sources */,
@@ -456,6 +463,7 @@
 				8E6D96059DE60DF6F6A8EB1F /* SearchView.swift in Sources */,
 				B4518505C126AA57122C59A3 /* SettingsManager.swift in Sources */,
 				3B9F10D03A403CF4EC1042C3 /* SettingsView.swift in Sources */,
+				563EA784036219818F794EFE /* SlashCommands.swift in Sources */,
 				63ED7B40721FC00C49571D34 /* SplitPaneEditorView.swift in Sources */,
 				F0CC31A93376DEA4A2F12A95 /* SynapseApp.swift in Sources */,
 				1ED3F09C38165B2493F1F33F /* TabBarView.swift in Sources */,
