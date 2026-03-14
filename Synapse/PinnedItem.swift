@@ -8,6 +8,15 @@ struct PinnedItem: Codable, Equatable, Identifiable {
     let isFolder: Bool
     let isTag: Bool
     let vaultPath: String
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case url
+        case name
+        case isFolder
+        case isTag
+        case vaultPath
+    }
     
     /// Initialize for files/folders
     init(url: URL, isFolder: Bool, vaultURL: URL) {
@@ -27,6 +36,16 @@ struct PinnedItem: Codable, Equatable, Identifiable {
         self.isFolder = false
         self.isTag = true
         self.vaultPath = vaultURL.path
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        url = try container.decodeIfPresent(URL.self, forKey: .url)
+        name = try container.decode(String.self, forKey: .name)
+        isFolder = try container.decode(Bool.self, forKey: .isFolder)
+        isTag = try container.decodeIfPresent(Bool.self, forKey: .isTag) ?? false
+        vaultPath = try container.decode(String.self, forKey: .vaultPath)
     }
     
     /// Check if the item still exists (for files/folders)

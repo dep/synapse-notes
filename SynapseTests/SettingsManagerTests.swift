@@ -208,6 +208,35 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertEqual(newManager.templatesDirectory, "snippets")
     }
 
+    func test_load_legacyPinnedItemsWithoutIsTag_preservesOtherSettings() {
+        let legacyPinnedItem: [String: Any] = [
+            "id": UUID().uuidString,
+            "url": "file:///tmp/legacy-note.md",
+            "name": "legacy-note.md",
+            "isFolder": false,
+            "vaultPath": "/tmp/vault"
+        ]
+        let config: [String: Any] = [
+            "onBootCommand": "legacy command",
+            "fileExtensionFilter": "*.swift",
+            "templatesDirectory": "snippets",
+            "autoSave": false,
+            "autoPush": false,
+            "pinnedItems": [legacyPinnedItem]
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: config)
+        try! data.write(to: URL(fileURLWithPath: configFilePath))
+
+        let newManager = SettingsManager(configPath: configFilePath)
+
+        XCTAssertEqual(newManager.onBootCommand, "legacy command",
+                       "Legacy pinned item decoding should not reset unrelated settings")
+        XCTAssertEqual(newManager.fileExtensionFilter, "*.swift")
+        XCTAssertEqual(newManager.templatesDirectory, "snippets")
+        XCTAssertEqual(newManager.pinnedItems.count, 1)
+        XCTAssertFalse(newManager.pinnedItems[0].isTag)
+    }
+
     func test_load_missingTemplatesDirectoryUsesDefaultAndPreservesOtherSettings() {
         let config: [String: Any] = [
             "onBootCommand": "npm start",
