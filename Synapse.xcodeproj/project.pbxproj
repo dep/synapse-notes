@@ -65,6 +65,7 @@
 		B26B4268AD9B4A526D7D6049 /* TerminalPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2933BCDF0B2B56488D2D9F4 /* TerminalPaneView.swift */; };
 		B350FF53B5BEBCBDD6C35B00 /* SettingsManagerCollapsedPanesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BCDAA7EF51BC5642E126414 /* SettingsManagerCollapsedPanesTests.swift */; };
 		B4518505C126AA57122C59A3 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 618D96D297FAC05857339878 /* SettingsManager.swift */; };
+		B87F1BB42DB175A44CDDAE72 /* CodeBlockCopyButtonTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A550D18D4F2CA38FCA1D0B8 /* CodeBlockCopyButtonTests.swift */; };
 		BC6520A1A757E4A090027F62 /* AppStatePendingSearchQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B6C4ABA47C666C37524C4A /* AppStatePendingSearchQueryTests.swift */; };
 		C9FF200E8A6D943707610F1E /* AppStateTemplatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C7B58403081D448E5999D8 /* AppStateTemplatesTests.swift */; };
 		CEC89756C5CC8F759BD67615 /* AppStateTabsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A96D01FE3D3F9C3438D9E4A /* AppStateTabsTests.swift */; };
@@ -94,6 +95,7 @@
 
 /* Begin PBXFileReference section */
 		07462473C99EA91E27849EEA /* DailyNoteStartupBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyNoteStartupBehaviorTests.swift; sourceTree = "<group>"; };
+		0A550D18D4F2CA38FCA1D0B8 /* CodeBlockCopyButtonTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlockCopyButtonTests.swift; sourceTree = "<group>"; };
 		0BCDAA7EF51BC5642E126414 /* SettingsManagerCollapsedPanesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerCollapsedPanesTests.swift; sourceTree = "<group>"; };
 		0E15235537B931DCAA752074 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		12936BAA078D86D1DC91F861 /* SettingsManagerGitHubPATTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerGitHubPATTests.swift; sourceTree = "<group>"; };
@@ -250,6 +252,7 @@
 				26C7B58403081D448E5999D8 /* AppStateTemplatesTests.swift */,
 				ED347CEFEE6A6F742F99580B /* AppStateUntitledNoteTests.swift */,
 				EF0502C0261847F74C47B810 /* AppStateWikiLinkTests.swift */,
+				0A550D18D4F2CA38FCA1D0B8 /* CodeBlockCopyButtonTests.swift */,
 				A307C880E354FA57E8BFEB62 /* CollapsibleSectionsTests.swift */,
 				2C6CE68315BD0E501C83B675 /* CommandPaletteWikiLinkTests.swift */,
 				D989BB1299DADE947BAB87AA /* DailyNotesOpenOnStartupTests.swift */,
@@ -405,6 +408,7 @@
 				C9FF200E8A6D943707610F1E /* AppStateTemplatesTests.swift in Sources */,
 				97059684F4D6FB15BE399547 /* AppStateUntitledNoteTests.swift in Sources */,
 				7FA55FF63CB1CC6E03BEEBCE /* AppStateWikiLinkTests.swift in Sources */,
+				B87F1BB42DB175A44CDDAE72 /* CodeBlockCopyButtonTests.swift in Sources */,
 				E84D8DF773FF8BED5152D2BC /* CollapsibleSectionsTests.swift in Sources */,
 				97F1AC38016EBF6D20DA80F5 /* CommandPaletteWikiLinkTests.swift in Sources */,
 				65D5879869033697040B2E0A /* DailyNoteStartupBehaviorTests.swift in Sources */,
