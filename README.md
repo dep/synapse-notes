@@ -192,6 +192,13 @@ Drag and drop panes between left and right sidebars:
 ### Publishing
 - **Gist Publishing** - Publish notes to GitHub Gists (requires GitHub PAT)
 
+### Vault-Specific Settings
+Settings automatically sync with your vault. When you open a vault, Synapse stores its settings in a `.noted` folder at the vault root:
+- Settings travel with the vault — perfect for syncing via Git or cloud storage
+- Each vault has its own independent settings
+- The `.noted` folder is visible in the file tree and can be committed to version control
+- Your GitHub Personal Access Token stays local (never leaves your machine)
+
 ## Keyboard Shortcuts
 
 ### File & Note Operations

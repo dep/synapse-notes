@@ -71,6 +71,13 @@ Customize left and right sidebars with panes:
 ### Gist Publishing
 Easily publish specific notes to GitHub Gists using your Personal Access Token (PAT).
 
+### Vault-Specific Settings
+Settings automatically sync with your vault. When you open a vault, Synapse stores its settings in a `.noted` folder at the vault root:
+- **Portable Settings** — Settings travel with the vault, perfect for syncing via Git or cloud storage
+- **Vault Independence** — Each vault has its own independent settings
+- **Visible & Controllable** — The `.noted` folder appears in your file tree; you control whether to commit it
+- **Privacy Protected** — Your GitHub Personal Access Token stays local and never leaves your machine
+
 ## Settings
 
 To access Synapse settings, press `CMD + ,` or navigate to `Synapse > Settings` in the menu bar.
