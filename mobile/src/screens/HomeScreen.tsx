@@ -8,6 +8,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import { FileDrawer } from '../components/FileDrawer';
 import { FileSystemService } from '../services/FileSystemService';
 import { OnboardingStorage } from '../services/onboardingStorage';
+import { DailyNoteService } from '../services/DailyNoteService';
 import * as FileSystem from 'expo-file-system/legacy';
 
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -28,6 +29,7 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>(undefined);
   const [repositoryPath, setRepositoryPath] = useState<string>(getVaultPath());
+  const [hasOpenedDailyNote, setHasOpenedDailyNote] = useState(false);
 
   const repoName = repositoryPath
     ? repositoryPath.replace(/\/+$/, '').split('/').pop() || null
@@ -43,6 +45,29 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
 
     loadRepositoryPath();
   }, []);
+
+  // Open daily note on startup if enabled
+  useEffect(() => {
+    const openDailyNoteOnStartup = async () => {
+      if (hasOpenedDailyNote || !repositoryPath) return;
+      
+      const shouldOpen = await DailyNoteService.getDailyNoteStatus();
+      if (shouldOpen) {
+        try {
+          const result = await DailyNoteService.openTodayNote(repositoryPath);
+          if (result.notePath) {
+            setActiveFilePath(result.notePath);
+            navigation.navigate('Editor', { filePath: result.notePath });
+          }
+        } catch (error) {
+          console.error('Failed to open daily note on startup:', error);
+        }
+      }
+      setHasOpenedDailyNote(true);
+    };
+
+    openDailyNoteOnStartup();
+  }, [repositoryPath, hasOpenedDailyNote, navigation]);
 
   // Open drawer when coming back from editor with openDrawer param
   useEffect(() => {
@@ -73,6 +98,16 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
       navigation.navigate('Editor', { filePath });
     } catch (error) {
       console.error('Failed to create new note:', error);
+    }
+  };
+
+  const handleTodayNote = async () => {
+    try {
+      const result = await DailyNoteService.openTodayNote(repositoryPath);
+      setActiveFilePath(result.notePath);
+      navigation.navigate('Editor', { filePath: result.notePath });
+    } catch (error) {
+      console.error('Failed to open today\'s note:', error);
     }
   };
 
@@ -124,6 +159,16 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
             <MaterialIcons name="note-add" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
             <Text style={[styles.buttonText, { color: theme.colors.background }]}>
               Create New Note
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: theme.colors.primary, marginTop: 12 }]}
+            onPress={handleTodayNote}
+          >
+            <MaterialIcons name="today" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
+            <Text style={[styles.buttonText, { color: theme.colors.background }]}>
+              Today's Note
             </Text>
           </TouchableOpacity>
         </View>

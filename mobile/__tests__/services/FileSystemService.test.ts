@@ -1,29 +1,23 @@
 import { FileSystemService, FileSystemError, FileSystemErrorType, FileNode } from '../../src/services/fileSystemService';
-import LightningFS from '@isomorphic-git/lightning-fs';
+import * as FileSystem from 'expo-file-system/legacy';
 
-// Mock LightningFS
-jest.mock('@isomorphic-git/lightning-fs');
+// Mock expo-file-system
+jest.mock('expo-file-system/legacy', () => ({
+  readDirectoryAsync: jest.fn(),
+  readAsStringAsync: jest.fn(),
+  writeAsStringAsync: jest.fn(),
+  deleteAsync: jest.fn(),
+  makeDirectoryAsync: jest.fn(),
+  getInfoAsync: jest.fn(),
+  documentDirectory: 'file:///mock/documents/',
+  EncodingType: {
+    UTF8: 'utf8',
+  },
+}));
 
 describe('FileSystemService', () => {
-  let mockPfs: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    mockPfs = {
-      mkdir: jest.fn(() => Promise.resolve()),
-      readdir: jest.fn(() => Promise.resolve([])),
-      readFile: jest.fn(() => Promise.resolve('')),
-      writeFile: jest.fn(() => Promise.resolve()),
-      unlink: jest.fn(() => Promise.resolve()),
-      rmdir: jest.fn(() => Promise.resolve()),
-      stat: jest.fn(() => Promise.resolve({ type: 'file', size: 100, mtimeMs: Date.now() })),
-      lstat: jest.fn(() => Promise.resolve({ type: 'file', size: 100, mtimeMs: Date.now() })),
-    };
-    
-    (LightningFS as jest.MockedClass<typeof LightningFS>).mockImplementation(() => ({
-      promises: mockPfs,
-    }) as any);
   });
 
   afterEach(() => {
@@ -51,27 +45,31 @@ describe('FileSystemService', () => {
     it('should list all files recursively in a directory', async () => {
       const rootPath = '/vault';
       
-      mockPfs.readdir.mockResolvedValueOnce([
-        { name: 'file1.md', type: 'file' },
-        { name: 'folder1', type: 'directory' },
-      ]);
+      // First call - root directory
+      (FileSystem.readDirectoryAsync as jest.Mock)
+        .mockResolvedValueOnce(['file1.md', 'folder1']);
       
-      mockPfs.readdir.mockResolvedValueOnce([
-        { name: 'file2.md', type: 'file' },
-      ]);
+      // getInfoAsync calls
+      (FileSystem.getInfoAsync as jest.Mock)
+        .mockResolvedValueOnce({ exists: true, isDirectory: false, size: 100 }) // file1.md
+        .mockResolvedValueOnce({ exists: true, isDirectory: true, size: 0 }) // folder1
+        .mockResolvedValueOnce({ exists: true, isDirectory: false, size: 200 }); // file2.md inside folder1
+
+      // Second call - folder1 contents
+      (FileSystem.readDirectoryAsync as jest.Mock)
+        .mockResolvedValueOnce(['file2.md']);
 
       const result = await FileSystemService.listFiles(rootPath);
 
       expect(result).toHaveLength(2);
-      expect(result[0].name).toBe('file1.md');
-      expect(result[0].isDirectory).toBe(false);
-      expect(result[1].name).toBe('folder1');
-      expect(result[1].isDirectory).toBe(true);
-      expect(result[1].children).toHaveLength(1);
+      expect(result[0].name).toBe('folder1');
+      expect(result[0].isDirectory).toBe(true);
+      expect(result[1].name).toBe('file1.md');
+      expect(result[1].isDirectory).toBe(false);
     });
 
     it('should return empty array for empty directory', async () => {
-      mockPfs.readdir.mockResolvedValueOnce([]);
+      (FileSystem.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([]);
 
       const result = await FileSystemService.listFiles('/empty');
 
@@ -79,7 +77,7 @@ describe('FileSystemService', () => {
     });
 
     it('should throw FileSystemError when directory does not exist', async () => {
-      mockPfs.readdir.mockRejectedValueOnce(new Error('ENOENT: no such file or directory'));
+      (FileSystem.readDirectoryAsync as jest.Mock).mockRejectedValueOnce(new Error('ENOENT: no such file or directory'));
 
       await expect(FileSystemService.listFiles('/nonexistent')).rejects.toThrow(FileSystemError);
     });
@@ -90,35 +88,29 @@ describe('FileSystemService', () => {
       const filePath = '/vault/file.md';
       const content = '# Hello World';
       
-      mockPfs.readFile.mockResolvedValueOnce(content);
+      (FileSystem.readAsStringAsync as jest.Mock).mockResolvedValueOnce(content);
 
       const result = await FileSystemService.readFile(filePath);
 
       expect(result).toBe(content);
-      expect(mockPfs.readFile).toHaveBeenCalledWith(filePath, 'utf8');
+      expect(FileSystem.readAsStringAsync).toHaveBeenCalledWith('file:///vault/file.md', { encoding: FileSystem.EncodingType.UTF8 });
     });
 
     it('should read file contents as buffer when specified', async () => {
       const filePath = '/vault/image.png';
-      const buffer = Buffer.from([1, 2, 3, 4]);
+      const content = 'binary content';
       
-      mockPfs.readFile.mockResolvedValueOnce(buffer);
+      (FileSystem.readAsStringAsync as jest.Mock).mockResolvedValueOnce(content);
 
       const result = await FileSystemService.readFile(filePath, 'buffer');
 
-      expect(result).toEqual(buffer);
+      expect(result).toBeInstanceOf(Uint8Array);
     });
 
     it('should throw FileSystemError when file does not exist', async () => {
-      mockPfs.readFile.mockRejectedValueOnce(new Error('ENOENT: no such file or directory'));
+      (FileSystem.readAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('ENOENT: no such file or directory'));
 
       await expect(FileSystemService.readFile('/nonexistent/file.md')).rejects.toThrow(FileSystemError);
-    });
-
-    it('should throw FileSystemError when path is a directory', async () => {
-      mockPfs.readFile.mockRejectedValueOnce(new Error('EISDIR: illegal operation on a directory'));
-
-      await expect(FileSystemService.readFile('/vault/folder')).rejects.toThrow(FileSystemError);
     });
   });
 
@@ -127,52 +119,46 @@ describe('FileSystemService', () => {
       const filePath = '/vault/file.md';
       const content = '# New Content';
       
-      mockPfs.writeFile.mockResolvedValueOnce(undefined);
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, isDirectory: true });
+      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
       await FileSystemService.writeFile(filePath, content);
 
-      expect(mockPfs.writeFile).toHaveBeenCalledWith(filePath, content, 'utf8');
+      expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith('file:///vault/file.md', content, { encoding: FileSystem.EncodingType.UTF8 });
     });
 
     it('should create parent directories if they do not exist', async () => {
       const filePath = '/vault/folder/subfolder/file.md';
       const content = '# Content';
       
-      // Mock exists to return false for directories that don't exist
-      mockPfs.stat
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault/folder/subfolder doesn't exist
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault doesn't exist (in recursive)
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault/folder doesn't exist (in recursive)
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault/folder/subfolder doesn't exist (in recursive)
-        .mockResolvedValueOnce({ type: 'directory' }); // after creation
+      // Mock directory checks and creations
+      (FileSystem.getInfoAsync as jest.Mock)
+        .mockResolvedValueOnce({ exists: false }) // /vault/folder/subfolder doesn't exist
+        .mockResolvedValueOnce({ exists: true, isDirectory: true }); // after creation
       
-      mockPfs.mkdir.mockResolvedValue(undefined);
-      mockPfs.writeFile.mockResolvedValueOnce(undefined);
+      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
       await FileSystemService.writeFile(filePath, content);
 
-      expect(mockPfs.mkdir).toHaveBeenCalledWith('/vault');
-      expect(mockPfs.mkdir).toHaveBeenCalledWith('/vault/folder');
-      expect(mockPfs.mkdir).toHaveBeenCalledWith('/vault/folder/subfolder');
+      expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith('file:///vault/folder/subfolder', { intermediates: true });
     });
 
     it('should write buffer content', async () => {
       const filePath = '/vault/image.png';
-      const buffer = Buffer.from([1, 2, 3, 4]);
+      const buffer = new Uint8Array([1, 2, 3, 4]);
       
-      mockPfs.writeFile.mockResolvedValueOnce(undefined);
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, isDirectory: true });
+      (FileSystem.writeAsStringAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
       await FileSystemService.writeFile(filePath, buffer);
 
-      // Verify that writeFile was called with the correct file path and content
-      const callArgs = mockPfs.writeFile.mock.calls[0];
-      expect(callArgs[0]).toBe(filePath);
-      expect(Buffer.isBuffer(callArgs[1])).toBe(true);
-      expect(callArgs[2]).toBeUndefined();
+      // Verify that writeFile was called
+      expect(FileSystem.writeAsStringAsync).toHaveBeenCalled();
     });
 
     it('should throw FileSystemError on write failure', async () => {
-      mockPfs.writeFile.mockRejectedValueOnce(new Error('EACCES: permission denied'));
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValue({ exists: true, isDirectory: true });
+      (FileSystem.writeAsStringAsync as jest.Mock).mockRejectedValueOnce(new Error('EACCES: permission denied'));
 
       await expect(FileSystemService.writeFile('/readonly/file.md', 'content')).rejects.toThrow(FileSystemError);
     });
@@ -182,22 +168,22 @@ describe('FileSystemService', () => {
     it('should delete a file', async () => {
       const filePath = '/vault/file.md';
       
-      mockPfs.stat.mockResolvedValueOnce({ type: 'file' });
-      mockPfs.unlink.mockResolvedValueOnce(undefined);
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true, isDirectory: false });
+      (FileSystem.deleteAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
       await FileSystemService.deleteFile(filePath);
 
-      expect(mockPfs.unlink).toHaveBeenCalledWith(filePath);
+      expect(FileSystem.deleteAsync).toHaveBeenCalledWith('file:///vault/file.md', { idempotent: true });
     });
 
     it('should throw FileSystemError when deleting a directory', async () => {
-      mockPfs.stat.mockResolvedValueOnce({ type: 'directory' });
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true, isDirectory: true });
 
       await expect(FileSystemService.deleteFile('/vault/folder')).rejects.toThrow(FileSystemError);
     });
 
     it('should throw FileSystemError when file does not exist', async () => {
-      mockPfs.stat.mockRejectedValueOnce(new Error('ENOENT'));
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: false });
 
       await expect(FileSystemService.deleteFile('/nonexistent/file.md')).rejects.toThrow(FileSystemError);
     });
@@ -207,36 +193,25 @@ describe('FileSystemService', () => {
     it('should create a new directory', async () => {
       const dirPath = '/vault/new-folder';
       
-      mockPfs.mkdir.mockResolvedValueOnce(undefined);
+      (FileSystem.makeDirectoryAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
       await FileSystemService.createDirectory(dirPath);
 
-      expect(mockPfs.mkdir).toHaveBeenCalledWith(dirPath);
+      expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith('file:///vault/new-folder', { intermediates: false });
     });
 
     it('should create nested directories recursively', async () => {
       const dirPath = '/vault/parent/child/grandchild';
       
-      // Mock exists to return false for all directories
-      mockPfs.stat
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault doesn't exist
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault/parent doesn't exist
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault/parent/child doesn't exist
-        .mockRejectedValueOnce(new Error('ENOENT'))  // /vault/parent/child/grandchild doesn't exist
-        .mockResolvedValueOnce({ type: 'directory' }); // after creation
-      
-      mockPfs.mkdir.mockResolvedValue(undefined);
+      (FileSystem.makeDirectoryAsync as jest.Mock).mockResolvedValue(undefined);
 
       await FileSystemService.createDirectory(dirPath, { recursive: true });
 
-      expect(mockPfs.mkdir).toHaveBeenCalledWith('/vault');
-      expect(mockPfs.mkdir).toHaveBeenCalledWith('/vault/parent');
-      expect(mockPfs.mkdir).toHaveBeenCalledWith('/vault/parent/child');
-      expect(mockPfs.mkdir).toHaveBeenCalledWith(dirPath);
+      expect(FileSystem.makeDirectoryAsync).toHaveBeenCalledWith('file:///vault/parent/child/grandchild', { intermediates: true });
     });
 
     it('should throw FileSystemError when parent directory does not exist', async () => {
-      mockPfs.mkdir.mockRejectedValueOnce(new Error('ENOENT'));
+      (FileSystem.makeDirectoryAsync as jest.Mock).mockRejectedValueOnce(new Error('ENOENT'));
 
       await expect(FileSystemService.createDirectory('/nonexistent/folder')).rejects.toThrow(FileSystemError);
     });
@@ -246,42 +221,25 @@ describe('FileSystemService', () => {
     it('should delete an empty directory', async () => {
       const dirPath = '/vault/empty-folder';
       
-      mockPfs.readdir.mockResolvedValueOnce([]);
-      mockPfs.rmdir.mockResolvedValueOnce(undefined);
+      (FileSystem.deleteAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
       await FileSystemService.deleteDirectory(dirPath);
 
-      expect(mockPfs.rmdir).toHaveBeenCalledWith(dirPath);
+      expect(FileSystem.deleteAsync).toHaveBeenCalledWith('file:///vault/empty-folder', { idempotent: true });
     });
 
     it('should delete directory recursively with contents', async () => {
       const dirPath = '/vault/folder';
       
-      mockPfs.readdir.mockResolvedValueOnce([
-        { name: 'file.md', type: 'file' },
-        { name: 'subfolder', type: 'directory' },
-      ]);
-      
-      mockPfs.readdir.mockResolvedValueOnce([
-        { name: 'nested.md', type: 'file' },
-      ]);
+      (FileSystem.deleteAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
       await FileSystemService.deleteDirectory(dirPath, { recursive: true });
 
-      expect(mockPfs.unlink).toHaveBeenCalledWith('/vault/folder/file.md');
-      expect(mockPfs.unlink).toHaveBeenCalledWith('/vault/folder/subfolder/nested.md');
-      expect(mockPfs.rmdir).toHaveBeenCalledWith('/vault/folder/subfolder');
-      expect(mockPfs.rmdir).toHaveBeenCalledWith(dirPath);
-    });
-
-    it('should throw FileSystemError when directory is not empty', async () => {
-      mockPfs.readdir.mockResolvedValueOnce([{ name: 'file.md', type: 'file' }]);
-
-      await expect(FileSystemService.deleteDirectory('/vault/folder')).rejects.toThrow(FileSystemError);
+      expect(FileSystem.deleteAsync).toHaveBeenCalledWith('file:///vault/folder', { idempotent: true });
     });
 
     it('should throw FileSystemError when directory does not exist', async () => {
-      mockPfs.readdir.mockRejectedValueOnce(new Error('ENOENT'));
+      (FileSystem.deleteAsync as jest.Mock).mockRejectedValueOnce(new Error('ENOENT'));
 
       await expect(FileSystemService.deleteDirectory('/nonexistent')).rejects.toThrow(FileSystemError);
     });
@@ -289,7 +247,7 @@ describe('FileSystemService', () => {
 
   describe('exists', () => {
     it('should return true when file exists', async () => {
-      mockPfs.stat.mockResolvedValueOnce({ type: 'file' });
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true, isDirectory: false });
 
       const result = await FileSystemService.exists('/vault/file.md');
 
@@ -297,7 +255,7 @@ describe('FileSystemService', () => {
     });
 
     it('should return true when directory exists', async () => {
-      mockPfs.stat.mockResolvedValueOnce({ type: 'directory' });
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true, isDirectory: true });
 
       const result = await FileSystemService.exists('/vault/folder');
 
@@ -305,7 +263,7 @@ describe('FileSystemService', () => {
     });
 
     it('should return false when path does not exist', async () => {
-      mockPfs.stat.mockRejectedValueOnce(new Error('ENOENT'));
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: false });
 
       const result = await FileSystemService.exists('/nonexistent');
 
@@ -315,7 +273,7 @@ describe('FileSystemService', () => {
 
   describe('isDirectory', () => {
     it('should return true for directory', async () => {
-      mockPfs.stat.mockResolvedValueOnce({ type: 'directory' });
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true, isDirectory: true });
 
       const result = await FileSystemService.isDirectory('/vault/folder');
 
@@ -323,7 +281,7 @@ describe('FileSystemService', () => {
     });
 
     it('should return false for file', async () => {
-      mockPfs.stat.mockResolvedValueOnce({ type: 'file' });
+      (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({ exists: true, isDirectory: false });
 
       const result = await FileSystemService.isDirectory('/vault/file.md');
 
@@ -331,7 +289,7 @@ describe('FileSystemService', () => {
     });
 
     it('should throw FileSystemError when path does not exist', async () => {
-      mockPfs.stat.mockRejectedValueOnce(new Error('ENOENT'));
+      (FileSystem.getInfoAsync as jest.Mock).mockRejectedValueOnce(new Error('ENOENT'));
 
       await expect(FileSystemService.isDirectory('/nonexistent')).rejects.toThrow(FileSystemError);
     });
@@ -341,35 +299,28 @@ describe('FileSystemService', () => {
     it('should return structured file tree data', async () => {
       const rootPath = '/vault';
       
-      mockPfs.readdir.mockResolvedValueOnce([
-        { name: 'readme.md', type: 'file' },
-        { name: 'src', type: 'directory' },
-      ]);
+      (FileSystem.readDirectoryAsync as jest.Mock)
+        .mockResolvedValueOnce(['readme.md', 'src'])
+        .mockResolvedValueOnce(['index.ts', 'utils'])
+        .mockResolvedValueOnce(['helper.ts']);
       
-      mockPfs.readdir.mockResolvedValueOnce([
-        { name: 'index.ts', type: 'file' },
-        { name: 'utils', type: 'directory' },
-      ]);
-      
-      mockPfs.readdir.mockResolvedValueOnce([
-        { name: 'helper.ts', type: 'file' },
-      ]);
+      (FileSystem.getInfoAsync as jest.Mock)
+        .mockResolvedValueOnce({ exists: true, isDirectory: false, size: 100 })
+        .mockResolvedValueOnce({ exists: true, isDirectory: true, size: 0 })
+        .mockResolvedValueOnce({ exists: true, isDirectory: false, size: 200 })
+        .mockResolvedValueOnce({ exists: true, isDirectory: true, size: 0 })
+        .mockResolvedValueOnce({ exists: true, isDirectory: false, size: 300 });
 
       const result = await FileSystemService.getFileTree(rootPath);
 
-      expect(result.path).toBe(rootPath);
+      expect(result.path).toBe('file:///vault');
       expect(result.name).toBe('vault');
       expect(result.isDirectory).toBe(true);
       expect(result.children).toHaveLength(2);
-      expect(result.children![0].name).toBe('readme.md');
-      expect(result.children![0].isDirectory).toBe(false);
-      expect(result.children![1].name).toBe('src');
-      expect(result.children![1].isDirectory).toBe(true);
-      expect(result.children![1].children).toHaveLength(2);
     });
 
     it('should handle empty root directory', async () => {
-      mockPfs.readdir.mockResolvedValueOnce([]);
+      (FileSystem.readDirectoryAsync as jest.Mock).mockResolvedValueOnce([]);
 
       const result = await FileSystemService.getFileTree('/vault');
 

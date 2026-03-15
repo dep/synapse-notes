@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { OnboardingStorage } from '../services/onboardingStorage';
+import { SettingsStorage } from '../services/SettingsStorage';
 import * as FileSystem from 'expo-file-system/legacy';
 
 type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -14,10 +15,53 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme, isDark, toggleTheme, followSystem, setFollowSystem } = useTheme();
   const [repoPath, setRepoPath] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
+  
+  // Daily Note settings
+  const [dailyNotesEnabled, setDailyNotesEnabled] = useState(false);
+  const [dailyNotesOpenOnStartup, setDailyNotesOpenOnStartup] = useState(false);
+  const [dailyNotesFolder, setDailyNotesFolder] = useState('daily');
+  const [dailyNotesTemplate, setDailyNotesTemplate] = useState('');
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   useEffect(() => {
     OnboardingStorage.getActiveRepositoryPath().then(setRepoPath);
+    loadDailyNoteSettings();
   }, []);
+
+  const loadDailyNoteSettings = async () => {
+    setIsLoadingSettings(true);
+    try {
+      const settings = await SettingsStorage.getAllDailyNoteSettings();
+      setDailyNotesEnabled(settings.dailyNotesEnabled);
+      setDailyNotesOpenOnStartup(settings.dailyNotesOpenOnStartup);
+      setDailyNotesFolder(settings.dailyNotesFolder);
+      setDailyNotesTemplate(settings.dailyNotesTemplate);
+    } catch (error) {
+      console.error('Failed to load daily note settings:', error);
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  };
+
+  const handleDailyNotesToggle = async (enabled: boolean) => {
+    setDailyNotesEnabled(enabled);
+    await SettingsStorage.setDailyNotesEnabled(enabled);
+  };
+
+  const handleOpenOnStartupToggle = async (enabled: boolean) => {
+    setDailyNotesOpenOnStartup(enabled);
+    await SettingsStorage.setDailyNotesOpenOnStartup(enabled);
+  };
+
+  const handleFolderChange = async (folder: string) => {
+    setDailyNotesFolder(folder);
+    await SettingsStorage.setDailyNotesFolder(folder);
+  };
+
+  const handleTemplateChange = async (template: string) => {
+    setDailyNotesTemplate(template);
+    await SettingsStorage.setDailyNotesTemplate(template);
+  };
 
   const repoName = repoPath
     ? repoPath.replace(/\/+$/, '').split('/').pop() || repoPath
@@ -125,6 +169,110 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             <Text style={[styles.infoSubtext, { color: theme.colors.text, opacity: 0.6 }]}>
               Version 1.0.0
             </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Daily Notes
+          </Text>
+
+          <View style={[styles.card, { backgroundColor: theme.colors.card, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }]}>
+            {/* Enable Daily Notes Toggle */}
+            <View style={styles.settingRow}>
+              <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                Enable Daily Notes
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.toggle,
+                  { backgroundColor: dailyNotesEnabled ? theme.colors.primary : theme.colors.border }
+                ]}
+                onPress={() => handleDailyNotesToggle(!dailyNotesEnabled)}
+                disabled={isLoadingSettings}
+              >
+                <Text style={[styles.toggleText, { color: theme.colors.background }]}>
+                  {dailyNotesEnabled ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {dailyNotesEnabled && (
+              <>
+                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                {/* Open on Startup Toggle */}
+                <View style={styles.settingRow}>
+                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
+                    Open on Startup
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.toggle,
+                      { backgroundColor: dailyNotesOpenOnStartup ? theme.colors.primary : theme.colors.border }
+                    ]}
+                    onPress={() => handleOpenOnStartupToggle(!dailyNotesOpenOnStartup)}
+                    disabled={isLoadingSettings}
+                  >
+                    <Text style={[styles.toggleText, { color: theme.colors.background }]}>
+                      {dailyNotesOpenOnStartup ? 'ON' : 'OFF'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                {/* Daily Notes Folder Input */}
+                <View style={styles.inputRow}>
+                  <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
+                    Folder Name
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        color: theme.colors.text,
+                        backgroundColor: theme.colors.background,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                    value={dailyNotesFolder}
+                    onChangeText={handleFolderChange}
+                    placeholder="daily"
+                    placeholderTextColor={theme.colors.text + '60'}
+                    editable={!isLoadingSettings}
+                  />
+                </View>
+
+                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+                {/* Template Input */}
+                <View style={styles.inputRow}>
+                  <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
+                    Template File
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        color: theme.colors.text,
+                        backgroundColor: theme.colors.background,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                    value={dailyNotesTemplate}
+                    onChangeText={handleTemplateChange}
+                    placeholder="e.g., daily.md"
+                    placeholderTextColor={theme.colors.text + '60'}
+                    editable={!isLoadingSettings}
+                  />
+                </View>
+
+                <Text style={[styles.hintText, { color: theme.colors.text, opacity: 0.5 }]}>
+                  Place templates in a "templates" folder at your vault root
+                </Text>
+              </>
+            )}
           </View>
         </View>
 
@@ -285,5 +433,29 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  textInput: {
+    flex: 1.5,
+    fontSize: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginLeft: 12,
+  },
+  hintText: {
+    fontSize: 12,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });

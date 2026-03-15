@@ -10,17 +10,20 @@ import {
   ScrollView,
   StatusBar,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeContext';
 import { FileSystemService, FileNode } from '../services/FileSystemService';
+import { PinningStorage, PinnedItem } from '../services/PinningStorage';
 
 interface FileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onFileSelect: (path: string) => void;
   onNewNote: () => void;
+  onTodayNote: () => void;
   vaultPath: string;
   repoName?: string;
   activeFilePath?: string;
@@ -39,6 +42,7 @@ export function FileDrawer({
   onClose,
   onFileSelect,
   onNewNote,
+  onTodayNote,
   vaultPath,
   repoName,
   activeFilePath,
@@ -55,6 +59,7 @@ export function FileDrawer({
   const [loadingFolder, setLoadingFolder] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [lastLoadedVaultPath, setLastLoadedVaultPath] = useState<string | null>(null);
+  const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
   const slideAnim = useState(new Animated.Value(-Dimensions.get('window').width * 0.8))[0];
 
   // Load saved preferences on mount
@@ -104,6 +109,17 @@ export function FileDrawer({
     setExpandedFolders(new Set());
     setLastUpdated(null);
     setLastLoadedVaultPath(null);
+    loadPinnedItems();
+  }, [vaultPath]);
+
+  // Load pinned items
+  const loadPinnedItems = useCallback(async () => {
+    try {
+      const items = await PinningStorage.getPinnedItems(vaultPath);
+      setPinnedItems(items);
+    } catch (error) {
+      console.error('[FileDrawer] Failed to load pinned items:', error);
+    }
   }, [vaultPath]);
 
   // Animate drawer and load files when opened
@@ -232,6 +248,65 @@ export function FileDrawer({
     onNewNote();
   };
 
+  const handleTodayNote = () => {
+    setFiles([]);
+    setFlatFiles([]);
+    setExpandedFolders(new Set());
+    setLastUpdated(null);
+    setLastLoadedVaultPath(null);
+    onTodayNote();
+    closeDrawer();
+  };
+
+  const handlePinItem = async (path: string, name: string, isFolder: boolean) => {
+    try {
+      await PinningStorage.pinItem(path, name, isFolder, vaultPath);
+      await loadPinnedItems();
+    } catch (error) {
+      console.error('[FileDrawer] Failed to pin item:', error);
+      Alert.alert('Error', 'Failed to pin item');
+    }
+  };
+
+  const handleUnpinItem = async (path: string) => {
+    try {
+      await PinningStorage.unpinItem(path, vaultPath);
+      await loadPinnedItems();
+    } catch (error) {
+      console.error('[FileDrawer] Failed to unpin item:', error);
+      Alert.alert('Error', 'Failed to unpin item');
+    }
+  };
+
+  const showPinContextMenu = async (node: FileNode) => {
+    const isPinned = await PinningStorage.isPinned(node.path, vaultPath);
+    
+    Alert.alert(
+      node.name,
+      undefined,
+      [
+        {
+          text: isPinned ? 'Unpin' : 'Pin',
+          onPress: () => {
+            if (isPinned) {
+              handleUnpinItem(node.path);
+            } else {
+              handlePinItem(node.path, node.name, node.isDirectory);
+            }
+          },
+        },
+        {
+          text: 'Open',
+          onPress: () => handleFileSelect(node.path),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   const toggleFolder = async (path: string, hasLoadedChildren: boolean) => {
     const isExpanding = !expandedFolders.has(path);
     
@@ -281,6 +356,7 @@ export function FileDrawer({
               { paddingLeft: 16 + level * 16 },
             ]}
             onPress={() => toggleFolder(node.path, Array.isArray(node.children))}
+            onLongPress={() => showPinContextMenu(node)}
             disabled={isLoadingFolder}
           >
             {isLoadingFolder ? (
@@ -293,7 +369,7 @@ export function FileDrawer({
               <MaterialIcons
                 name={isExpanded ? 'folder-open' : 'folder'}
                 size={22}
-                color={theme.colors.text}
+                color="#f59e0b"
                 style={styles.folderIcon}
               />
             )}
@@ -326,6 +402,7 @@ export function FileDrawer({
           isActive && { backgroundColor: theme.colors.primary + '20' },
         ]}
         onPress={() => handleFileSelect(node.path)}
+        onLongPress={() => showPinContextMenu(node)}
         testID={isActive ? 'file-item-active' : undefined}
       >
         <MaterialIcons
@@ -377,6 +454,71 @@ export function FileDrawer({
         </Text>
       </TouchableOpacity>
     ));
+  };
+
+  const renderPinnedItem = (item: PinnedItem) => {
+    const isActive = item.path === activeFilePath;
+    
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={[
+          styles.pinnedItem,
+          isActive && { backgroundColor: theme.colors.primary + '20' },
+        ]}
+        onPress={() => {
+          if (item.isFolder) {
+            // For folders, expand them in the tree view
+            toggleFolder(item.path, false);
+          } else {
+            handleFileSelect(item.path);
+          }
+        }}
+        onLongPress={() => {
+          Alert.alert(
+            item.name,
+            undefined,
+            [
+              {
+                text: 'Unpin',
+                onPress: () => handleUnpinItem(item.path),
+              },
+              {
+                text: 'Open',
+                onPress: () => {
+                  if (item.isFolder) {
+                    toggleFolder(item.path, false);
+                  } else {
+                    handleFileSelect(item.path);
+                  }
+                },
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel',
+              },
+            ]
+          );
+        }}
+      >
+        <MaterialIcons
+          name={item.isFolder ? 'folder' : 'push-pin'}
+          size={18}
+          color={isActive ? theme.colors.primary : item.isFolder ? '#f59e0b' : theme.colors.text + '80'}
+          style={styles.pinnedIcon}
+        />
+        <Text
+          style={[
+            styles.pinnedName,
+            { color: theme.colors.text },
+            isActive && { color: theme.colors.primary, fontWeight: '600' },
+          ]}
+          numberOfLines={1}
+        >
+          {item.name}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -455,6 +597,17 @@ export function FileDrawer({
 
             {/* New Note Button */}
             <TouchableOpacity
+              style={[styles.todayNoteButton, { backgroundColor: theme.colors.secondary, flexDirection: 'row', justifyContent: 'center' }]}
+              onPress={handleTodayNote}
+              testID="today-note-button"
+            >
+              <MaterialIcons name="today" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
+              <Text style={[styles.todayNoteText, { color: theme.colors.background }]}>
+                Today
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.newNoteButton, { backgroundColor: theme.colors.primary, flexDirection: 'row', justifyContent: 'center' }]}
               onPress={handleNewNote}
               testID="new-note-button"
@@ -464,6 +617,18 @@ export function FileDrawer({
                 New Note
               </Text>
             </TouchableOpacity>
+
+            {/* Pinned Items */}
+            {pinnedItems.length > 0 && (
+              <View style={styles.pinnedSection}>
+                <Text style={[styles.pinnedHeader, { color: theme.colors.text + '70' }]}>
+                  PINNED
+                </Text>
+                <View style={styles.pinnedList}>
+                  {pinnedItems.map(item => renderPinnedItem(item))}
+                </View>
+              </View>
+            )}
 
             {/* Sort Controls */}
             <View style={styles.sortControlsContainer}>
@@ -644,7 +809,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   newNoteButton: {
-    margin: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
     padding: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -655,6 +821,24 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   newNoteText: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  todayNoteButton: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  todayNoteText: {
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.2,
@@ -776,5 +960,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.2,
+  },
+  pinnedSection: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  pinnedHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  pinnedList: {
+    flexDirection: 'column',
+  },
+  pinnedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  pinnedIcon: {
+    marginRight: 10,
+  },
+  pinnedName: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
   },
 });
