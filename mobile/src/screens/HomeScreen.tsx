@@ -10,7 +10,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 // Get the vault path from document directory
-const VAULT_PATH = `${FileSystem.documentDirectory}vault`.replace(/\/+$/, '');
+const getVaultPath = () => {
+  const docDir = FileSystem.documentDirectory || 'file:///';
+  const normalizedDir = docDir.replace(/\/+$/, '') + '/';
+  return `${normalizedDir}vault`;
+};
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const { theme, isDark, toggleTheme, followSystem, setFollowSystem } = useTheme();
@@ -27,7 +31,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       // Generate a unique filename
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const fileName = `Untitled-${timestamp}.md`;
-      const filePath = `${VAULT_PATH}/${fileName}`;
+      const vaultPath = getVaultPath();
+      const filePath = `${vaultPath}/${fileName}`;
 
       // Create the file with empty content
       await FileSystemService.writeFile(filePath, '# New Note\n\n');
@@ -53,7 +58,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           onClose={handleCloseDrawer}
           onFileSelect={handleFileSelect}
           onNewNote={handleNewNote}
-          vaultPath={VAULT_PATH}
+          vaultPath={getVaultPath()}
           activeFilePath={activeFilePath}
         />
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>

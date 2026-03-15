@@ -22,7 +22,11 @@ type CloneRepositoryScreenProps = NativeStackScreenProps<RootStackParamList, 'Cl
 
 // Use the document directory for the vault
 const getVaultPath = () => {
-  return `${FileSystem.documentDirectory}vault`.replace(/\/+$/, '');
+  // Ensure proper file:// URI format with three slashes
+  const docDir = FileSystem.documentDirectory || 'file:///';
+  // Make sure it ends with exactly one slash
+  const normalizedDir = docDir.replace(/\/+$/, '') + '/';
+  return `${normalizedDir}vault`;
 };
 
 export function CloneRepositoryScreen({ navigation }: CloneRepositoryScreenProps) {
