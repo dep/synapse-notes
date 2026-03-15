@@ -1,5 +1,14 @@
 {
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^3.0.1",
     "@vercel/analytics": "^2.0.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.3.0",
+    "metro-react-native-babel-preset": "^0.77.0",
+    "react-test-renderer": "^19.2.4"
   }
 }

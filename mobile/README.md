@@ -42,10 +42,13 @@ mobile/
 │   ├── components/     # Reusable UI components
 │   ├── screens/        # Screen components
 │   │   ├── HomeScreen.tsx
-│   │   └── SettingsScreen.tsx
+│   │   ├── SettingsScreen.tsx
+│   │   ├── OnboardingScreen.tsx
+│   │   └── CloneRepositoryScreen.tsx
 │   ├── navigation/     # Navigation configuration
 │   │   └── AppNavigator.tsx
 │   ├── services/       # API and external service integrations
+│   │   └── onboardingStorage.ts
 │   ├── hooks/          # Custom React hooks
 │   └── theme/          # Theme and styling
 │       └── ThemeContext.tsx
@@ -66,12 +69,19 @@ mobile/
 - Manual theme toggle capability
 - Theme-aware components throughout the app
 
+### Onboarding
+- First-time user onboarding screen
+- Options to create a new workspace or clone a repository
+- Persistent onboarding state using AsyncStorage
+- Shown only on first app launch (unless state is cleared)
+
 ### Dependencies
 - **Expo SDK 55**: Latest stable Expo framework
 - **React Navigation**: Navigation library for React Native
 - **isomorphic-git**: Git operations in JavaScript
 - **@isomorphic-git/lightning-fs**: File system for isomorphic-git
 - **react-native-markdown-display**: Markdown rendering
+- **@react-native-async-storage/async-storage**: Local storage for persistence
 
 ## Development
 
@@ -107,6 +117,23 @@ export function MyScreen({ navigation }: MyScreenProps) {
     <Button onPress={() => navigation.navigate('Settings')} />
   );
 }
+```
+
+### Onboarding Storage
+
+The onboarding state is persisted using AsyncStorage. You can check or reset the onboarding state:
+
+```typescript
+import { OnboardingStorage } from './src/services/onboardingStorage';
+
+// Check if user has completed onboarding
+const hasCompleted = await OnboardingStorage.hasCompletedOnboarding();
+
+// Mark onboarding as completed
+await OnboardingStorage.setOnboardingCompleted();
+
+// Clear onboarding state (for testing)
+await OnboardingStorage.clearOnboardingState();
 ```
 
 ## Testing
