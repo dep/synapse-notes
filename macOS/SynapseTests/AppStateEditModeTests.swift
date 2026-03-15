@@ -73,4 +73,28 @@ final class AppStateEditModeTests: XCTestCase {
 
         XCTAssertFalse(relaunchedAppState.isEditMode, "isEditMode should restore as false after quit/relaunch")
     }
+
+    func test_enablingHideMarkdownWhileEditing_forcesEditMode() {
+        let settings = makeSettings(defaultEditMode: false, hideMarkdown: false)
+        let appState = AppState(settings: settings)
+
+        XCTAssertFalse(appState.isEditMode, "Precondition: app starts in view mode")
+
+        settings.hideMarkdownWhileEditing = true
+
+        XCTAssertTrue(
+            appState.isEditMode,
+            "Enabling hide-markdown mode must force edit mode so the editor does not become read-only with no toggle"
+        )
+    }
+
+    func test_hideMarkdownWhileEditing_forcesEditModeOnInit() {
+        let settings = makeSettings(defaultEditMode: false, hideMarkdown: true)
+        let appState = AppState(settings: settings)
+
+        XCTAssertTrue(
+            appState.isEditMode,
+            "When hide-markdown mode is enabled, app must start in edit mode"
+        )
+    }
 }

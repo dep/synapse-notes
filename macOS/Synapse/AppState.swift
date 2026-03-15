@@ -209,6 +209,8 @@ class AppState: ObservableObject {
     /// Replace settings for testing purposes only
     func replaceSettingsForTesting(_ newSettings: SettingsManager) {
         settings = newSettings
+        isEditMode = newSettings.hideMarkdownWhileEditing ? true : newSettings.defaultEditMode
+        bindSettingsObservers()
     }
 
     private var history: [URL] {
@@ -233,6 +235,7 @@ class AppState: ObservableObject {
 
     private var fileWatcher: DispatchSourceFileSystemObject?
     private var filePollCancellable: AnyCancellable?
+    private var hideMarkdownModeCancellable: AnyCancellable?
     private var watchedFD: Int32 = -1
 
     private var gitService: GitService?
@@ -245,13 +248,24 @@ class AppState: ObservableObject {
         self.now = now
         let resolvedSettings = settings ?? Self.makeDefaultSettings()
         self.settings = resolvedSettings
-        self.isEditMode = resolvedSettings.defaultEditMode
+        self.isEditMode = resolvedSettings.hideMarkdownWhileEditing ? true : resolvedSettings.defaultEditMode
+        bindSettingsObservers()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAppTermination),
             name: NSApplication.willTerminateNotification,
             object: nil
         )
+    }
+
+    private func bindSettingsObservers() {
+        hideMarkdownModeCancellable = settings.$hideMarkdownWhileEditing.sink { [weak self] hideMarkdown in
+            guard let self else { return }
+            // Hide-markdown mode is edit-only; force edit mode to avoid read-only lockout.
+            if hideMarkdown && !self.isEditMode {
+                self.isEditMode = true
+            }
+        }
     }
 
     private static func makeDefaultSettings() -> SettingsManager {
