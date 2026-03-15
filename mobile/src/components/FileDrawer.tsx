@@ -27,6 +27,7 @@ interface FileDrawerProps {
   onClose: () => void;
   onFileSelect: (path: string) => void;
   onNewNote: () => void;
+  onNewFolder: () => void;
   onTodayNote: () => void;
   vaultPath: string;
   repoName?: string;
@@ -46,6 +47,7 @@ export function FileDrawer({
   onClose,
   onFileSelect,
   onNewNote,
+  onNewFolder,
   onTodayNote,
   vaultPath,
   repoName,
@@ -747,16 +749,29 @@ export function FileDrawer({
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.newNoteButton, { backgroundColor: theme.colors.primary, flexDirection: 'row', justifyContent: 'center' }]}
-              onPress={handleNewNote}
-              testID="new-note-button"
-            >
-              <MaterialIcons name="add" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
-              <Text style={[styles.newNoteText, { color: theme.colors.background }]}>
-                New Note
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.newItemRow}>
+              <TouchableOpacity
+                style={[styles.newItemButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleNewNote}
+                testID="new-note-button"
+              >
+                <MaterialIcons name="add" size={18} color={theme.colors.background} />
+                <Text style={[styles.newItemText, { color: theme.colors.background }]}>
+                  Note
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.newItemButton, { backgroundColor: theme.colors.primary }]}
+                onPress={onNewFolder}
+                testID="new-folder-button"
+              >
+                <MaterialIcons name="add" size={18} color={theme.colors.background} />
+                <Text style={[styles.newItemText, { color: theme.colors.background }]}>
+                  Folder
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Pinned Items */}
             {pinnedItems.length > 0 && (
@@ -948,20 +963,28 @@ const styles = StyleSheet.create({
   viewToggleText: {
     fontSize: 18,
   },
-  newNoteButton: {
+  newItemRow: {
+    flexDirection: 'row',
     marginHorizontal: 20,
     marginBottom: 20,
-    padding: 14,
-    borderRadius: 12,
+    gap: 10,
+  },
+  newItemButton: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: 12,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
-  newNoteText: {
-    fontSize: 16,
+  newItemText: {
+    fontSize: 15,
     fontWeight: '700',
     letterSpacing: -0.2,
   },

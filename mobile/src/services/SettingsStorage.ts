@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   DAILY_NOTES_OPEN_ON_STARTUP: 'dailyNotesOpenOnStartup',
   FILE_EXTENSION_FILTER: 'fileExtensionFilter',
   HIDDEN_FILE_FOLDER_FILTER: 'hiddenFileFolderFilter',
+  SHARE_DEFAULT_FOLDER: 'shareDefaultFolder',
 };
 
 const DEFAULTS = {
@@ -28,6 +29,7 @@ const DEFAULTS = {
   dailyNotesOpenOnStartup: false,
   fileExtensionFilter: '*.md, *.txt',
   hiddenFileFolderFilter: '',
+  shareDefaultFolder: '',
 };
 
 export class SettingsStorage {
@@ -106,6 +108,16 @@ export class SettingsStorage {
 
   static async setHiddenFileFolderFilter(filter: string): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.HIDDEN_FILE_FOLDER_FILTER, filter);
+  }
+
+  // shareDefaultFolder
+  static async getShareDefaultFolder(): Promise<string> {
+    const value = await AsyncStorage.getItem(STORAGE_KEYS.SHARE_DEFAULT_FOLDER);
+    return value ?? DEFAULTS.shareDefaultFolder;
+  }
+
+  static async setShareDefaultFolder(folder: string): Promise<void> {
+    await AsyncStorage.setItem(STORAGE_KEYS.SHARE_DEFAULT_FOLDER, folder);
   }
 
   // Get all file browser settings at once

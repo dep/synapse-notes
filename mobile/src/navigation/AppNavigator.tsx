@@ -7,8 +7,10 @@ import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { CloneRepositoryScreen } from '../screens/CloneRepositoryScreen';
 import { EditorScreen } from '../screens/EditorScreen';
 import { GitHubTokenScreen } from '../screens/GitHubTokenScreen';
+import { ShareIntentScreen } from '../screens/ShareIntentScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { OnboardingStorage } from '../services/onboardingStorage';
+import { useShareIntentContext } from 'expo-share-intent';
 
 export type RootStackParamList = {
   Home: { openDrawer?: boolean } | undefined;
@@ -17,6 +19,7 @@ export type RootStackParamList = {
   CloneRepository: undefined;
   Editor: { filePath: string };
   GitHubToken: { nextStep?: string } | undefined;
+  ShareIntent: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -25,6 +28,7 @@ export function AppNavigator() {
   const { theme, isDark } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const { hasShareIntent } = useShareIntentContext();
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -63,7 +67,10 @@ export function AppNavigator() {
           },
         }}
       >
-        {!hasCompletedOnboarding ? (
+        {hasShareIntent && hasCompletedOnboarding ? (
+          // When the app is opened via share intent, go straight to the share screen
+          <Stack.Screen name="ShareIntent" component={ShareIntentScreen} />
+        ) : !hasCompletedOnboarding ? (
           <>
             <Stack.Screen
               name="Onboarding"
@@ -107,6 +114,10 @@ export function AppNavigator() {
               name="CloneRepository"
               component={CloneRepositoryScreen}
               options={{ title: 'Clone Repository' }}
+            />
+            <Stack.Screen
+              name="ShareIntent"
+              component={ShareIntentScreen}
             />
           </>
         )}

@@ -13,48 +13,10 @@ struct FolderPickerView: View {
 
                 VStack(spacing: 18) {
                     // App Icon Representation
-                    ZStack {
-                        // Glow effect
-                        Circle()
-                            .fill(SynapseTheme.accent.opacity(0.20))
-                            .frame(width: 120, height: 120)
-                            .blur(radius: 20)
-
-                        // App icon background - macOS icon shape
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.15, green: 0.16, blue: 0.18),
-                                        Color(red: 0.10, green: 0.11, blue: 0.13)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 96, height: 96)
-                            .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                            )
-
-                        // Icon symbol
-                        Image(systemName: "doc.text.fill")
-                            .font(.system(size: 42, weight: .semibold))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.90, green: 0.92, blue: 0.95),
-                                        Color(red: 0.75, green: 0.78, blue: 0.82)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                    }
-                    .padding(.bottom, 8)
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 96, height: 96)
+                        .padding(.bottom, 8)
 
                     VStack(spacing: 10) {
                         Text("Synapse")

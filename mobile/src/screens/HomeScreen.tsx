@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -33,6 +33,8 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
   const [repositoryPath, setRepositoryPath] = useState<string>(getVaultPath());
   const [hasOpenedDailyNote, setHasOpenedDailyNote] = useState(false);
   const [isTemplatePickerVisible, setIsTemplatePickerVisible] = useState(false);
+  const [isNewFolderDialogVisible, setIsNewFolderDialogVisible] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
 
   const repoName = repositoryPath
     ? repositoryPath.replace(/\/+$/, '').split('/').pop() || null
@@ -117,6 +119,23 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
     }
   };
 
+  const handleNewFolder = () => {
+    setIsNewFolderDialogVisible(true);
+  };
+
+  const handleCreateFolder = async (name: string) => {
+    setIsNewFolderDialogVisible(false);
+    if (!name.trim()) return;
+    const safeName = name.trim().replace(/[\/\\:*?"<>|]/g, '_');
+    const folderPath = `${repositoryPath}/${safeName}`;
+    try {
+      await FileSystemService.createDirectory(folderPath);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create folder');
+      console.error('Failed to create folder:', error);
+    }
+  };
+
   const handleTodayNote = async () => {
     try {
       const result = await DailyNoteService.openTodayNote(repositoryPath);
@@ -140,6 +159,7 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
           onClose={handleCloseDrawer}
           onFileSelect={handleFileSelect}
           onNewNote={handleNewNote}
+          onNewFolder={handleNewFolder}
           onTodayNote={handleTodayNote}
           vaultPath={repositoryPath}
           repoName={repoName}
@@ -196,6 +216,58 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
         onSelectTemplate={handleTemplateSelect}
         vaultPath={repositoryPath}
       />
+
+      {/* New Folder Dialog */}
+      <Modal
+        visible={isNewFolderDialogVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsNewFolderDialogVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.dialogOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={[styles.dialogBox, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+            <Text style={[styles.dialogTitle, { color: theme.colors.text }]}>New Folder</Text>
+            <TextInput
+              style={[styles.dialogInput, { backgroundColor: theme.colors.card, color: theme.colors.text, borderColor: theme.colors.border }]}
+              placeholder="Folder name"
+              placeholderTextColor={theme.colors.text + '50'}
+              value={newFolderName}
+              onChangeText={setNewFolderName}
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                handleCreateFolder(newFolderName);
+                setNewFolderName('');
+              }}
+            />
+            <View style={styles.dialogButtons}>
+              <TouchableOpacity
+                style={styles.dialogCancelButton}
+                onPress={() => {
+                  setIsNewFolderDialogVisible(false);
+                  setNewFolderName('');
+                }}
+              >
+                <Text style={[styles.dialogCancelText, { color: theme.colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dialogCreateButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => {
+                  handleCreateFolder(newFolderName);
+                  setNewFolderName('');
+                }}
+              >
+                <Text style={[styles.dialogCreateText, { color: theme.colors.background }]}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -311,5 +383,52 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(0,0,0,0.05)',
     overflow: 'hidden',
+  },
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  dialogBox: {
+    width: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 24,
+    gap: 16,
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  dialogInput: {
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 16,
+  },
+  dialogButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+  },
+  dialogCancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  dialogCancelText: {
+    fontSize: 16,
+  },
+  dialogCreateButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  dialogCreateText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

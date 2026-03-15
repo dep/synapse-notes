@@ -50,6 +50,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -64,6 +65,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -85,6 +87,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -106,6 +109,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -138,6 +142,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -161,6 +166,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -201,6 +207,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -225,6 +232,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -254,6 +262,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -283,6 +292,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
           activeFilePath="/vault/note1.md"
         />
@@ -302,6 +312,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
@@ -324,6 +335,7 @@ describe('FileDrawer', () => {
           onClose={mockOnClose}
           onFileSelect={mockOnFileSelect}
           onNewNote={mockOnNewNote}
+          onNewFolder={jest.fn()}
           vaultPath="/vault"
         />
       );
