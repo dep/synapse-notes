@@ -1,51 +1,9 @@
 import { GitService, GitError, GitErrorType } from '../../src/services/gitService';
 import git from 'isomorphic-git';
-import fs from 'expo-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Mock dependencies
 jest.mock('isomorphic-git');
-jest.mock('expo-fs', () => ({
-  promises: {
-    mkdir: jest.fn(() => Promise.resolve()),
-    rmdir: jest.fn(() => Promise.resolve()),
-    readdir: jest.fn(() => Promise.resolve([])),
-    writeFile: jest.fn(() => Promise.resolve()),
-    readFile: jest.fn(() => Promise.resolve('')),
-    unlink: jest.fn(() => Promise.resolve()),
-    rename: jest.fn(() => Promise.resolve()),
-    stat: jest.fn(() => Promise.resolve({
-      type: 'file',
-      mode: 0o644,
-      size: 100,
-      ino: 1,
-      mtimeMs: Date.now(),
-      ctimeMs: Date.now(),
-      uid: 0,
-      gid: 0,
-      dev: 0,
-      isFile: () => true,
-      isDirectory: () => false,
-      isSymbolicLink: () => false,
-    })),
-    lstat: jest.fn(() => Promise.resolve({
-      type: 'file',
-      mode: 0o644,
-      size: 100,
-      ino: 1,
-      mtimeMs: Date.now(),
-      ctimeMs: Date.now(),
-      uid: 0,
-      gid: 0,
-      dev: 0,
-      isFile: () => true,
-      isDirectory: () => false,
-      isSymbolicLink: () => false,
-    })),
-    symlink: jest.fn(() => { throw new Error('Not implemented'); }),
-    readlink: jest.fn(() => { throw new Error('Not implemented'); }),
-  },
-}));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   setItem: jest.fn(() => Promise.resolve()),
   getItem: jest.fn(() => Promise.resolve(null)),

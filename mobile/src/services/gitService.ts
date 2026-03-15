@@ -1,7 +1,106 @@
 import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
-import fs from 'expo-fs';
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Node.js fs-compatible adapter for expo-file-system
+// This allows isomorphic-git to work with Expo's FileSystem API
+const fs = {
+  promises: {
+    async readFile(filepath: string, options?: { encoding?: string }): Promise<string | Uint8Array> {
+      const content = await FileSystem.readAsStringAsync(filepath, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      return options?.encoding === 'utf8' ? content : new TextEncoder().encode(content);
+    },
+
+    async writeFile(filepath: string, data: string | Uint8Array, options?: { encoding?: string }): Promise<void> {
+      let content: string;
+      if (data instanceof Uint8Array) {
+        content = new TextDecoder().decode(data);
+      } else {
+        content = data;
+      }
+      await FileSystem.writeAsStringAsync(filepath, content, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+    },
+
+    async mkdir(dirpath: string, options?: { recursive?: boolean }): Promise<void> {
+      await FileSystem.makeDirectoryAsync(dirpath, { 
+        intermediates: options?.recursive ?? false 
+      });
+    },
+
+    async rmdir(dirpath: string): Promise<void> {
+      await FileSystem.deleteAsync(dirpath, { idempotent: true });
+    },
+
+    async readdir(dirpath: string): Promise<string[]> {
+      return await FileSystem.readDirectoryAsync(dirpath);
+    },
+
+    async unlink(filepath: string): Promise<void> {
+      await FileSystem.deleteAsync(filepath, { idempotent: true });
+    },
+
+    async rename(oldpath: string, newpath: string): Promise<void> {
+      // Expo doesn't have a direct rename, so we copy and delete
+      await FileSystem.copyAsync({ from: oldpath, to: newpath });
+      await FileSystem.deleteAsync(oldpath, { idempotent: true });
+    },
+
+    async stat(filepath: string): Promise<{
+      type: string;
+      mode: number;
+      size: number;
+      ino: number;
+      mtimeMs: number;
+      ctimeMs: number;
+      uid: number;
+      gid: number;
+      dev: number;
+      isFile: () => boolean;
+      isDirectory: () => boolean;
+      isSymbolicLink: () => boolean;
+    }> {
+      const info = await FileSystem.getInfoAsync(filepath);
+      if (!info.exists) {
+        throw new Error(`ENOENT: no such file or directory, stat '${filepath}'`);
+      }
+      
+      const size = info.size || 0;
+      const mtimeMs = info.modificationTime ? info.modificationTime * 1000 : Date.now();
+      
+      return {
+        type: info.isDirectory ? 'directory' : 'file',
+        mode: 0o644,
+        size,
+        ino: 0,
+        mtimeMs,
+        ctimeMs: mtimeMs,
+        uid: 0,
+        gid: 0,
+        dev: 0,
+        isFile: () => !info.isDirectory,
+        isDirectory: () => info.isDirectory,
+        isSymbolicLink: () => false,
+      };
+    },
+
+    async lstat(filepath: string): Promise<ReturnType<typeof fs.promises.stat>> {
+      return await fs.promises.stat(filepath);
+    },
+
+    symlink(): never {
+      throw new Error('Symlinks not supported in Expo FileSystem');
+    },
+
+    readlink(): never {
+      throw new Error('Symlinks not supported in Expo FileSystem');
+    },
+  },
+};
 
 export enum GitErrorType {
   AUTH_FAILURE = 'AUTH_FAILURE',
@@ -68,12 +167,8 @@ function getGitErrorType(error: Error): GitErrorType {
 
 export class GitService {
   private static instance: GitService | null = null;
-  private fs: typeof fs.promises;
 
-  private constructor() {
-    // expo-fs provides a Node.js fs-compatible API
-    this.fs = fs.promises;
-  }
+  private constructor() {}
 
   static getInstance(): GitService {
     if (!GitService.instance) {
@@ -136,7 +231,7 @@ export class GitService {
   ): Promise<void> {
     try {
       await git.clone({
-        fs: this.fs,
+        fs,
         http,
         dir,
         url,
@@ -155,7 +250,7 @@ export class GitService {
       const remoteUrl = await this.getRemoteUrl(dir);
       
       await git.pull({
-        fs: this.fs,
+        fs,
         http,
         dir,
         fastForwardOnly: false,
@@ -169,25 +264,22 @@ export class GitService {
 
   async commit(dir: string): Promise<string | null> {
     try {
-      const status = await git.statusMatrix({ fs: this.fs, dir });
+      const status = await git.statusMatrix({ fs, dir });
       
       let hasChanges = false;
       const modifiedFiles: string[] = [];
       const deletedFiles: string[] = [];
       
       for (const [filepath, headStatus, workdirStatus, stageStatus] of status) {
-        // workdirStatus !== stageStatus means there's a change
         if (workdirStatus !== stageStatus) {
           hasChanges = true;
           
           if (workdirStatus === 0) {
-            // Deleted
             deletedFiles.push(filepath);
-            await git.remove({ fs: this.fs, dir, filepath });
+            await git.remove({ fs, dir, filepath });
           } else {
-            // Modified or added
             modifiedFiles.push(filepath);
-            await git.add({ fs: this.fs, dir, filepath });
+            await git.add({ fs, dir, filepath });
           }
         }
       }
@@ -200,7 +292,7 @@ export class GitService {
       const message = `Synapse mobile sync — ${timestamp}`;
       
       const sha = await git.commit({
-        fs: this.fs,
+        fs,
         dir,
         message,
         author: {
@@ -218,10 +310,10 @@ export class GitService {
   async push(dir: string): Promise<void> {
     try {
       const remoteUrl = await this.getRemoteUrl(dir);
-      const currentBranch = await git.currentBranch({ fs: this.fs, dir, fullname: false });
+      const currentBranch = await git.currentBranch({ fs, dir, fullname: false });
       
       await git.push({
-        fs: this.fs,
+        fs,
         http,
         dir,
         remote: 'origin',
@@ -242,7 +334,6 @@ export class GitService {
       await this.pull(dir);
       pulled = true;
     } catch (error) {
-      // Pull failed, but we can still try to commit and push
       console.warn('Pull failed during sync:', error);
     }
     
@@ -263,23 +354,19 @@ export class GitService {
   // Helper Methods
   async getStatus(dir: string): Promise<StatusResult> {
     try {
-      const status = await git.statusMatrix({ fs: this.fs, dir });
+      const status = await git.statusMatrix({ fs, dir });
       
       const modified: string[] = [];
       const deleted: string[] = [];
       const added: string[] = [];
       
       for (const [filepath, headStatus, workdirStatus, stageStatus] of status) {
-        // Check if file has uncommitted changes
         if (workdirStatus !== stageStatus) {
           if (headStatus === 0) {
-            // New file (not in HEAD)
             added.push(filepath);
           } else if (workdirStatus === 0) {
-            // Deleted file (not in workdir but was in HEAD)
             deleted.push(filepath);
           } else {
-            // Modified file (in HEAD but workdir differs from stage)
             modified.push(filepath);
           }
         }
@@ -303,7 +390,7 @@ export class GitService {
 
   async isRepository(dir: string): Promise<boolean> {
     try {
-      await git.currentBranch({ fs: this.fs, dir, fullname: false });
+      await git.currentBranch({ fs, dir, fullname: false });
       return true;
     } catch {
       return false;
@@ -312,7 +399,7 @@ export class GitService {
 
   private async getRemoteUrl(dir: string): Promise<string> {
     try {
-      const remote = await git.getConfig({ fs: this.fs, dir, path: 'remote.origin.url' });
+      const remote = await git.getConfig({ fs, dir, path: 'remote.origin.url' });
       return remote?.value || '';
     } catch {
       return '';
