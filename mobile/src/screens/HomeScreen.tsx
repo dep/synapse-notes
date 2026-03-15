@@ -12,7 +12,11 @@ type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 // Get the vault path from document directory
 const getVaultPath = () => {
   const docDir = FileSystem.documentDirectory || 'file:///';
-  const normalizedDir = docDir.replace(/\/+$/, '') + '/';
+  // Android returns 'file:/data/user/...' which is malformed
+  // We need 'file:///data/user/...' with three slashes after file:
+  const fixedDir = docDir.replace(/^file:\/([^\/])/, 'file:///$1');
+  // Ensure it ends with exactly one slash
+  const normalizedDir = fixedDir.replace(/\/+$/, '') + '/';
   return `${normalizedDir}vault`;
 };
 
