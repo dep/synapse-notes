@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FileDrawer } from '../../src/components/FileDrawer';
 import { FileSystemService, FileNode } from '../../src/services/FileSystemService';
 import { ThemeProvider } from '../../src/theme/ThemeContext';
@@ -27,6 +28,8 @@ describe('FileDrawer', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (FileSystemService.listDirectory as jest.Mock).mockResolvedValue(mockFiles);
     (FileSystemService.listFiles as jest.Mock).mockResolvedValue(mockFiles);
     (FileSystemService.getFlatFileList as jest.Mock).mockResolvedValue([
       { path: '/vault/note1.md', name: 'note1.md', isDirectory: false },
@@ -140,7 +143,52 @@ describe('FileDrawer', () => {
       );
 
       await waitFor(() => {
-        expect(FileSystemService.listFiles).toHaveBeenCalledWith('/vault');
+        expect(FileSystemService.listDirectory).toHaveBeenCalledWith('/vault');
+      });
+      expect(FileSystemService.getFlatFileList).not.toHaveBeenCalled();
+    });
+
+    it('should load flat file list only when flat view is selected', async () => {
+      const { getByTestId } = renderWithTheme(
+        <FileDrawer
+          isOpen={true}
+          onClose={mockOnClose}
+          onFileSelect={mockOnFileSelect}
+          onNewNote={mockOnNewNote}
+          vaultPath="/vault"
+        />
+      );
+
+      await waitFor(() => {
+        expect(FileSystemService.listDirectory).toHaveBeenCalledWith('/vault');
+      });
+
+      fireEvent.press(getByTestId('view-toggle-button'));
+
+      await waitFor(() => {
+        expect(FileSystemService.getFlatFileList).toHaveBeenCalledWith('/vault');
+      });
+    });
+
+    it('should load flat files on open when saved preference is flat view', async () => {
+      (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+        if (key === '@filedrawer_viewmode') return 'flat';
+        if (key === '@filedrawer_sortoption') return 'name-asc';
+        return null;
+      });
+
+      renderWithTheme(
+        <FileDrawer
+          isOpen={true}
+          onClose={mockOnClose}
+          onFileSelect={mockOnFileSelect}
+          onNewNote={mockOnNewNote}
+          vaultPath="/vault"
+        />
+      );
+
+      await waitFor(() => {
+        expect(FileSystemService.getFlatFileList).toHaveBeenCalledWith('/vault');
       });
     });
   });
@@ -165,6 +213,37 @@ describe('FileDrawer', () => {
 
       expect(mockOnFileSelect).toHaveBeenCalledWith('/vault/note1.md');
       expect(mockOnClose).toHaveBeenCalled();
+    });
+
+    it('should lazy load folder children when a folder is expanded', async () => {
+      (FileSystemService.listDirectory as jest.Mock)
+        .mockResolvedValueOnce([
+          { path: '/vault/folder', name: 'folder', isDirectory: true },
+        ])
+        .mockResolvedValueOnce([
+          { path: '/vault/folder/nested.md', name: 'nested.md', isDirectory: false },
+        ]);
+
+      const { getByText } = renderWithTheme(
+        <FileDrawer
+          isOpen={true}
+          onClose={mockOnClose}
+          onFileSelect={mockOnFileSelect}
+          onNewNote={mockOnNewNote}
+          vaultPath="/vault"
+        />
+      );
+
+      await waitFor(() => {
+        expect(getByText('folder')).toBeTruthy();
+      });
+
+      fireEvent.press(getByText('folder'));
+
+      await waitFor(() => {
+        expect(FileSystemService.listDirectory).toHaveBeenCalledWith('/vault/folder');
+        expect(getByText('nested.md')).toBeTruthy();
+      });
     });
 
     it('should highlight active file', async () => {

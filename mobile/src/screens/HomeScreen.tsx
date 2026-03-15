@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -21,11 +23,15 @@ const getVaultPath = () => {
   return `${normalizedDir}vault`;
 };
 
-export function HomeScreen({ navigation }: HomeScreenProps) {
+export function HomeScreen({ navigation, route }: HomeScreenProps) {
   const { theme, isDark, toggleTheme, followSystem, setFollowSystem } = useTheme();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>(undefined);
   const [repositoryPath, setRepositoryPath] = useState<string>(getVaultPath());
+
+  const repoName = repositoryPath
+    ? repositoryPath.replace(/\/+$/, '').split('/').pop() || null
+    : null;
 
   useEffect(() => {
     const loadRepositoryPath = async () => {
@@ -37,6 +43,15 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
     loadRepositoryPath();
   }, []);
+
+  // Open drawer when coming back from editor with openDrawer param
+  useEffect(() => {
+    if (route.params?.openDrawer) {
+      setIsDrawerOpen(true);
+      // Clear the param so it doesn't reopen on subsequent renders
+      navigation.setParams({ openDrawer: undefined });
+    }
+  }, [route.params?.openDrawer]);
 
   const handleFileSelect = (path: string) => {
     setActiveFilePath(path);
@@ -66,7 +81,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
       {/* Header with Hamburger Menu */}
       <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         <FileDrawer
@@ -75,12 +90,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           onFileSelect={handleFileSelect}
           onNewNote={handleNewNote}
           vaultPath={repositoryPath}
+          repoName={repoName}
           activeFilePath={activeFilePath}
         />
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           Synapse
         </Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity
+          style={styles.settingsButtonHeader}
+          onPress={() => navigation.navigate('Settings')}
+        >
+          <MaterialIcons name="settings" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -95,88 +116,19 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           Your mobile workspace for notes and ideas
         </Text>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Quick Actions
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
-            onPress={() => setIsDrawerOpen(true)}
-          >
-            <Text style={[styles.buttonText, { color: theme.colors.background }]}>
-              Open File Drawer
-            </Text>
-          </TouchableOpacity>
-
+        <View style={[styles.section, { backgroundColor: theme.colors.card, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }]}>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: theme.colors.secondary }]}
             onPress={handleNewNote}
           >
+            <MaterialIcons name="note-add" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
             <Text style={[styles.buttonText, { color: theme.colors.background }]}>
               Create New Note
             </Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Theme Settings
-          </Text>
-
-          <View style={styles.settingRow}>
-            <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-              Follow System Preference
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.toggle,
-                { backgroundColor: followSystem ? theme.colors.primary : theme.colors.border }
-              ]}
-              onPress={() => setFollowSystem(!followSystem)}
-            >
-              <Text style={[styles.toggleText, { color: theme.colors.background }]}>
-                {followSystem ? 'ON' : 'OFF'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.settingRow}>
-            <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-              Current Theme
-            </Text>
-            <Text style={[styles.settingValue, { color: theme.colors.primary }]}>
-              {isDark ? 'Dark' : 'Light'}
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
-            onPress={toggleTheme}
-            disabled={followSystem}
-          >
-            <Text style={[styles.buttonText, { color: theme.colors.background }]}>
-              Toggle Theme
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Navigation
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.secondary }]}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Text style={[styles.buttonText, { color: theme.colors.background }]}>
-              Go to Settings
-            </Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -187,76 +139,109 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   headerTitle: {
     flex: 1,
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   headerSpacer: {
-    width: 48, // Same width as hamburger button area
+    width: 48,
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    padding: 24,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '800',
     marginBottom: 8,
+    letterSpacing: -1,
   },
   subtitle: {
     fontSize: 16,
-    marginBottom: 32,
-    opacity: 0.7,
+    marginBottom: 36,
+    opacity: 0.8,
+    fontWeight: '400',
   },
   section: {
     marginBottom: 32,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     marginBottom: 16,
+    letterSpacing: -0.5,
   },
   settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingVertical: 4,
   },
   settingLabel: {
     fontSize: 16,
+    fontWeight: '500',
   },
   settingValue: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   toggle: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 16,
-    minWidth: 50,
+    borderRadius: 20,
+    minWidth: 56,
     alignItems: 'center',
   },
   toggleText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   button: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  debugText: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    overflow: 'hidden',
   },
 });

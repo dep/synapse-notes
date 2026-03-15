@@ -11,7 +11,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { OnboardingStorage } from '../services/onboardingStorage';
 
 export type RootStackParamList = {
-  Home: undefined;
+  Home: { openDrawer?: boolean } | undefined;
   Settings: undefined;
   Onboarding: undefined;
   CloneRepository: undefined;
@@ -50,6 +50,7 @@ export function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator
         screenOptions={{
+          headerShown: false,
           headerStyle: {
             backgroundColor: theme.colors.card,
           },
@@ -64,59 +65,59 @@ export function AppNavigator() {
       >
         {!hasCompletedOnboarding ? (
           <>
-            <Stack.Screen 
-              name="Onboarding" 
-              component={OnboardingScreen} 
+            <Stack.Screen
+              name="Onboarding"
+              component={OnboardingScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="GitHubToken" 
-              component={GitHubTokenScreen} 
+            <Stack.Screen
+              name="GitHubToken"
+              component={GitHubTokenScreen}
               options={{ title: 'Connect to GitHub', headerShown: true }}
             />
-            <Stack.Screen 
-              name="Home" 
-              component={HomeScreen} 
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
               options={{ title: 'Synapse' }}
             />
-            <Stack.Screen 
-              name="CloneRepository" 
-              component={CloneRepositoryScreen} 
+            <Stack.Screen
+              name="CloneRepository"
+              component={CloneRepositoryScreen}
               options={{ title: 'Clone Repository' }}
             />
           </>
         ) : (
           <>
-            <Stack.Screen 
-              name="Home" 
-              component={HomeScreen} 
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
               options={{ title: 'Synapse' }}
             />
-            <Stack.Screen 
-              name="Onboarding" 
-              component={OnboardingScreen} 
+            <Stack.Screen
+              name="Onboarding"
+              component={OnboardingScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="GitHubToken" 
-              component={GitHubTokenScreen} 
+            <Stack.Screen
+              name="GitHubToken"
+              component={GitHubTokenScreen}
               options={{ title: 'Connect to GitHub', headerShown: true }}
             />
-            <Stack.Screen 
-              name="CloneRepository" 
-              component={CloneRepositoryScreen} 
+            <Stack.Screen
+              name="CloneRepository"
+              component={CloneRepositoryScreen}
               options={{ title: 'Clone Repository' }}
             />
           </>
         )}
-        <Stack.Screen 
-          name="Settings" 
-          component={SettingsScreen} 
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
           options={{ title: 'Settings' }}
         />
-        <Stack.Screen 
-          name="Editor" 
-          component={EditorScreen} 
+        <Stack.Screen
+          name="Editor"
+          component={EditorScreen}
           options={{ title: 'Editor' }}
         />
       </Stack.Navigator>

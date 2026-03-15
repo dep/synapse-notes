@@ -20,28 +20,28 @@ export interface Theme {
 export const lightTheme: Theme = {
   dark: false,
   colors: {
-    background: '#FFFFFF',
-    text: '#000000',
-    primary: '#007AFF',
-    secondary: '#5856D6',
-    border: '#E5E5E5',
-    card: '#F2F2F7',
-    error: '#FF3B30',
-    success: '#34C759',
+    background: '#F9FAFB',
+    text: '#111827',
+    primary: '#2563EB',
+    secondary: '#8B5CF6',
+    border: '#E5E7EB',
+    card: '#FFFFFF',
+    error: '#EF4444',
+    success: '#10B981',
   },
 };
 
 export const darkTheme: Theme = {
   dark: true,
   colors: {
-    background: '#000000',
-    text: '#FFFFFF',
-    primary: '#0A84FF',
-    secondary: '#5E5CE6',
-    border: '#38383A',
-    card: '#1C1C1E',
-    error: '#FF453A',
-    success: '#32D74B',
+    background: '#0F172A',
+    text: '#F8FAFC',
+    primary: '#3B82F6',
+    secondary: '#A78BFA',
+    border: '#1E293B',
+    card: '#1E293B',
+    error: '#F87171',
+    success: '#34D399',
   },
 };
 

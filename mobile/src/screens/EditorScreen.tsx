@@ -8,10 +8,23 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { FileSystemService } from '../services/FileSystemService';
+import { GitService } from '../services/gitService';
+import { OnboardingStorage } from '../services/onboardingStorage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+
+const getRelativePath = (root: string, filePath: string) => {
+  const normalizedRoot = root.replace(/\/+$/, '');
+  const normalizedFile = filePath.replace(/\/+$/, '');
+  if (!normalizedFile.startsWith(normalizedRoot + '/')) {
+    return normalizedFile;
+  }
+  return normalizedFile.slice(normalizedRoot.length + 1);
+};
 
 type EditorScreenProps = NativeStackScreenProps<RootStackParamList, 'Editor'>;
 
@@ -54,13 +67,18 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     if (!hasChanges) return;
 
     setIsSaving(true);
+    setError(null);
     try {
       await FileSystemService.writeFile(filePath, content);
+      const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
+      if (repositoryPath) {
+        await GitService.sync(repositoryPath, [getRelativePath(repositoryPath, filePath)]);
+      }
       setOriginalContent(content);
       setHasChanges(false);
     } catch (err) {
       console.error('Failed to save file:', err);
-      setError('Failed to save file');
+      setError('Failed to save file or sync repository');
     } finally {
       setIsSaving(false);
     }
@@ -80,16 +98,22 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate('Home', { openDrawer: true })}
+          testID="back-button"
+        >
+          <MaterialIcons name="arrow-back" size={28} color={theme.colors.primary} />
+        </TouchableOpacity>
+        
         <Text style={[styles.fileName, { color: theme.colors.text }]} numberOfLines={1}>
           {getFileName()}
         </Text>
         {hasChanges && (
-          <Text style={[styles.unsavedIndicator, { color: theme.colors.primary }]}>
-            ●
-          </Text>
+          <MaterialIcons name="circle" size={12} color={theme.colors.primary} style={styles.unsavedIndicator} />
         )}
         <TouchableOpacity
           style={[
@@ -102,9 +126,12 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           {isSaving ? (
             <ActivityIndicator size="small" color={theme.colors.background} />
           ) : (
-            <Text style={[styles.saveButtonText, { color: theme.colors.background }]}>
-              Save
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <MaterialIcons name="save" size={18} color={theme.colors.background} style={{ marginRight: 4 }} />
+              <Text style={[styles.saveButtonText, { color: theme.colors.background }]}>
+                Save
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>
@@ -137,7 +164,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           spellCheck={false}
         />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -148,37 +175,65 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  backButton: {
+    paddingRight: 12,
+    marginRight: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: 26,
+    fontWeight: '500',
+    lineHeight: 28,
   },
   fileName: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   unsavedIndicator: {
     marginRight: 12,
-    fontSize: 12,
+    fontSize: 14,
   },
   saveButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
     minWidth: 70,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   saveButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
   errorContainer: {
-    padding: 12,
+    padding: 16,
     margin: 16,
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   errorText: {
     fontSize: 14,
     textAlign: 'center',
+    fontWeight: '500',
   },
   content: {
     flex: 1,
@@ -186,10 +241,15 @@ const styles = StyleSheet.create({
   },
   editor: {
     flex: 1,
-    minHeight: 400,
-    padding: 16,
-    borderRadius: 8,
+    minHeight: '100%',
+    padding: 20,
+    borderRadius: 16,
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 26,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
 });

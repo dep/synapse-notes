@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -42,7 +44,7 @@ const getRepositoryPath = (url: string) => {
 
 export function CloneRepositoryScreen({ navigation }: CloneRepositoryScreenProps) {
   const { theme } = useTheme();
-  const [repoUrl, setRepoUrl] = useState('');
+  const [repoUrl, setRepoUrl] = useState(__DEV__ ? 'https://github.com/dep/notes' : '');
   const [isCloning, setIsCloning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
@@ -174,112 +176,123 @@ export function CloneRepositoryScreen({ navigation }: CloneRepositoryScreenProps
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={styles.contentContainer}
-    >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          Clone Repository
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.colors.text }]}>
-          Enter the GitHub repository URL you want to sync with Synapse
-        </Text>
-      </View>
-
-      {/* URL Input */}
-      <View style={styles.inputSection}>
-        <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-          Repository URL
-        </Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.colors.card,
-              color: theme.colors.text,
-              borderColor: error ? theme.colors.error : theme.colors.border,
-            },
-          ]}
-          value={repoUrl}
-          onChangeText={(text) => {
-            setRepoUrl(text);
-            setError(null);
-          }}
-          placeholder="https://github.com/username/repository"
-          placeholderTextColor={theme.colors.text + '60'}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          editable={!isCloning}
-          testID="repo-url-input"
-        />
-        {error && (
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error}
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            Clone Repository
           </Text>
-        )}
-      </View>
-
-      {/* Example URLs */}
-      <View style={[styles.infoCard, { backgroundColor: theme.colors.card }]}>
-        <Text style={[styles.infoTitle, { color: theme.colors.text }]}>
-          Examples
-        </Text>
-        <Text style={[styles.infoText, { color: theme.colors.text }]}>
-          • https://github.com/username/my-notes{'\n'}
-          • https://github.com/company/knowledge-base{'\n'}
-          • git@github.com:username/private-repo.git
-        </Text>
-      </View>
-
-      {/* Progress */}
-      {isCloning && (
-        <View style={styles.progressContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.progressText, { color: theme.colors.text }]}>
-            {progress}
+          <Text style={[styles.subtitle, { color: theme.colors.text }]}>
+            Enter the GitHub repository URL you want to sync
           </Text>
         </View>
-      )}
 
-      {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { backgroundColor: theme.colors.primary },
-            (isCloning || !repoUrl.trim()) && { opacity: 0.6 },
-          ]}
-          onPress={handleClone}
-          disabled={isCloning || !repoUrl.trim()}
-          testID="clone-button"
-        >
-          {isCloning ? (
-            <ActivityIndicator size="small" color={theme.colors.background} />
-          ) : (
-            <Text style={[styles.buttonText, { color: theme.colors.background }]}>
-              Clone Repository
+        {/* URL Input */}
+        <View style={styles.inputSection}>
+          <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
+            Repository URL
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.colors.card,
+                color: theme.colors.text,
+                borderColor: error ? theme.colors.error : theme.colors.border,
+              },
+            ]}
+            value={repoUrl}
+            onChangeText={(text) => {
+              setRepoUrl(text);
+              setError(null);
+            }}
+            placeholder="https://github.com/username/repository"
+            placeholderTextColor={theme.colors.text + '60'}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            editable={!isCloning}
+            testID="repo-url-input"
+          />
+          {error && (
+            <Text style={[styles.errorText, { color: theme.colors.error }]}>
+              {error}
             </Text>
           )}
-        </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={handleSkip}
-          disabled={isCloning}
-        >
-          <Text style={[styles.skipText, { color: theme.colors.text + '80' }]}>
-            Skip for now →
+        {/* Example URLs */}
+        <View style={[styles.infoCard, { backgroundColor: theme.colors.card, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }]}>
+          <Text style={[styles.infoTitle, { color: theme.colors.text }]}>
+            Supported Formats
           </Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.exampleItem}>
+            <MaterialIcons name="link" size={16} color={theme.colors.primary} style={{ marginRight: 8 }} />
+            <Text style={[styles.infoText, { color: theme.colors.text }]}>https://github.com/user/repo</Text>
+          </View>
+          <View style={styles.exampleItem}>
+            <MaterialIcons name="terminal" size={16} color={theme.colors.primary} style={{ marginRight: 8 }} />
+            <Text style={[styles.infoText, { color: theme.colors.text }]}>git@github.com:user/repo.git</Text>
+          </View>
+        </View>
 
-      {/* Privacy Note */}
-      <Text style={[styles.privacyNote, { color: theme.colors.text + '60' }]}>
-        🔒 The repository will be stored locally on your device.
-      </Text>
-    </ScrollView>
+        {/* Progress */}
+        {isCloning && (
+          <View style={styles.progressContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.progressText, { color: theme.colors.text }]}>
+              {progress}
+            </Text>
+          </View>
+        )}
+
+        {/* Action Buttons */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: theme.colors.primary },
+              (isCloning || !repoUrl.trim()) && { opacity: 0.6 },
+            ]}
+            onPress={handleClone}
+            disabled={isCloning || !repoUrl.trim()}
+            testID="clone-button"
+          >
+            {isCloning ? (
+              <ActivityIndicator size="small" color={theme.colors.background} />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <MaterialIcons name="file-download" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
+                <Text style={[styles.buttonText, { color: theme.colors.background }]}>
+                  Clone Repository
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.skipButton}
+            onPress={handleSkip}
+            disabled={isCloning}
+          >
+            <Text style={[styles.skipText, { color: theme.colors.text + '80' }]}>
+              Skip for now
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Privacy Note */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 24 }}>
+          <MaterialIcons name="lock" size={14} color={theme.colors.text + '60'} style={{ marginRight: 4 }} />
+          <Text style={[styles.privacyNote, { color: theme.colors.text + '60' }]}>
+            The repository will be stored locally on your device.
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

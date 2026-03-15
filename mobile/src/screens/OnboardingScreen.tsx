@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { OnboardingStorage } from '../services/onboardingStorage';
 
 type OnboardingScreenProps = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
@@ -11,24 +12,26 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
   const { theme } = useTheme();
 
   const handleNewWorkspace = async () => {
-    // For new workspace, we still want to collect the token for future use
     navigation.navigate('GitHubToken', { nextStep: 'Home' });
   };
 
   const handleCloneRepository = async () => {
-    // Go to token screen first, then clone
     navigation.navigate('GitHubToken', { nextStep: 'CloneRepository' });
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          <MaterialIcons name="auto-awesome" size={80} color={theme.colors.primary} />
+        </View>
+
         <Text style={[styles.title, { color: theme.colors.text }]}>
           Welcome to Synapse
         </Text>
         
         <Text style={[styles.subtitle, { color: theme.colors.text }]}>
-          Choose how you want to get started
+          Your seamless mobile workspace for thoughts and code
         </Text>
 
         <View style={styles.buttonContainer}>
@@ -37,6 +40,7 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
             onPress={handleNewWorkspace}
             testID="new-workspace-button"
           >
+            <MaterialIcons name="add-box" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
             <Text style={[styles.buttonText, { color: theme.colors.background }]}>
               New Workspace
             </Text>
@@ -47,13 +51,14 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
             onPress={handleCloneRepository}
             testID="clone-repository-button"
           >
+            <MaterialIcons name="cloud-download" size={20} color={theme.colors.background} style={{ marginRight: 8 }} />
             <Text style={[styles.buttonText, { color: theme.colors.background }]}>
               Clone Repository
             </Text>
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -65,33 +70,50 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 32,
+  },
+  iconContainer: {
+    marginBottom: 40,
+    padding: 24,
+    borderRadius: 40,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 36,
+    fontWeight: '900',
     marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 16,
-    marginBottom: 40,
+    fontSize: 18,
+    marginBottom: 48,
     textAlign: 'center',
-    opacity: 0.7,
+    opacity: 0.6,
+    lineHeight: 26,
+    fontWeight: '400',
   },
   buttonContainer: {
     width: '100%',
-    maxWidth: 300,
+    maxWidth: 320,
     gap: 16,
   },
   button: {
     paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 16,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
 });

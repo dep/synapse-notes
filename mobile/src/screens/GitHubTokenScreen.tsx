@@ -9,6 +9,8 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -64,7 +66,7 @@ export function GitHubTokenScreen({ navigation, route }: GitHubTokenScreenProps)
       // Store the token with a placeholder URL (will be updated when cloning)
       // For now, we'll store it with a generic key for the user's default credentials
       await GitService.setCredentials('default', 'token', token.trim());
-      
+
       // Mark onboarding as completed
       await OnboardingStorage.setOnboardingCompleted();
 
@@ -89,143 +91,159 @@ export function GitHubTokenScreen({ navigation, route }: GitHubTokenScreenProps)
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={styles.contentContainer}
-    >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          Connect to GitHub
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.colors.text }]}>
-          To sync your notes with GitHub, you need a Personal Access Token
-        </Text>
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            Connect to GitHub
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.text }]}>
+            To sync your notes with GitHub, you need a Personal Access Token
+          </Text>
+        </View>
 
-      {/* Info Section */}
-      <View style={[styles.infoCard, { backgroundColor: theme.colors.card }]}>
-        <Text style={[styles.infoTitle, { color: theme.colors.text }]}>
-          What's a Personal Access Token?
-        </Text>
-        <Text style={[styles.infoText, { color: theme.colors.text }]}>
-          A PAT is like a password that lets Synapse access your GitHub repositories. 
-          It's more secure than using your actual GitHub password.
-        </Text>
-      </View>
-
-      {/* Required Scopes */}
-      <View style={[styles.scopesCard, { backgroundColor: theme.colors.card }]}>
-        <Text style={[styles.scopesTitle, { color: theme.colors.text }]}>
-          Required Permissions
-        </Text>
-        <Text style={[styles.scopesDescription, { color: theme.colors.text }]}>
-          When creating your token, please enable these scopes:
-        </Text>
-        {REQUIRED_SCOPES.map((scope) => (
-          <View key={scope} style={styles.scopeItem}>
-            <Text style={[styles.scopeBullet, { color: theme.colors.primary }]}>
-              ✓
-            </Text>
-            <Text style={[styles.scopeText, { color: theme.colors.text }]}>
-              {scope === 'repo' ? 'repo (Full control of private repositories)' : 
-               scope === 'read:user' ? 'read:user (Read user profile data)' : scope}
+        {/* Info Section */}
+        <View style={[styles.infoCard, { backgroundColor: theme.colors.card, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <MaterialIcons name="info" size={20} color={theme.colors.primary} style={{ marginRight: 8 }} />
+            <Text style={[styles.infoTitle, { color: theme.colors.text }]}>
+              What's a Personal Access Token?
             </Text>
           </View>
-        ))}
-      </View>
+          <Text style={[styles.infoText, { color: theme.colors.text }]}>
+            A PAT is like a password that lets Synapse access your GitHub repositories.
+            It's more secure than using your actual GitHub password.
+          </Text>
+        </View>
 
-      {/* Token Input */}
-      <View style={styles.inputSection}>
-        <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-          Your GitHub Personal Access Token
-        </Text>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.card,
-                color: theme.colors.text,
-                borderColor: error ? theme.colors.error : theme.colors.border,
-              },
-            ]}
-            value={token}
-            onChangeText={(text) => {
-              setToken(text);
-              setError(null);
-            }}
-            placeholder="ghp_xxxxxxxxxxxx or 40-character token"
-            placeholderTextColor={theme.colors.text + '60'}
-            secureTextEntry={!showToken}
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isLoading}
-            testID="token-input"
-          />
+        {/* Required Scopes */}
+        <View style={[styles.scopesCard, { backgroundColor: theme.colors.card, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }]}>
+          <Text style={[styles.scopesTitle, { color: theme.colors.text }]}>
+            Required Permissions
+          </Text>
+          <Text style={[styles.scopesDescription, { color: theme.colors.text }]}>
+            When creating your token, please enable these scopes:
+          </Text>
+          {REQUIRED_SCOPES.map((scope) => (
+            <View key={scope} style={styles.scopeItem}>
+              <MaterialIcons
+                name="check-circle"
+                size={18}
+                color={theme.colors.success}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={[styles.scopeText, { color: theme.colors.text }]}>
+                {scope === 'repo' ? 'repo (Full control of private repositories)' :
+                 scope === 'read:user' ? 'read:user (Read user profile data)' : scope}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Token Input */}
+        <View style={styles.inputSection}>
+          <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
+            Your GitHub Personal Access Token
+          </Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.card,
+                  color: theme.colors.text,
+                  borderColor: error ? theme.colors.error : theme.colors.border,
+                },
+              ]}
+              value={token}
+              onChangeText={(text) => {
+                setToken(text);
+                setError(null);
+              }}
+              placeholder="ghp_xxxxxxxxxxxx or 40-character token"
+              placeholderTextColor={theme.colors.text + '60'}
+              secureTextEntry={!showToken}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
+              testID="token-input"
+            />
+            <TouchableOpacity
+              style={styles.showButton}
+              onPress={() => setShowToken(!showToken)}
+            >
+              <MaterialIcons
+                name={showToken ? 'visibility-off' : 'visibility'}
+                size={22}
+                color={theme.colors.text + '80'}
+              />
+            </TouchableOpacity>
+          </View>
+          {error && (
+            <Text style={[styles.errorText, { color: theme.colors.error }]}>
+              {error}
+            </Text>
+          )}
+        </View>
+
+        {/* Generate Token Link */}
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={openGitHubTokenPage}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+            <MaterialIcons name="launch" size={18} color={theme.colors.primary} style={{ marginRight: 8 }} />
+            <Text style={[styles.linkText, { color: theme.colors.primary }]}>
+              Generate a token on GitHub
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Action Buttons */}
+        <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.showButton}
-            onPress={() => setShowToken(!showToken)}
+            style={[
+              styles.button,
+              styles.continueButton,
+              { backgroundColor: theme.colors.primary },
+              (isLoading || !token.trim()) && { opacity: 0.6 },
+            ]}
+            onPress={handleContinue}
+            disabled={isLoading || !token.trim()}
+            testID="continue-button"
           >
-            <Text style={[styles.showButtonText, { color: theme.colors.primary }]}>
-              {showToken ? '🙈' : '👁️'}
+            {isLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.background} />
+            ) : (
+              <Text style={[styles.buttonText, { color: theme.colors.background }]}>
+                Continue
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.skipButton}
+            onPress={handleSkip}
+            disabled={isLoading}
+          >
+            <Text style={[styles.skipText, { color: theme.colors.text + '80' }]}>
+              Skip for now
             </Text>
           </TouchableOpacity>
         </View>
-        {error && (
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error}
+
+        {/* Security Note */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 24 }}>
+          <MaterialIcons name="lock" size={14} color={theme.colors.text + '60'} style={{ marginRight: 4 }} />
+          <Text style={[styles.securityNote, { color: theme.colors.text + '60' }]}>
+            Your token is stored securely on your device.
           </Text>
-        )}
-      </View>
-
-      {/* Generate Token Link */}
-      <TouchableOpacity
-        style={styles.linkButton}
-        onPress={openGitHubTokenPage}
-      >
-        <Text style={[styles.linkText, { color: theme.colors.primary }]}>
-          🔗 Generate a token on GitHub
-        </Text>
-      </TouchableOpacity>
-
-      {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            styles.continueButton,
-            { backgroundColor: theme.colors.primary },
-            (isLoading || !token.trim()) && { opacity: 0.6 },
-          ]}
-          onPress={handleContinue}
-          disabled={isLoading || !token.trim()}
-          testID="continue-button"
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.background} />
-          ) : (
-            <Text style={[styles.buttonText, { color: theme.colors.background }]}>
-              Continue →
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.skipButton}
-          onPress={handleSkip}
-          disabled={isLoading}
-        >
-          <Text style={[styles.skipText, { color: theme.colors.text + '80' }]}>
-            Skip for now →
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Security Note */}
-      <Text style={[styles.securityNote, { color: theme.colors.text + '60' }]}>
-        🔒 Your token is stored securely on your device and never shared with our servers.
-      </Text>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

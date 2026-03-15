@@ -14,6 +14,40 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jest.fn(() => Promise.resolve()),
 }));
 
+// Mock expo-file-system
+jest.mock('expo-file-system', () => ({
+  documentDirectory: 'file:///data/user/0/com.synapse/files/',
+  EncodingType: {
+    UTF8: 'utf8',
+    Base64: 'base64',
+  },
+  readAsStringAsync: jest.fn(),
+  writeAsStringAsync: jest.fn(),
+  readDirectoryAsync: jest.fn(),
+  getInfoAsync: jest.fn(),
+  makeDirectoryAsync: jest.fn(),
+  deleteAsync: jest.fn(),
+  copyAsync: jest.fn(),
+  moveAsync: jest.fn(),
+}));
+
+// Mock expo-file-system/legacy
+jest.mock('expo-file-system/legacy', () => ({
+  documentDirectory: 'file:///data/user/0/com.synapse/files/',
+  EncodingType: {
+    UTF8: 'utf8',
+    Base64: 'base64',
+  },
+  readAsStringAsync: jest.fn(),
+  writeAsStringAsync: jest.fn(),
+  readDirectoryAsync: jest.fn(),
+  getInfoAsync: jest.fn(),
+  makeDirectoryAsync: jest.fn(),
+  deleteAsync: jest.fn(),
+  copyAsync: jest.fn(),
+  moveAsync: jest.fn(),
+}));
+
 // Mock react-native
 jest.mock('react-native', () => {
   const React = require('react');
@@ -31,6 +65,7 @@ jest.mock('react-native', () => {
     ScrollView: mockComponent('ScrollView'),
     Modal: mockComponent('Modal'),
     TextInput: mockComponent('TextInput'),
+    ActivityIndicator: mockComponent('ActivityIndicator'),
     Animated: {
       View: mockComponent('Animated.View'),
       Value: jest.fn((val) => ({
@@ -63,8 +98,34 @@ jest.mock('react-native', () => {
       get: jest.fn(() => 2),
       roundToNearestPixel: jest.fn((value) => value),
     },
+    StatusBar: {
+      currentHeight: 44,
+    },
   };
 });
+
+// Mock @expo/vector-icons
+jest.mock('@expo/vector-icons', () => {
+  const React = require('react');
+  return {
+    MaterialIcons: React.forwardRef(({ name, ...props }, ref) => {
+      return React.createElement('Icon', { ref, name, ...props });
+    }),
+  };
+});
+
+// Mock react-native-safe-area-context
+jest.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({ children, ...props }) => {
+    const React = require('react');
+    return React.createElement('View', props, children);
+  },
+  SafeAreaProvider: ({ children }) => {
+    const React = require('react');
+    return React.createElement('View', null, children);
+  },
+  useSafeAreaInsets: () => ({ top: 44, bottom: 34, left: 0, right: 0 }),
+}));
 
 // Mock useColorScheme from the proper path
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({

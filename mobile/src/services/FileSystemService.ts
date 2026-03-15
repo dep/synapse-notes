@@ -1,64 +1,99 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
+export enum FileSystemErrorType {
+  NOT_FOUND = 'NOT_FOUND',
+  PERMISSION_DENIED = 'PERMISSION_DENIED',
+  IS_DIRECTORY = 'IS_DIRECTORY',
+  NOT_DIRECTORY = 'NOT_DIRECTORY',
+  DIRECTORY_NOT_EMPTY = 'DIRECTORY_NOT_EMPTY',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class FileSystemError extends Error {
+  type: FileSystemErrorType;
+  originalError?: Error;
+
+  constructor(message: string, type: FileSystemErrorType, originalError?: Error) {
+    super(message);
+    this.name = 'FileSystemError';
+    this.type = type;
+    this.originalError = originalError;
+  }
+}
+
 export interface FileNode {
   path: string;
   name: string;
   isDirectory: boolean;
+  size?: number;
+  modifiedAt?: Date;
   children?: FileNode[];
 }
 
-// Helper to get document directory path
-const getDocumentDirectory = () => {
-  return FileSystem.documentDirectory || 'file:///';
+interface FileSystemEntity {
+  name: string;
+  isDirectory: boolean;
+}
+
+// Helper to normalize file:// URIs for Android
+const normalizeFileUri = (inputPath: string): string => {
+  if (!inputPath) {
+    return inputPath;
+  }
+
+  // Already has three slashes, return as-is
+  if (inputPath.startsWith('file:///')) {
+    return inputPath;
+  }
+
+  // Android returns 'file:/data/user/...' - convert to 'file:///data/user/...'
+  if (inputPath.startsWith('file://')) {
+    return `file:///${inputPath.slice('file://'.length).replace(/^\/+/, '')}`;
+  }
+
+  if (inputPath.startsWith('file:/')) {
+    return `file:///${inputPath.slice('file:/'.length).replace(/^\/+/, '')}`;
+  }
+
+  // Absolute path without file:// prefix
+  if (inputPath.startsWith('/')) {
+    return `file://${inputPath}`;
+  }
+
+  // Relative path - prepend document directory
+  const docDir = (FileSystem.documentDirectory || 'file:///').replace(/\/+$/, '');
+  return `${docDir}/${inputPath.replace(/^\/+/, '')}`;
 };
 
-const normalizeExpoUri = (path: string): string => {
-  if (!path) {
-    return path;
+function getFileSystemErrorType(error: Error): FileSystemErrorType {
+  const message = error.message.toLowerCase();
+  
+  if (message.includes('enoent') || message.includes('no such file') || message.includes('could not find')) {
+    return FileSystemErrorType.NOT_FOUND;
   }
-
-  if (path.startsWith('file:///')) {
-    return path;
+  if (message.includes('eacces') || message.includes('permission denied')) {
+    return FileSystemErrorType.PERMISSION_DENIED;
   }
-
-  if (path.startsWith('file://')) {
-    return `file:///${path.slice('file://'.length).replace(/^\/+/, '')}`;
+  if (message.includes('eisdir') || message.includes('is a directory')) {
+    return FileSystemErrorType.IS_DIRECTORY;
   }
-
-  if (path.startsWith('file:/')) {
-    return `file:///${path.slice('file:/'.length).replace(/^\/+/, '')}`;
+  if (message.includes('enotdir') || message.includes('not a directory')) {
+    return FileSystemErrorType.NOT_DIRECTORY;
   }
-
-  if (path.startsWith('/')) {
-    return `file://${path}`;
+  if (message.includes('enotempty') || message.includes('not empty')) {
+    return FileSystemErrorType.DIRECTORY_NOT_EMPTY;
   }
+  
+  return FileSystemErrorType.UNKNOWN;
+}
 
-  const docDir = getDocumentDirectory().replace(/\/+$/, '');
-  return `${docDir}/${path.replace(/^\/+/, '')}`;
-};
+function handleFileSystemError(error: Error, operation: string): never {
+  const errorType = getFileSystemErrorType(error);
+  const message = `${operation} failed: ${error.message}`;
+  throw new FileSystemError(message, errorType, error);
+}
 
-// Convert our path format to Expo's file:// URI format
-const toExpoUri = (path: string): string => {
-  if (path.startsWith('file:')) {
-    return normalizeExpoUri(path);
-  }
-
-  const docDir = getDocumentDirectory().replace(/\/+$/, '') + '/';
-  // Remove leading slash if present to avoid double slashes
-  const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-  return normalizeExpoUri(`${docDir}${cleanPath}`);
-};
-
-// Convert Expo's file:// URI back to our path format
-const fromExpoUri = (uri: string): string => {
-  const docDir = getDocumentDirectory();
-  if (uri.startsWith(docDir)) {
-    return uri.substring(docDir.length - 1); // Keep the leading slash
-  }
-  return uri;
-};
-
-class FileSystemService {
+export class FileSystemService {
   private static instance: FileSystemService | null = null;
 
   private constructor() {}
@@ -74,126 +109,269 @@ class FileSystemService {
     FileSystemService.instance = null;
   }
 
-  /**
-   * List all files recursively in the vault root
-   * Returns structured file tree data
-   */
-  async listFiles(dirPath: string): Promise<FileNode[]> {
-    try {
-      const uri = toExpoUri(dirPath);
-      const entries = await FileSystem.readDirectoryAsync(uri);
-      const nodes: FileNode[] = [];
-
-      for (const entry of entries) {
-        const entryPath = `${dirPath}/${entry}`.replace(/\/+/g, '/');
-        const entryUri = toExpoUri(entryPath);
-        
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(entryUri);
-          
-          const node: FileNode = {
-            path: entryPath,
-            name: entry,
-            isDirectory: fileInfo.isDirectory,
-          };
-
-          if (fileInfo.isDirectory) {
-            node.children = await this.listFiles(entryPath);
-          }
-
-          nodes.push(node);
-        } catch (error) {
-          // Skip files we can't access
-          console.warn(`Cannot access ${entryPath}:`, error);
-        }
-      }
-
-      return nodes;
-    } catch (error) {
-      // Directory doesn't exist yet, return empty array
-      if ((error as Error).message?.includes('No such file') || 
-          (error as Error).message?.includes('ENOENT') ||
-          (error as Error).message?.includes('doesn\'t exist')) {
-        return [];
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Read file contents by path
-   */
-  async readFile(filePath: string): Promise<string> {
-    const uri = toExpoUri(filePath);
-    return await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.UTF8,
+  private sortNodes(files: FileNode[]): FileNode[] {
+    return files.sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+      return a.name.localeCompare(b.name);
     });
   }
 
-  /**
-   * Write file contents by path (create or overwrite)
-   */
-  async writeFile(filePath: string, content: string): Promise<void> {
+  // List only immediate children in a directory
+  async listDirectory(dirPath: string): Promise<FileNode[]> {
     try {
-      const uri = toExpoUri(filePath);
-      await FileSystem.writeAsStringAsync(uri, content, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-    } catch (error) {
-      // If file write fails (e.g., parent directory doesn't exist), create directories
-      const lastSlashIndex = filePath.lastIndexOf('/');
-      if (lastSlashIndex > 0) {
-        const dirPath = filePath.substring(0, lastSlashIndex);
-        await this.createDirectory(dirPath);
-        
-        // Try writing again
-        const uri = toExpoUri(filePath);
-        await FileSystem.writeAsStringAsync(uri, content, {
-          encoding: FileSystem.EncodingType.UTF8,
+      const normalizedPath = normalizeFileUri(dirPath);
+      const entries = await FileSystem.readDirectoryAsync(normalizedPath);
+      const files: FileNode[] = [];
+
+      for (const entry of entries) {
+        if (entry.startsWith('.') || entry.endsWith('.symlink')) {
+          continue;
+        }
+
+        const fullPath = FileSystemService.join(normalizedPath, entry);
+
+        let info;
+        try {
+          info = await FileSystem.getInfoAsync(fullPath);
+        } catch (error) {
+          console.log(`Skipping ${entry}: ${(error as Error).message}`);
+          continue;
+        }
+
+        if (!info.exists) {
+          continue;
+        }
+
+        files.push({
+          path: fullPath,
+          name: entry,
+          isDirectory: info.isDirectory,
+          size: info.size || 0,
+          modifiedAt: info.modificationTime ? new Date(info.modificationTime * 1000) : new Date(),
         });
-      } else {
-        throw error;
       }
+
+      return this.sortNodes(files);
+    } catch (error) {
+      handleFileSystemError(error as Error, 'List directory');
     }
   }
 
-  /**
-   * Delete a file by path
-   */
+  // List files recursively in a directory
+  async listFiles(dirPath: string): Promise<FileNode[]> {
+    try {
+      const files = await this.listDirectory(dirPath);
+
+      for (const node of files) {
+        if (node.isDirectory) {
+          try {
+            node.children = await this.listFiles(node.path);
+          } catch (error) {
+            console.log(`Could not list contents of ${node.name}: ${(error as Error).message}`);
+            node.children = [];
+          }
+        }
+      }
+
+      return files;
+    } catch (error) {
+      handleFileSystemError(error as Error, 'List files');
+    }
+  }
+
+  // Read file contents
+  async readFile(filePath: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Uint8Array> {
+    try {
+      const normalizedPath = normalizeFileUri(filePath);
+      const content = await FileSystem.readAsStringAsync(normalizedPath, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      if (encoding === 'buffer') {
+        return new TextEncoder().encode(content);
+      }
+      return content;
+    } catch (error) {
+      handleFileSystemError(error as Error, 'Read file');
+    }
+  }
+
+  // Write file contents
+  async writeFile(filePath: string, content: string | Uint8Array): Promise<void> {
+    try {
+      const normalizedPath = normalizeFileUri(filePath);
+      
+      // Ensure parent directory exists
+      const dirPath = FileSystemService.dirname(filePath);
+      if (dirPath !== '/' && !(await this.exists(dirPath))) {
+        await this.createDirectory(dirPath, { recursive: true });
+      }
+
+      let contentString: string;
+      if (content instanceof Uint8Array) {
+        contentString = new TextDecoder().decode(content);
+      } else {
+        contentString = content;
+      }
+
+      await FileSystem.writeAsStringAsync(normalizedPath, contentString, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+    } catch (error) {
+      handleFileSystemError(error as Error, 'Write file');
+    }
+  }
+
+  // Delete a file
   async deleteFile(filePath: string): Promise<void> {
-    const uri = toExpoUri(filePath);
-    await FileSystem.deleteAsync(uri, { idempotent: true });
+    try {
+      const normalizedPath = normalizeFileUri(filePath);
+      const info = await FileSystem.getInfoAsync(normalizedPath);
+      
+      if (!info.exists) {
+        throw new FileSystemError(
+          'File not found',
+          FileSystemErrorType.NOT_FOUND
+        );
+      }
+      
+      if (info.isDirectory) {
+        throw new FileSystemError(
+          'Cannot delete directory using deleteFile, use deleteDirectory instead',
+          FileSystemErrorType.IS_DIRECTORY
+        );
+      }
+      
+      await FileSystem.deleteAsync(normalizedPath, { idempotent: true });
+    } catch (error) {
+      if (error instanceof FileSystemError) {
+        throw error;
+      }
+      handleFileSystemError(error as Error, 'Delete file');
+    }
   }
 
-  /**
-   * Create a directory
-   */
-  async createDirectory(dirPath: string): Promise<void> {
-    const uri = toExpoUri(dirPath);
-    await FileSystem.makeDirectoryAsync(uri, { intermediates: true });
+  // Create a directory
+  async createDirectory(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
+    try {
+      const normalizedPath = normalizeFileUri(dirPath);
+      
+      await FileSystem.makeDirectoryAsync(normalizedPath, {
+        intermediates: options?.recursive ?? false,
+      });
+    } catch (error) {
+      handleFileSystemError(error as Error, 'Create directory');
+    }
   }
 
-  /**
-   * Get flat list of all files (sorted alphabetically)
-   */
+  // Delete a directory
+  async deleteDirectory(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
+    try {
+      const normalizedPath = normalizeFileUri(dirPath);
+      
+      await FileSystem.deleteAsync(normalizedPath, { 
+        idempotent: true,
+      });
+    } catch (error) {
+      handleFileSystemError(error as Error, 'Delete directory');
+    }
+  }
+
+  // Check if path exists
+  async exists(path: string): Promise<boolean> {
+    try {
+      const normalizedPath = normalizeFileUri(path);
+      const info = await FileSystem.getInfoAsync(normalizedPath);
+      return info.exists;
+    } catch {
+      return false;
+    }
+  }
+
+  // Check if path is a directory
+  async isDirectory(path: string): Promise<boolean> {
+    try {
+      const normalizedPath = normalizeFileUri(path);
+      const info = await FileSystem.getInfoAsync(normalizedPath);
+      return info.exists && info.isDirectory;
+    } catch (error) {
+      handleFileSystemError(error as Error, 'Check is directory');
+    }
+  }
+
+  // Get structured file tree
+  async getFileTree(rootPath: string): Promise<FileNode> {
+    try {
+      const normalizedPath = normalizeFileUri(rootPath);
+      const name = FileSystemService.basename(normalizedPath);
+      const entries = await this.listFiles(normalizedPath);
+      
+      return {
+        path: normalizedPath,
+        name,
+        isDirectory: true,
+        children: entries,
+      };
+    } catch (error) {
+      handleFileSystemError(error as Error, 'Get file tree');
+    }
+  }
+
+  // Get flat file list (all files without hierarchy)
   async getFlatFileList(dirPath: string): Promise<FileNode[]> {
-    const tree = await this.listFiles(dirPath);
-    const flatList: FileNode[] = [];
-
-    const flatten = (nodes: FileNode[]) => {
-      for (const node of nodes) {
-        if (node.isDirectory && node.children) {
-          flatten(node.children);
-        } else {
-          flatList.push(node);
+    const files: FileNode[] = [];
+    
+    const traverse = async (path: string) => {
+      const entries = await this.listDirectory(path);
+      
+      for (const entry of entries) {
+        if (entry.isDirectory) {
+          await traverse(entry.path);
+        } else if (!entry.isDirectory) {
+          files.push(entry);
         }
       }
     };
+    
+    await traverse(dirPath);
+    return files;
+  }
 
-    flatten(tree);
+  // Path utilities
+  static join(...paths: string[]): string {
+    // Check if first path is a file:// URI
+    const firstPath = paths[0];
+    if (firstPath?.startsWith('file:///')) {
+      // For file:// URIs, just join the remaining parts without adding leading /
+      const remainingPaths = paths.slice(1).map(p => p.replace(/^\/+|\/+$/g, '')).filter(Boolean);
+      if (remainingPaths.length === 0) {
+        return firstPath;
+      }
+      return firstPath.replace(/\/+$/, '') + '/' + remainingPaths.join('/');
+    }
+    
+    // For regular paths, join with leading /
+    const normalized = paths.map(p => p.replace(/^\/+|\/+$/g, '')).filter(Boolean);
+    return '/' + normalized.join('/');
+  }
 
-    // Sort alphabetically by name
-    return flatList.sort((a, b) => a.name.localeCompare(b.name));
+  static dirname(path: string): string {
+    const normalized = path.replace(/\/$/, '');
+    const lastSlash = normalized.lastIndexOf('/');
+    if (lastSlash <= 0) {
+      return '/';
+    }
+    return normalized.substring(0, lastSlash) || '/';
+  }
+
+  static basename(path: string): string {
+    const normalized = path.replace(/\/$/, '');
+    const lastSlash = normalized.lastIndexOf('/');
+    if (lastSlash === -1) {
+      return normalized;
+    }
+    return normalized.substring(lastSlash + 1);
   }
 
   // Static wrappers for convenience
@@ -201,11 +379,15 @@ class FileSystemService {
     return FileSystemService.getInstance().listFiles(dirPath);
   }
 
-  static async readFile(filePath: string): Promise<string> {
-    return FileSystemService.getInstance().readFile(filePath);
+  static async listDirectory(dirPath: string): Promise<FileNode[]> {
+    return FileSystemService.getInstance().listDirectory(dirPath);
   }
 
-  static async writeFile(filePath: string, content: string): Promise<void> {
+  static async readFile(filePath: string, encoding?: 'utf8' | 'buffer'): Promise<string | Uint8Array> {
+    return FileSystemService.getInstance().readFile(filePath, encoding);
+  }
+
+  static async writeFile(filePath: string, content: string | Uint8Array): Promise<void> {
     return FileSystemService.getInstance().writeFile(filePath, content);
   }
 
@@ -213,13 +395,27 @@ class FileSystemService {
     return FileSystemService.getInstance().deleteFile(filePath);
   }
 
-  static async createDirectory(dirPath: string): Promise<void> {
-    return FileSystemService.getInstance().createDirectory(dirPath);
+  static async createDirectory(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
+    return FileSystemService.getInstance().createDirectory(dirPath, options);
+  }
+
+  static async deleteDirectory(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
+    return FileSystemService.getInstance().deleteDirectory(dirPath, options);
+  }
+
+  static async exists(path: string): Promise<boolean> {
+    return FileSystemService.getInstance().exists(path);
+  }
+
+  static async isDirectory(path: string): Promise<boolean> {
+    return FileSystemService.getInstance().isDirectory(path);
+  }
+
+  static async getFileTree(rootPath: string): Promise<FileNode> {
+    return FileSystemService.getInstance().getFileTree(rootPath);
   }
 
   static async getFlatFileList(dirPath: string): Promise<FileNode[]> {
     return FileSystemService.getInstance().getFlatFileList(dirPath);
   }
 }
-
-export { FileSystemService };

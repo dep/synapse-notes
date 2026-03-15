@@ -22,6 +22,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jest.fn(() => Promise.resolve()),
 }));
 
+const mockFetch = jest.fn();
+(global as any).fetch = mockFetch;
+
 describe('GitService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -104,8 +107,48 @@ describe('GitService', () => {
   });
 
   describe('clone', () => {
+    it('should clone GitHub repositories through the GitHub API fallback', async () => {
+      const repoUrl = 'https://github.com/test/repo';
+      const localPath = 'file:///mock/documents/vault/repo';
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+        JSON.stringify({ [repoUrl]: { username: 'token', token: 'ghp_testtoken123' } })
+      );
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ default_branch: 'main' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'commit-sha-1' } }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ tree: { sha: 'tree-sha-1' } }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            tree: [
+              { path: 'README.md', type: 'blob', mode: '100644', sha: 'blob-sha-1' },
+              { path: 'docs/guide.md', type: 'blob', mode: '100644', sha: 'blob-sha-2' },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ content: 'IyBIZWxsbwo=', encoding: 'base64' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ content: 'R3VpZGUK', encoding: 'base64' }) });
+
+      await GitService.clone(repoUrl, localPath);
+
+      expect(git.clone).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
+      expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+        'file:///mock/documents/vault/repo/README.md',
+        'IyBIZWxsbwo=',
+        { encoding: 'base64' }
+      );
+      expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+        'file:///mock/documents/vault/repo/.synapse/repo.json',
+        expect.stringContaining('"transport":"github-api"'),
+        { encoding: 'utf8' }
+      );
+    });
+
     it('should clone repository into app-local storage with progress callback', async () => {
-      const repoUrl = 'https://github.com/test/repo.git';
+      const repoUrl = 'https://gitlab.com/test/repo.git';
       const localPath = '/repos/test-repo';
       const onProgress = jest.fn();
 
@@ -118,14 +161,16 @@ describe('GitService', () => {
         http: expect.any(Object),
         dir: localPath,
         url: repoUrl,
-        onProgress: onProgress,
+        onProgress: expect.any(Function),
         singleBranch: true,
+        noTags: true,
         depth: 1,
+        onAuth: undefined,
       });
     });
 
     it('should use credentials when available', async () => {
-      const repoUrl = 'https://github.com/test/repo.git';
+      const repoUrl = 'https://gitlab.com/test/repo.git';
       const localPath = '/repos/test-repo';
       const credentials = { username: 'testuser', token: 'testtoken' };
       
@@ -144,7 +189,7 @@ describe('GitService', () => {
     });
 
     it('should expose Node-style ENOENT errors from fs adapter', async () => {
-      const repoUrl = 'https://github.com/test/repo.git';
+      const repoUrl = 'https://gitlab.com/test/repo.git';
       const localPath = 'file:///data/user/0/com.dnnypck.mobile/files/vault';
 
       (FileSystem.getInfoAsync as jest.Mock).mockResolvedValueOnce({
@@ -165,7 +210,7 @@ describe('GitService', () => {
     });
 
     it('should create parent directories before writing nested git files', async () => {
-      const repoUrl = 'https://github.com/test/repo.git';
+      const repoUrl = 'https://gitlab.com/test/repo.git';
       const localPath = 'file:///data/user/0/com.dnnypck.mobile/files/vault/agent-sync';
 
       (git.clone as jest.Mock).mockImplementationOnce(async ({ fs }: any) => {
@@ -185,7 +230,7 @@ describe('GitService', () => {
     });
 
     it('should throw GitError on authentication failure', async () => {
-      const repoUrl = 'https://github.com/test/repo.git';
+      const repoUrl = 'https://gitlab.com/test/repo.git';
       const localPath = '/repos/test-repo';
       
       const authError = new Error('HTTP Error: 401 Unauthorized');
@@ -198,7 +243,7 @@ describe('GitService', () => {
     });
 
     it('should throw GitError on network error', async () => {
-      const repoUrl = 'https://github.com/test/repo.git';
+      const repoUrl = 'https://gitlab.com/test/repo.git';
       const localPath = '/repos/test-repo';
       
       (git.clone as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
@@ -221,6 +266,8 @@ describe('GitService', () => {
         dir: localPath,
         fastForwardOnly: false,
         singleBranch: true,
+        noTags: true,
+        onAuth: undefined,
       });
     });
 
@@ -331,6 +378,110 @@ describe('GitService', () => {
   });
 
   describe('sync', () => {
+    it('should sync GitHub API repositories by creating a commit through the GitHub API', async () => {
+      const localPath = 'file:///mock/documents/vault/repo';
+      const metadata = {
+        version: 1,
+        transport: 'github-api',
+        repoUrl: 'https://github.com/test/repo',
+        owner: 'test',
+        repo: 'repo',
+        branch: 'main',
+        commitSha: 'commit-sha-1',
+        treeSha: 'tree-sha-1',
+        files: {
+          'README.md': { sha: 'old-readme-sha', mode: '100644', type: 'blob' },
+        },
+      };
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+        JSON.stringify({ ['https://github.com/test/repo']: { username: 'token', token: 'ghp_testtoken123' } })
+      );
+
+      (FileSystem.getInfoAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return { exists: true, isDirectory: false, size: 0 };
+        if (path === 'file:///mock/documents/vault/repo/README.md') return { exists: true, isDirectory: false, size: 0 };
+        return { exists: false, isDirectory: false, size: 0 };
+      });
+      (FileSystem.readDirectoryAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo') return ['README.md', '.synapse'];
+        if (path === 'file:///mock/documents/vault/repo/.synapse') return ['repo.json'];
+        return [];
+      });
+      (FileSystem.readAsStringAsync as jest.Mock).mockImplementation(async (path: string, options?: any) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return JSON.stringify(metadata);
+        if (path === 'file:///mock/documents/vault/repo/README.md' && options?.encoding === 'base64') return 'IyBVcGRhdGVkCg==';
+        return '';
+      });
+      (git.hashBlob as jest.Mock).mockResolvedValueOnce({ oid: 'new-readme-sha' });
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'remote-commit-sha' } }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'blob-created-sha' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'tree-created-sha' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'commit-created-sha' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      const result = await GitService.sync(localPath);
+
+      expect(git.push).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
+      expect(result).toEqual({ pulled: true, committed: 'commit-created-sha', pushed: true });
+      expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+        'file:///mock/documents/vault/repo/.synapse/repo.json',
+        expect.stringContaining('commit-created-sha'),
+        { encoding: 'utf8' }
+      );
+    });
+
+    it('should sync only the provided changed paths for GitHub API repositories', async () => {
+      const localPath = 'file:///mock/documents/vault/repo';
+      const metadata = {
+        version: 1,
+        transport: 'github-api',
+        repoUrl: 'https://github.com/test/repo',
+        owner: 'test',
+        repo: 'repo',
+        branch: 'main',
+        commitSha: 'commit-sha-1',
+        treeSha: 'tree-sha-1',
+        files: {
+          'README.md': { sha: 'old-readme-sha', mode: '100644', type: 'blob' },
+          'Other.md': { sha: 'other-sha', mode: '100644', type: 'blob' },
+        },
+      };
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+        JSON.stringify({ ['https://github.com/test/repo']: { username: 'token', token: 'ghp_testtoken123' } })
+      );
+      (FileSystem.getInfoAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return { exists: true, isDirectory: false, size: 0 };
+        if (path === 'file:///mock/documents/vault/repo/README.md') return { exists: true, isDirectory: false, size: 0 };
+        return { exists: false, isDirectory: false, size: 0 };
+      });
+      (FileSystem.readAsStringAsync as jest.Mock).mockImplementation(async (path: string, options?: any) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return JSON.stringify(metadata);
+        if (path === 'file:///mock/documents/vault/repo/README.md' && options?.encoding === 'base64') return 'IyBVcGRhdGVkCg==';
+        return '';
+      });
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'remote-commit-sha' } }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'blob-created-sha' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'tree-created-sha' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'commit-created-sha' }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      const result = await GitService.sync(localPath, ['README.md']);
+
+      expect(FileSystem.readDirectoryAsync).not.toHaveBeenCalled();
+      expect(FileSystem.readAsStringAsync).toHaveBeenCalledWith(
+        'file:///mock/documents/vault/repo/README.md',
+        { encoding: 'base64' }
+      );
+      expect(result).toEqual({ pulled: true, committed: 'commit-created-sha', pushed: true });
+    });
+
     it('should pull then push', async () => {
       const localPath = '/repos/test-repo';
       

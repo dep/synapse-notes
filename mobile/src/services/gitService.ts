@@ -68,6 +68,31 @@ const ensureParentDirectory = async (targetPath: string) => {
   });
 };
 
+// Base64 helpers for lossless binary round-tripping through expo-file-system.
+// expo-file-system only supports UTF-8 and Base64 — binary data must go through
+// Base64 to avoid corruption when writing pack files and other git objects.
+const uint8ToBase64 = (bytes: Uint8Array): string => {
+  // Use a reduce-based approach to avoid spread call stack limits on large arrays
+  const CHUNK = 4096;
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i += CHUNK) {
+    const slice = bytes.subarray(i, Math.min(i + CHUNK, bytes.byteLength));
+    for (let j = 0; j < slice.length; j++) {
+      binary += String.fromCharCode(slice[j]);
+    }
+  }
+  return btoa(binary);
+};
+
+const base64ToUint8 = (b64: string): Uint8Array => {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+};
+
 // Collect an async iterable body into a single Uint8Array
 const collectBody = async (
   body?: Iterable<Uint8Array> | AsyncIterable<Uint8Array>
@@ -87,36 +112,74 @@ const collectBody = async (
   return merged;
 };
 
-// Wrap bytes in an async iterable that isomorphic-git's StreamReader can consume.
-// isomorphic-git calls Buffer.from(value) on every yielded chunk; the single-arg
-// Buffer.from(uint8Array) form is reliably supported in React Native / Hermes.
-// We deliberately avoid Buffer.from(arrayBuffer, byteOffset, length) which is
-// broken in some React Native Buffer polyfills.
-const bytesToAsyncIterable = (bytes: Uint8Array) => {
-  const CHUNK = 65536;
-  let offset = 0;
-  return {
-    [Symbol.asyncIterator]() {
-      return this;
-    },
-    async next(): Promise<{ done: boolean; value: Uint8Array | undefined }> {
-      if (offset >= bytes.byteLength) {
-        return { done: true, value: undefined };
-      }
-      const end = Math.min(offset + CHUNK, bytes.byteLength);
-      // subarray() returns a view into the same owned buffer — no copy needed.
-      // We already own `bytes` (it was copied fresh in the http adapter), so
-      // this view is safe for as long as the iterator lives.
-      const chunk = bytes.subarray(offset, end);
-      offset = end;
-      return { done: false, value: chunk };
-    },
-    async return(): Promise<{ done: boolean; value: undefined }> {
-      offset = bytes.byteLength;
-      return { done: true, value: undefined };
-    },
-  };
+const toFetchBody = (bytes: Uint8Array, method: string): string | ArrayBuffer | undefined => {
+  if (bytes.byteLength === 0) {
+    return undefined;
+  }
+
+  // isomorphic-git's upload-pack request body is pkt-line text. React Native's
+  // fetch is more reliable with string bodies than raw Uint8Array bodies on Android.
+  if (method === 'POST') {
+    return new TextDecoder().decode(bytes);
+  }
+
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 };
+
+type XhrBlobResponse = {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  responseURL: string;
+  blob: Blob;
+};
+
+const xhrBlobRequest = (
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: string | ArrayBuffer
+): Promise<XhrBlobResponse> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.responseType = 'blob';
+
+    Object.entries(headers).forEach(([key, value]) => {
+      xhr.setRequestHeader(key, value);
+    });
+
+    xhr.onload = () => {
+      const rawHeaders = xhr.getAllResponseHeaders();
+      const parsedHeaders: Record<string, string> = {};
+      rawHeaders.trim().split(/[\r\n]+/).forEach((line) => {
+        if (!line) return;
+        const idx = line.indexOf(':');
+        if (idx === -1) return;
+        parsedHeaders[line.slice(0, idx).trim().toLowerCase()] = line.slice(idx + 1).trim();
+      });
+
+      resolve({
+        status: xhr.status,
+        statusText: xhr.statusText,
+        headers: parsedHeaders,
+        responseURL: xhr.responseURL || url,
+        blob: xhr.response,
+      });
+    };
+
+    xhr.onerror = () => reject(new Error('XHR network error'));
+    xhr.ontimeout = () => reject(new Error('XHR timeout'));
+    xhr.onabort = () => reject(new Error('XHR aborted'));
+
+    if (body === undefined) {
+      xhr.send();
+    } else {
+      xhr.send(body as any);
+    }
+  });
+};
+
 
 const http = {
   async request({
@@ -132,8 +195,115 @@ const http = {
   }) {
     // Materialise request body before sending (streaming POST not supported in RN fetch)
     const requestBytes = await collectBody(body);
-    const requestBody = requestBytes.byteLength > 0 ? requestBytes : undefined;
+    const requestBody = toFetchBody(requestBytes, method);
 
+    // For the large pack-data POST, stream directly to a temp file via
+    // FileSystem.downloadAsync to avoid buffering 100s of MB in JS heap.
+    // We detect this by method=POST and the upload-pack service URL.
+    const isPackRequest = method === 'POST' && url.includes('git-upload-pack');
+
+    if (isPackRequest) {
+      console.log('[git-http] POST (pack) via xhr:', url, 'request bytes:', requestBytes.byteLength, 'body type:', typeof requestBody);
+
+      const docDir = (FileSystem.documentDirectory || 'file:///').replace(/\/+$/, '');
+      const tempDir = `${docDir}/.git-tmp`;
+      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true }).catch(() => {});
+      const tempOut = `${tempDir}/pack-${Date.now()}.bin`;
+
+      try {
+        console.log('[git-http] POST starting xhr');
+        const response = await xhrBlobRequest(url, method, headers, requestBody);
+        console.log('[git-http] POST xhr returned');
+
+        console.log('[git-http] POST ->', response.status, 'ct:', response.headers['content-type']);
+
+        if ((response.status < 200 || response.status >= 300) && response.status !== 401) {
+          const text = await response.blob.text();
+          const bytes = new TextEncoder().encode(text);
+          return {
+            url: response.responseURL || url,
+            method,
+            statusCode: response.status,
+            statusMessage: response.statusText,
+            headers: response.headers,
+            body: singleChunkIterable(bytes),
+          };
+        }
+
+        // Strategy: try blob→FileReader (avoids one ArrayBuffer copy), fall back
+        // to arrayBuffer if FileReader is unavailable on this Hermes version.
+        let b64Pack: string;
+
+        try {
+          console.log('[git-http] trying blob path...');
+          const blob = response.blob;
+          console.log('[git-http] blob size:', blob.size);
+          b64Pack = await new Promise<string>((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => {
+              const result = fr.result as string;
+              const idx = result.indexOf(',');
+              resolve(idx >= 0 ? result.slice(idx + 1) : result);
+            };
+            fr.onerror = () => reject(fr.error);
+            fr.readAsDataURL(blob);
+          });
+          console.log('[git-http] blob→base64 done, b64 length:', b64Pack.length);
+        } catch (blobErr) {
+          console.log('[git-http] blob path failed, falling back to arrayBuffer:', (blobErr as Error).message);
+          const arrayBuf = await response.blob.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuf);
+          console.log('[git-http] arrayBuffer bytes:', bytes.byteLength);
+          b64Pack = uint8ToBase64(bytes);
+        }
+
+        // Write pack to temp file on device storage
+        await FileSystem.writeAsStringAsync(tempOut, b64Pack, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const fileInfo = await FileSystem.getInfoAsync(tempOut);
+        const totalSize = fileInfo.size || 0;
+        console.log('[git-http] pack on disk, bytes:', totalSize);
+
+        // Hand isomorphic-git the bytes read back from disk in one shot.
+        // expo-file-system has no range reads so we read the whole file once —
+        // the base64 string lives in JS heap briefly then gets GC'd.
+        let served = false;
+        const iterable = {
+          [Symbol.asyncIterator]() { return this; },
+          async next(): Promise<{ done: boolean; value: Uint8Array | undefined }> {
+            if (served) {
+              await FileSystem.deleteAsync(tempOut, { idempotent: true }).catch(() => {});
+              return { done: true, value: undefined };
+            }
+            served = true;
+            const allB64 = await FileSystem.readAsStringAsync(tempOut, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            return { done: false, value: base64ToUint8(allB64) };
+          },
+          async return() {
+            await FileSystem.deleteAsync(tempOut, { idempotent: true }).catch(() => {});
+            return { done: true as const, value: undefined };
+          },
+        };
+
+        return {
+          url: response.responseURL || url,
+          method,
+          statusCode: response.status,
+          statusMessage: response.statusText,
+          headers: response.headers,
+          body: iterable,
+        };
+
+      } catch (err) {
+        await FileSystem.deleteAsync(tempOut, { idempotent: true }).catch(() => {});
+        throw err;
+      }
+    }
+
+    // Non-pack requests (info/refs, etc.) are small — buffer normally
     const response = await fetch(url, { method, headers, body: requestBody });
 
     const responseHeaders: Record<string, string> = {};
@@ -141,19 +311,12 @@ const http = {
       responseHeaders[k] = v;
     });
 
-    const arrayBuf = await response.arrayBuffer();
-
-    // Copy bytes into a brand-new ArrayBuffer that is fully owned by us.
-    // Hermes may return a neutered/transferred ArrayBuffer from fetch's
-    // arrayBuffer() call; wrapping it in a fresh copy prevents Buffer.from()
-    // inside isomorphic-git's StreamReader from throwing on a detached buffer.
-    const srcBytes = new Uint8Array(arrayBuf);
-    const bodyBytes = new Uint8Array(srcBytes.byteLength);
-    bodyBytes.set(srcBytes);
-
     console.log('[git-http]', method, url, '->', response.status,
-      'body bytes:', bodyBytes.byteLength,
       'ct:', responseHeaders['content-type']);
+
+    const arrayBuf = await response.arrayBuffer();
+    const bodyBytes = new Uint8Array(arrayBuf);
+    console.log('[git-http] buffered bytes:', bodyBytes.byteLength);
 
     return {
       url: response.url || url,
@@ -161,32 +324,54 @@ const http = {
       statusCode: response.status,
       statusMessage: response.statusText,
       headers: responseHeaders,
-      body: bytesToAsyncIterable(bodyBytes),
+      body: singleChunkIterable(bodyBytes),
     };
   },
 };
+
+function singleChunkIterable(bytes: Uint8Array) {
+  let done = false;
+  return {
+    [Symbol.asyncIterator]() { return this; },
+    async next(): Promise<{ done: boolean; value: Uint8Array | undefined }> {
+      if (done) return { done: true, value: undefined };
+      done = true;
+      return { done: false, value: bytes };
+    },
+    async return() {
+      done = true;
+      return { done: true as const, value: undefined };
+    },
+  };
+}
 
 // Node.js fs-compatible adapter for expo-file-system
 // This allows isomorphic-git to work with Expo's FileSystem API
 const fs = {
   promises: {
     async readFile(filepath: string, options?: { encoding?: string }): Promise<string | Uint8Array> {
-      const content = await FileSystem.readAsStringAsync(toExpoUri(filepath), {
-        encoding: FileSystem.EncodingType.UTF8,
+      // Read as Base64 to preserve binary content (pack files, git objects, etc.)
+      const b64 = await FileSystem.readAsStringAsync(toExpoUri(filepath), {
+        encoding: FileSystem.EncodingType.Base64,
       });
-      return options?.encoding === 'utf8' ? content : new TextEncoder().encode(content);
+      const bytes = base64ToUint8(b64);
+      if (options?.encoding === 'utf8') {
+        return new TextDecoder().decode(bytes);
+      }
+      return bytes;
     },
 
     async writeFile(filepath: string, data: string | Uint8Array, options?: { encoding?: string }): Promise<void> {
-      let content: string;
+      // Always write as Base64 to preserve binary content (pack files, git objects, etc.)
+      let bytes: Uint8Array;
       if (data instanceof Uint8Array) {
-        content = new TextDecoder().decode(data);
+        bytes = data;
       } else {
-        content = data;
+        bytes = new TextEncoder().encode(data);
       }
       await ensureParentDirectory(filepath);
-      await FileSystem.writeAsStringAsync(toExpoUri(filepath), content, {
-        encoding: FileSystem.EncodingType.UTF8,
+      await FileSystem.writeAsStringAsync(toExpoUri(filepath), uint8ToBase64(bytes), {
+        encoding: FileSystem.EncodingType.Base64,
       });
     },
 
@@ -254,15 +439,47 @@ const fs = {
     },
 
     async lstat(filepath: string): Promise<ReturnType<typeof fs.promises.stat>> {
+      // Check if this path is a stored symlink first
+      const symlinkPath = toExpoUri(filepath + '.symlink');
+      const symlinkInfo = await FileSystem.getInfoAsync(symlinkPath);
+      if (symlinkInfo.exists) {
+        const mtimeMs = symlinkInfo.modificationTime ? symlinkInfo.modificationTime * 1000 : Date.now();
+        return {
+          type: 'symlink',
+          mode: 0o120000,
+          size: symlinkInfo.size || 0,
+          ino: 0,
+          mtimeMs,
+          ctimeMs: mtimeMs,
+          uid: 0,
+          gid: 0,
+          dev: 0,
+          isFile: () => false,
+          isDirectory: () => false,
+          isSymbolicLink: () => true,
+        };
+      }
       return await fs.promises.stat(filepath);
     },
 
-    symlink(): never {
-      throw new Error('Symlinks not supported in Expo FileSystem');
+    async symlink(target: string, filepath: string): Promise<void> {
+      // Store symlink target as a sidecar file (filepath.symlink)
+      await ensureParentDirectory(filepath);
+      await FileSystem.writeAsStringAsync(toExpoUri(filepath + '.symlink'), target, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
     },
 
-    readlink(): never {
-      throw new Error('Symlinks not supported in Expo FileSystem');
+    async readlink(filepath: string): Promise<string> {
+      // Read symlink target from sidecar file
+      const symlinkPath = toExpoUri(filepath + '.symlink');
+      const info = await FileSystem.getInfoAsync(symlinkPath);
+      if (!info.exists) {
+        throw createFsError('ENOENT', 'readlink', filepath);
+      }
+      return await FileSystem.readAsStringAsync(symlinkPath, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
     },
   },
 };
@@ -309,7 +526,103 @@ interface SyncResult {
   pushed: boolean;
 }
 
+interface ChangedEntry {
+  path: string;
+  sha: string;
+  mode: string;
+}
+
+interface GitHubRepoRef {
+  owner: string;
+  repo: string;
+  repoUrl: string;
+}
+
+interface RepoMetadataFile {
+  version: number;
+  transport: 'github-api';
+  repoUrl: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  commitSha: string;
+  treeSha: string;
+  files: Record<string, { sha: string; mode: string; type: string }>;
+}
+
 const CREDENTIALS_KEY = 'git_credentials';
+const REPO_METADATA_DIR = '.synapse';
+const REPO_METADATA_FILE = 'repo.json';
+
+const joinRepoPath = (root: string, child: string) => {
+  const normalizedRoot = root.replace(/\/+$/, '');
+  const normalizedChild = child.replace(/^\/+/, '');
+  return `${normalizedRoot}/${normalizedChild}`;
+};
+
+const getRepoMetadataPath = (dir: string) => joinRepoPath(joinRepoPath(dir, REPO_METADATA_DIR), REPO_METADATA_FILE);
+
+const isGitHubUrl = (url: string) => /github\.com[:/]/i.test(url);
+
+const parseGitHubRepo = (url: string): GitHubRepoRef | null => {
+  const normalized = url.trim().replace(/\.git$/, '').replace(/\/+$/, '');
+  const httpsMatch = normalized.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/i);
+  if (httpsMatch) {
+    const [, owner, repo] = httpsMatch;
+    return { owner, repo, repoUrl: `https://github.com/${owner}/${repo}` };
+  }
+
+  const sshMatch = normalized.match(/^git@github\.com:([^/]+)\/([^/]+)$/i);
+  if (sshMatch) {
+    const [, owner, repo] = sshMatch;
+    return { owner, repo, repoUrl: `https://github.com/${owner}/${repo}` };
+  }
+
+  return null;
+};
+
+const toGitHubApiHeaders = (token?: string) => ({
+  Accept: 'application/vnd.github+json',
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+});
+
+const sanitizeGitHubBase64 = (content: string) => content.replace(/\n/g, '');
+
+const listLocalRepositoryFiles = async (dir: string, baseDir = dir): Promise<string[]> => {
+  const entries = await FileSystem.readDirectoryAsync(toExpoUri(dir));
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    if (entry === REPO_METADATA_DIR || entry === '.git' || entry.endsWith('.symlink')) {
+      continue;
+    }
+
+    const fullPath = joinRepoPath(dir, entry);
+    const info = await FileSystem.getInfoAsync(toExpoUri(fullPath));
+    if (!info.exists) {
+      continue;
+    }
+
+    if (info.isDirectory) {
+      files.push(...await listLocalRepositoryFiles(fullPath, baseDir));
+      continue;
+    }
+
+    const relativePath = fullPath.slice(baseDir.replace(/\/+$/, '').length + 1);
+    files.push(relativePath);
+  }
+
+  return files.sort();
+};
+
+const getRelativeRepoPath = (dir: string, filePath: string) => {
+  const normalizedDir = dir.replace(/\/+$/, '');
+  const normalizedFile = filePath.replace(/\/+$/, '');
+  if (!normalizedFile.startsWith(normalizedDir + '/')) {
+    return normalizedFile;
+  }
+  return normalizedFile.slice(normalizedDir.length + 1);
+};
 
 function getGitErrorType(error: Error): GitErrorType {
   const message = error.message.toLowerCase();
@@ -364,6 +677,331 @@ export class GitService {
     throw new GitError(message, errorType, error);
   }
 
+  private async getGitHubToken(repoUrl: string): Promise<string | undefined> {
+    const repoCredentials = await GitService.getCredentials(repoUrl);
+    if (repoCredentials?.token) {
+      return repoCredentials.token;
+    }
+
+    const defaultCredentials = await GitService.getCredentials('default');
+    return defaultCredentials?.token;
+  }
+
+  private async githubRequest<T>(
+    path: string,
+    repoUrl: string,
+    options?: RequestInit & { token?: string }
+  ): Promise<T> {
+    const token = options?.token ?? await this.getGitHubToken(repoUrl);
+    const response = await fetch(`https://api.github.com${path}`, {
+      method: options?.method || 'GET',
+      headers: {
+        ...toGitHubApiHeaders(token),
+        ...(options?.headers || {}),
+      },
+      body: options?.body,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`GitHub API ${response.status}: ${text || response.statusText}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
+
+  private async loadRepoMetadata(dir: string): Promise<RepoMetadataFile | null> {
+    const metadataPath = getRepoMetadataPath(dir);
+    const info = await FileSystem.getInfoAsync(toExpoUri(metadataPath));
+    if (!info.exists) {
+      return null;
+    }
+
+    const raw = await FileSystem.readAsStringAsync(toExpoUri(metadataPath), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    return JSON.parse(raw) as RepoMetadataFile;
+  }
+
+  private async saveRepoMetadata(dir: string, metadata: RepoMetadataFile): Promise<void> {
+    const metadataDir = joinRepoPath(dir, REPO_METADATA_DIR);
+    await FileSystem.makeDirectoryAsync(toExpoUri(metadataDir), { intermediates: true });
+    await FileSystem.writeAsStringAsync(toExpoUri(getRepoMetadataPath(dir)), JSON.stringify(metadata), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+  }
+
+  private async isGitHubApiRepository(dir: string): Promise<boolean> {
+    const metadata = await this.loadRepoMetadata(dir);
+    return metadata?.transport === 'github-api';
+  }
+
+  private async cloneViaGitHubApi(
+    repoRef: GitHubRepoRef,
+    dir: string,
+    onProgress?: git.ProgressCallback
+  ): Promise<void> {
+    const repo = await this.githubRequest<{ default_branch: string }>(
+      `/repos/${repoRef.owner}/${repoRef.repo}`,
+      repoRef.repoUrl
+    );
+    const branch = repo.default_branch;
+
+    const branchInfo = await this.githubRequest<{ commit: { sha: string } }>(
+      `/repos/${repoRef.owner}/${repoRef.repo}/branches/${encodeURIComponent(branch)}`,
+      repoRef.repoUrl
+    );
+    const commitSha = branchInfo.commit.sha;
+
+    const commitInfo = await this.githubRequest<{ tree: { sha: string } }>(
+      `/repos/${repoRef.owner}/${repoRef.repo}/git/commits/${commitSha}`,
+      repoRef.repoUrl
+    );
+    const treeSha = commitInfo.tree.sha;
+
+    const tree = await this.githubRequest<{ tree: Array<{ path: string; type: string; mode: string; sha: string }> }>(
+      `/repos/${repoRef.owner}/${repoRef.repo}/git/trees/${treeSha}?recursive=1`,
+      repoRef.repoUrl
+    );
+
+    const blobs = tree.tree.filter((entry) => entry.type === 'blob');
+    const files: RepoMetadataFile['files'] = {};
+
+    await FileSystem.makeDirectoryAsync(toExpoUri(dir), { intermediates: true });
+
+    let loaded = 0;
+    for (const blob of blobs) {
+      const blobResponse = await this.githubRequest<{ content: string; encoding: string }>(
+        `/repos/${repoRef.owner}/${repoRef.repo}/git/blobs/${blob.sha}`,
+        repoRef.repoUrl
+      );
+
+      const targetPath = joinRepoPath(dir, blob.path);
+      await ensureParentDirectory(targetPath);
+      await FileSystem.writeAsStringAsync(toExpoUri(targetPath), sanitizeGitHubBase64(blobResponse.content), {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      files[blob.path] = {
+        sha: blob.sha,
+        mode: blob.mode,
+        type: blob.mode === '120000' ? 'symlink' : 'blob',
+      };
+
+      loaded += 1;
+      onProgress?.({
+        phase: 'Receiving objects',
+        loaded,
+        total: blobs.length,
+      } as git.ProgressEvent);
+    }
+
+    await this.saveRepoMetadata(dir, {
+      version: 1,
+      transport: 'github-api',
+      repoUrl: repoRef.repoUrl,
+      owner: repoRef.owner,
+      repo: repoRef.repo,
+      branch,
+      commitSha,
+      treeSha,
+      files,
+    });
+  }
+
+  private async collectGitHubApiChanges(
+    dir: string,
+    metadata: RepoMetadataFile,
+    changedPaths?: string[]
+  ): Promise<{ changedEntries: ChangedEntry[]; deletedEntries: string[] }> {
+    const changedEntries: ChangedEntry[] = [];
+
+    if (changedPaths && changedPaths.length > 0) {
+      const uniquePaths = [...new Set(changedPaths)];
+      const deletedEntries: string[] = [];
+
+      for (const relativePath of uniquePaths) {
+        const fullPath = joinRepoPath(dir, relativePath);
+        const info = await FileSystem.getInfoAsync(toExpoUri(fullPath));
+
+        if (!info.exists) {
+          if (metadata.files[relativePath]) {
+            deletedEntries.push(relativePath);
+          }
+          continue;
+        }
+
+        const contentBase64 = await FileSystem.readAsStringAsync(toExpoUri(fullPath), {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const existing = metadata.files[relativePath];
+        const contentHash = await this.simpleHash(contentBase64);
+
+        if (!existing || existing.sha !== contentHash) {
+          changedEntries.push({
+            path: relativePath,
+            sha: contentHash,
+            mode: existing?.mode || '100644',
+          });
+        }
+      }
+
+      return { changedEntries, deletedEntries };
+    }
+
+    console.log('[sync-github] Listing local files...');
+    const localFiles = await listLocalRepositoryFiles(dir);
+    console.log('[sync-github] Found', localFiles.length, 'local files');
+
+    const currentFiles = new Set(localFiles);
+
+    console.log('[sync-github] Checking for changes...');
+    for (let i = 0; i < localFiles.length; i++) {
+      const relativePath = localFiles[i];
+      if (i % 50 === 0) {
+        console.log(`[sync-github] Processing file ${i + 1}/${localFiles.length}: ${relativePath}`);
+      }
+
+      try {
+        const contentBase64 = await FileSystem.readAsStringAsync(toExpoUri(joinRepoPath(dir, relativePath)), {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const existing = metadata.files[relativePath];
+        const contentHash = await this.simpleHash(contentBase64);
+
+        if (!existing || existing.sha !== contentHash) {
+          changedEntries.push({
+            path: relativePath,
+            sha: contentHash,
+            mode: existing?.mode || '100644',
+          });
+        }
+      } catch (err) {
+        console.error(`[sync-github] Error reading file ${relativePath}:`, err);
+      }
+    }
+
+    const deletedEntries = Object.keys(metadata.files).filter((path) => !currentFiles.has(path));
+    return { changedEntries, deletedEntries };
+  }
+
+  private async syncViaGitHubApi(dir: string, changedPaths?: string[]): Promise<SyncResult> {
+    console.log('[sync-github] Starting sync for:', dir);
+    const metadata = await this.loadRepoMetadata(dir);
+    if (!metadata) {
+      throw new Error('Missing repository metadata');
+    }
+    console.log('[sync-github] Loaded metadata for:', metadata.owner, metadata.repo);
+
+    const { changedEntries, deletedEntries } = await this.collectGitHubApiChanges(dir, metadata, changedPaths);
+    console.log('[sync-github] Changed files:', changedEntries.length, 'Deleted files:', deletedEntries.length);
+
+    if (changedEntries.length === 0 && deletedEntries.length === 0) {
+      console.log('[sync-github] No changes to commit');
+      return { pulled: true, committed: null, pushed: false };
+    }
+
+    console.log('[sync-github] Fetching remote branch info...');
+    const latestBranch = await this.githubRequest<{ commit: { sha: string } }>(
+      `/repos/${metadata.owner}/${metadata.repo}/branches/${encodeURIComponent(metadata.branch)}`,
+      metadata.repoUrl
+    );
+    const remoteCommitSha = latestBranch.commit.sha;
+
+    console.log('[sync-github] Creating blobs for changed files...');
+    const newTreeEntries: Array<Record<string, string | null>> = [];
+    const updatedFiles = { ...metadata.files };
+
+    for (let i = 0; i < changedEntries.length; i++) {
+      const entry = changedEntries[i];
+      console.log(`[sync-github] Creating blob ${i + 1}/${changedEntries.length}: ${entry.path}`);
+      
+      const contentBase64 = await FileSystem.readAsStringAsync(toExpoUri(joinRepoPath(dir, entry.path)), {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const createdBlob = await this.githubRequest<{ sha: string }>(
+        `/repos/${metadata.owner}/${metadata.repo}/git/blobs`,
+        metadata.repoUrl,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: contentBase64, encoding: 'base64' }),
+        }
+      );
+
+      newTreeEntries.push({
+        path: entry.path,
+        mode: entry.mode,
+        type: 'blob',
+        sha: createdBlob.sha,
+      });
+      updatedFiles[entry.path] = { sha: entry.sha, mode: entry.mode, type: 'blob' };
+    }
+
+    for (const path of deletedEntries) {
+      newTreeEntries.push({ path, sha: null });
+      delete updatedFiles[path];
+    }
+
+    console.log('[sync-github] Creating new tree...');
+    const createdTree = await this.githubRequest<{ sha: string }>(
+      `/repos/${metadata.owner}/${metadata.repo}/git/trees`,
+      metadata.repoUrl,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_tree: remoteCommitSha, tree: newTreeEntries }),
+      }
+    );
+
+    console.log('[sync-github] Creating commit...');
+    const message = `Synapse mobile sync — ${new Date().toISOString()}`;
+    const createdCommit = await this.githubRequest<{ sha: string }>(
+      `/repos/${metadata.owner}/${metadata.repo}/git/commits`,
+      metadata.repoUrl,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, tree: createdTree.sha, parents: [remoteCommitSha] }),
+      }
+    );
+
+    console.log('[sync-github] Updating branch reference...');
+    await this.githubRequest(
+      `/repos/${metadata.owner}/${metadata.repo}/git/refs/heads/${encodeURIComponent(metadata.branch)}`,
+      metadata.repoUrl,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha: createdCommit.sha, force: false }),
+      }
+    );
+
+    console.log('[sync-github] Saving updated metadata...');
+    const nextMetadata: RepoMetadataFile = {
+      ...metadata,
+      commitSha: createdCommit.sha,
+      treeSha: createdTree.sha,
+      files: updatedFiles,
+    };
+    await this.saveRepoMetadata(dir, nextMetadata);
+
+    console.log('[sync-github] Sync complete! Commit:', createdCommit.sha);
+    return { pulled: true, committed: createdCommit.sha, pushed: true };
+  }
+
+  private async simpleHash(content: string): Promise<string> {
+    // Simple hash for content comparison - not cryptographically secure but fast
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(16);
+  }
+
   // Authentication Methods
   static async setCredentials(repoUrl: string, username: string, token: string): Promise<void> {
     const existingData = await AsyncStorage.getItem(CREDENTIALS_KEY);
@@ -395,21 +1033,33 @@ export class GitService {
     onProgress?: git.ProgressCallback
   ): Promise<void> {
     try {
+      const repoRef = parseGitHubRepo(url);
+      if (repoRef) {
+        await this.cloneViaGitHubApi(repoRef, dir, onProgress);
+        console.log('[clone] completed successfully');
+        return;
+      }
+
       await git.clone({
         fs,
         http,
         dir,
         url,
-        onProgress,
+        onProgress: (evt) => {
+          console.log('[clone-progress]', evt.phase, evt.loaded, '/', evt.total);
+          if (onProgress) onProgress(evt);
+        },
         singleBranch: true,
+        noTags: true,
         depth: 1,
         onAuth: await GitService.getAuthCallback(url),
       });
+      console.log('[clone] completed successfully');
     } catch (error) {
       const err = error as any;
       console.log('[clone-error] message:', err?.message);
       console.log('[clone-error] caller:', err?.caller);
-      console.log('[clone-error] stack:', err?.stack?.split('\n').slice(0, 8).join('\n'));
+      console.log('[clone-error] stack:', err?.stack?.split('\n').slice(0, 12).join('\n'));
       this.handleError(err as Error, 'Clone');
     }
   }
@@ -424,6 +1074,7 @@ export class GitService {
         dir,
         fastForwardOnly: false,
         singleBranch: true,
+        noTags: true,
         onAuth: await GitService.getAuthCallback(remoteUrl),
       });
     } catch (error) {
@@ -494,7 +1145,16 @@ export class GitService {
     }
   }
 
-  async sync(dir: string): Promise<SyncResult> {
+  async sync(dir: string, changedPaths?: string[]): Promise<SyncResult> {
+    const repoMetadata = await this.loadRepoMetadata(dir).catch(() => null);
+    if (repoMetadata?.transport === 'github-api') {
+      try {
+        return await this.syncViaGitHubApi(dir, changedPaths);
+      } catch (error) {
+        this.handleError(error as Error, 'Sync');
+      }
+    }
+
     let pulled = false;
     let committed: string | null = null;
     let pushed = false;
@@ -558,6 +1218,10 @@ export class GitService {
   }
 
   async isRepository(dir: string): Promise<boolean> {
+    if (await this.isGitHubApiRepository(dir)) {
+      return true;
+    }
+
     try {
       await git.currentBranch({ fs, dir, fullname: false });
       return true;
@@ -596,8 +1260,8 @@ export class GitService {
     return GitService.getInstance().push(dir);
   }
 
-  static async sync(dir: string): Promise<SyncResult> {
-    return GitService.getInstance().sync(dir);
+  static async sync(dir: string, changedPaths?: string[]): Promise<SyncResult> {
+    return GitService.getInstance().sync(dir, changedPaths);
   }
 
   static async getStatus(dir: string): Promise<StatusResult> {
