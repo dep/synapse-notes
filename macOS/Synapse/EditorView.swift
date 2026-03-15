@@ -302,10 +302,20 @@ struct RawEditor: NSViewRepresentable {
             appState?.wikiLinkCompletionHandler = { url in
                 textView?.onWikiLinkComplete?(url)
             }
+            appState?.wikiLinkDismissHandler = {
+                textView?.onWikiLinkDismiss?()
+            }
             appState?.presentCommandPalette(mode: .wikiLink)
         }
         textView.onWikiLinkComplete = { [weak textView] url in
             textView?.insertLink(url)
+        }
+        textView.onWikiLinkDismiss = { [weak textView] in
+            textView?.wikilinkPickerSuppressed = true
+            // Restore focus to the editor so the user can keep typing.
+            DispatchQueue.main.async {
+                textView?.window?.makeFirstResponder(textView)
+            }
         }
 
         let scroll = NSScrollView()
@@ -1073,14 +1083,18 @@ class LinkAwareTextView: NSTextView {
     var onActivatePane: (() -> Void)?
     var currentFileURL: URL?
     var onMatchCountUpdate: ((Int) -> Void)?
-    var onWikiLinkRequest: (() -> Void)?  // Called when [[ is typed
+    var onWikiLinkRequest: (() -> Void)?   // Called when [[ is typed
     var onWikiLinkComplete: ((URL) -> Void)?  // Called when a file is selected for wiki link
+    var onWikiLinkDismiss: (() -> Void)?   // Called when the picker is dismissed via ESC
     var slashCommandNowProvider: () -> Date = Date.init
     var slashCommandTimeZone: TimeZone = .current
 
     private var completionPopover: NSPopover?
     private var completionVC: CompletionViewController?
-    private var linkTypingRange: NSRange?
+    fileprivate var linkTypingRange: NSRange?
+    /// Set when the user ESCs the wiki-link picker. Suppresses reopening the picker
+    /// until the cursor leaves the current [[ token (which calls dismissCompletion).
+    fileprivate var wikilinkPickerSuppressed = false
     private var eventMonitor: Any?
     private var inlineImageViews: [String: NSImageView] = [:]
     private var inlineVideoViews: [String: YouTubePreviewView] = [:]
@@ -1513,6 +1527,8 @@ class LinkAwareTextView: NSTextView {
             // Limit completion to the actively typed token only.
             if !query.contains("]]") && query.count <= 120 {
                 linkTypingRange = tokenRange
+                // Don't re-open the picker if the user ESC'd it for this [[ token.
+                if wikilinkPickerSuppressed { return }
                 // Use command palette for wiki link picker instead of completion popover
                 onWikiLinkRequest?()
                 return
@@ -1609,6 +1625,7 @@ class LinkAwareTextView: NSTextView {
         completionPopover = nil
         completionVC = nil
         linkTypingRange = nil
+        wikilinkPickerSuppressed = false
         if let m = eventMonitor { NSEvent.removeMonitor(m); eventMonitor = nil }
     }
 

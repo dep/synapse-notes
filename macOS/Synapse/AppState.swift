@@ -182,6 +182,7 @@ class AppState: ObservableObject {
     @Published var searchMode: SearchMode = .currentFile
     // Wiki link completion handler - called when a file is selected in wiki link mode
     var wikiLinkCompletionHandler: ((URL) -> Void)?
+    var wikiLinkDismissHandler: (() -> Void)?
     // Current-file find state (shared so CMD-G works globally)
     @Published var searchQuery: String = ""
     @Published var searchMatchIndex: Int = 0
@@ -1144,20 +1145,26 @@ class AppState: ObservableObject {
     }
 
     func dismissCommandPalette() {
+        // If closing a wikiLink picker without a selection, notify the editor so it
+        // doesn't immediately reopen the picker on the next keystroke.
+        if commandPaletteMode == .wikiLink, wikiLinkCompletionHandler != nil {
+            wikiLinkDismissHandler?()
+        }
         isCommandPalettePresented = false
         commandPaletteMode = .files
         targetDirectoryForTemplate = nil
         pendingTemplateURL = nil
+        wikiLinkDismissHandler = nil
     }
 
     /// Handles selection of a wiki link from the command palette
     func handleWikiLinkSelection(fileURL: URL, cursorPosition: Int) {
-        // Close the command palette
-        dismissCommandPalette()
-        
-        // Call the completion handler if one is set
-        wikiLinkCompletionHandler?(fileURL)
+        // Consume the completion handler before dismissing so the dismiss path
+        // doesn't treat this as a cancelled (ESC'd) pick.
+        let handler = wikiLinkCompletionHandler
         wikiLinkCompletionHandler = nil
+        dismissCommandPalette()
+        handler?(fileURL)
     }
 
     func presentSearch(mode: SearchMode) {

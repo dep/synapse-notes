@@ -62,6 +62,14 @@ export function ShareIntentScreen({ navigation }: ShareIntentScreenProps) {
   const buildNoteContent = () => {
     const lines: string[] = [];
     const name = (noteName.trim() || getDefaultNoteName() || 'Shared Note');
+    
+    // Add YAML frontmatter with today's date
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    lines.push('---');
+    lines.push(`date: [[${dateStr}]]`);
+    lines.push('---');
+    lines.push('');
 
     lines.push(`# ${name}`);
     lines.push('');
