@@ -211,7 +211,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}> 
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
@@ -284,7 +284,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       )}
 
       {/* Editor */}
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         <TextInput
           style={[
             styles.editor,

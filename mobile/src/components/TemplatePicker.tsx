@@ -7,7 +7,10 @@ import {
   Modal,
   FlatList,
   TextInput,
+  ScrollView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { TemplateStorage, FileNode } from '../services';
@@ -53,7 +56,6 @@ export function TemplatePicker({ isVisible, onClose, onSelectTemplate, vaultPath
   };
 
   const getTemplateDisplayName = (template: FileNode): string => {
-    // Remove .md or .markdown extension and parent folder path for display
     let displayName = template.name;
     if (displayName.toLowerCase().endsWith('.md')) {
       displayName = displayName.slice(0, -3);
@@ -88,29 +90,43 @@ export function TemplatePicker({ isVisible, onClose, onSelectTemplate, vaultPath
   return (
     <Modal
       visible={isVisible}
-      transparent={true}
+      transparent={false}
       animationType="slide"
       onRequestClose={onClose}
+      presentationStyle="pageSheet"
     >
-      <View style={[styles.modalContainer, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
-        <View style={[styles.modalContent, { backgroundColor: theme.colors.background }]}>
-          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              Choose Template
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialIcons name="close" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['top', 'left', 'right', 'bottom']}
+      >
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+          <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
+            <Text style={[styles.cancelText, { color: theme.colors.primary }]}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            New Note
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
-          <View style={styles.nameInputContainer}>
+        {/* Scrollable content — scrolls up when keyboard appears */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets={true}
+        >
+          {/* Note name input */}
+          <View style={styles.section}>
             <Text style={[styles.label, { color: theme.colors.text + '80' }]}>
-              Note Name (optional)
+              Note Name
             </Text>
             <TextInput
               style={[
                 styles.nameInput,
-                { 
+                {
                   backgroundColor: theme.colors.card,
                   color: theme.colors.text,
                   borderColor: theme.colors.border,
@@ -121,131 +137,141 @@ export function TemplatePicker({ isVisible, onClose, onSelectTemplate, vaultPath
               placeholder="Untitled"
               placeholderTextColor={theme.colors.text + '40'}
               autoFocus={true}
+              returnKeyType="done"
+              onSubmitEditing={handleSelectBlank}
             />
           </View>
 
-          <TouchableOpacity
-            style={[styles.blankOption, { backgroundColor: theme.colors.card }]}
-            onPress={handleSelectBlank}
-          >
-            <MaterialIcons
-              name="note-add"
-              size={20}
-              color={theme.colors.text + '80'}
-              style={styles.templateIcon}
-            />
-            <Text style={[styles.blankText, { color: theme.colors.text }]}>
-              Blank Note
+          {/* Blank note option */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.text + '80' }]}>
+              Start With
             </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionRow, { backgroundColor: theme.colors.card }]}
+              onPress={handleSelectBlank}
+            >
+              <View style={[styles.optionIcon, { backgroundColor: theme.colors.primary + '18' }]}>
+                <MaterialIcons name="note-add" size={20} color={theme.colors.primary} />
+              </View>
+              <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                Blank Note
+              </Text>
+              <MaterialIcons name="chevron-right" size={20} color={theme.colors.text + '40'} />
+            </TouchableOpacity>
 
-          {templates.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitle, { color: theme.colors.text + '60' }]}>
-                Templates
-              </Text>
-              <FlatList
-                data={templates}
-                renderItem={renderTemplateItem}
-                keyExtractor={(item) => item.path}
-                style={styles.templateList}
-                showsVerticalScrollIndicator={false}
-              />
-            </>
-          )}
+            {templates.map(item => (
+              <TouchableOpacity
+                key={item.path}
+                style={[styles.optionRow, { backgroundColor: theme.colors.card, marginTop: 8 }]}
+                onPress={() => handleSelectTemplate(item.path)}
+              >
+                <View style={[styles.optionIcon, { backgroundColor: theme.colors.primary + '18' }]}>
+                  <MaterialIcons name="description" size={20} color={theme.colors.primary} />
+                </View>
+                <View style={styles.optionTextContainer}>
+                  <Text style={[styles.optionText, { color: theme.colors.text }]}>
+                    {getTemplateDisplayName(item)}
+                  </Text>
+                  <Text style={[styles.optionSubtext, { color: theme.colors.text + '50' }]} numberOfLines={1}>
+                    {item.path.replace(vaultPath, '').replace(/^\/+/, '')}
+                  </Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={20} color={theme.colors.text + '40'} />
+              </TouchableOpacity>
+            ))}
 
-          {templates.length === 0 && !isLoading && (
-            <View style={styles.emptyState}>
-              <Text style={[styles.emptyText, { color: theme.colors.text + '60' }]}>
-                No templates found
+            {templates.length === 0 && !isLoading && (
+              <Text style={[styles.hint, { color: theme.colors.text + '50' }]}>
+                Add .md files to your templates folder to use them here.
               </Text>
-              <Text style={[styles.emptySubtext, { color: theme.colors.text + '40' }]}>
-                Create templates in the templates folder
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
+            )}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  container: {
     flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  cancelButton: {
+    paddingVertical: 4,
+    paddingRight: 12,
+    minWidth: 70,
+  },
+  cancelText: {
+    fontSize: 16,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  closeButton: {
-    padding: 4,
+  headerSpacer: {
+    minWidth: 70,
   },
-  nameInputContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  section: {
+    marginBottom: 28,
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
+    marginBottom: 10,
   },
   nameInput: {
-    height: 48,
+    height: 52,
     borderRadius: 12,
     paddingHorizontal: 16,
-    fontSize: 16,
+    fontSize: 17,
     borderWidth: 1,
   },
-  blankOption: {
+  optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 16,
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
   },
-  templateIcon: {
+  optionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
-  blankText: {
+  optionTextContainer: {
+    flex: 1,
+  },
+  optionText: {
     fontSize: 16,
     fontWeight: '500',
   },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    marginHorizontal: 20,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  optionSubtext: {
+    fontSize: 12,
+    marginTop: 1,
   },
-  templateList: {
-    maxHeight: 300,
-  },
-  templateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 8,
-    padding: 16,
-    borderRadius: 12,
+  templateIcon: {
+    marginRight: 12,
   },
   templateInfo: {
     flex: 1,
@@ -258,16 +284,9 @@ const styles = StyleSheet.create({
   templatePath: {
     fontSize: 12,
   },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  emptySubtext: {
+  hint: {
     fontSize: 13,
+    marginTop: 12,
+    lineHeight: 18,
   },
 });
