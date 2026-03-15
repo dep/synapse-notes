@@ -1,4 +1,4 @@
-import LightningFS from '@isomorphic-git/lightning-fs';
+import fs from 'expo-fs';
 
 export interface FileNode {
   path: string;
@@ -9,12 +9,10 @@ export interface FileNode {
 
 export class FileSystemService {
   private static instance: FileSystemService | null = null;
-  private fs: LightningFS;
-  private pfs: LightningFS['promises'];
+  private pfs: typeof fs.promises;
 
   private constructor() {
-    this.fs = new LightningFS('synapse-vault');
-    this.pfs = this.fs.promises;
+    this.pfs = fs.promises;
   }
 
   static getInstance(): FileSystemService {
@@ -33,35 +31,44 @@ export class FileSystemService {
    * Returns structured file tree data
    */
   async listFiles(dirPath: string): Promise<FileNode[]> {
-    const entries = await this.pfs.readdir(dirPath);
-    const nodes: FileNode[] = [];
+    try {
+      const entries = await this.pfs.readdir(dirPath);
+      const nodes: FileNode[] = [];
 
-    for (const entry of entries) {
-      const entryPath = dirPath === '/' ? `/${entry}` : `${dirPath}/${entry}`;
-      const stat = await this.pfs.stat(entryPath);
-      const isDirectory = stat.type === 'directory';
+      for (const entry of entries) {
+        const entryPath = `${dirPath}/${entry}`.replace(/\/+/g, '/');
+        const stat = await this.pfs.stat(entryPath);
+        const isDirectory = stat.isDirectory();
 
-      const node: FileNode = {
-        path: entryPath,
-        name: entry,
-        isDirectory,
-      };
+        const node: FileNode = {
+          path: entryPath,
+          name: entry,
+          isDirectory,
+        };
 
-      if (isDirectory) {
-        node.children = await this.listFiles(entryPath);
+        if (isDirectory) {
+          node.children = await this.listFiles(entryPath);
+        }
+
+        nodes.push(node);
       }
 
-      nodes.push(node);
+      return nodes;
+    } catch (error) {
+      // Directory doesn't exist yet, return empty array
+      if ((error as Error).message?.includes('No such file') || 
+          (error as Error).message?.includes('ENOENT')) {
+        return [];
+      }
+      throw error;
     }
-
-    return nodes;
   }
 
   /**
    * Read file contents by path
    */
   async readFile(filePath: string): Promise<string> {
-    return await this.pfs.readFile(filePath, 'utf8');
+    return await this.pfs.readFile(filePath, { encoding: 'utf8' });
   }
 
   /**
@@ -69,14 +76,14 @@ export class FileSystemService {
    */
   async writeFile(filePath: string, content: string): Promise<void> {
     try {
-      await this.pfs.writeFile(filePath, content, 'utf8');
+      await this.pfs.writeFile(filePath, content, { encoding: 'utf8' });
     } catch (error) {
       // If file write fails (e.g., parent directory doesn't exist), create directories
       const lastSlashIndex = filePath.lastIndexOf('/');
       if (lastSlashIndex > 0) {
         const dirPath = filePath.substring(0, lastSlashIndex);
         await this.pfs.mkdir(dirPath, { recursive: true });
-        await this.pfs.writeFile(filePath, content, 'utf8');
+        await this.pfs.writeFile(filePath, content, { encoding: 'utf8' });
       } else {
         throw error;
       }

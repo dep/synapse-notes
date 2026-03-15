@@ -1,6 +1,6 @@
 import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
-import LightningFS from '@isomorphic-git/lightning-fs';
+import fs from 'expo-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export enum GitErrorType {
@@ -68,12 +68,11 @@ function getGitErrorType(error: Error): GitErrorType {
 
 export class GitService {
   private static instance: GitService | null = null;
-  private fs: LightningFS;
-  private pfs: LightningFS['promises'];
+  private fs: typeof fs.promises;
 
   private constructor() {
-    this.fs = new LightningFS('git');
-    this.pfs = this.fs.promises;
+    // expo-fs provides a Node.js fs-compatible API
+    this.fs = fs.promises;
   }
 
   static getInstance(): GitService {

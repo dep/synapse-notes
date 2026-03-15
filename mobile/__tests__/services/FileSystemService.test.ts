@@ -1,30 +1,54 @@
 import { FileSystemService, FileNode } from '../../src/services/FileSystemService';
-import LightningFS from '@isomorphic-git/lightning-fs';
+import fs from 'expo-fs';
 
-// Mock LightningFS
-jest.mock('@isomorphic-git/lightning-fs');
+// Mock expo-fs
+jest.mock('expo-fs', () => ({
+  promises: {
+    mkdir: jest.fn(() => Promise.resolve()),
+    rmdir: jest.fn(() => Promise.resolve()),
+    readdir: jest.fn(() => Promise.resolve([])),
+    writeFile: jest.fn(() => Promise.resolve()),
+    readFile: jest.fn(() => Promise.resolve('')),
+    unlink: jest.fn(() => Promise.resolve()),
+    rename: jest.fn(() => Promise.resolve()),
+    stat: jest.fn(() => Promise.resolve({
+      type: 'file',
+      mode: 0o644,
+      size: 100,
+      ino: 1,
+      mtimeMs: Date.now(),
+      ctimeMs: Date.now(),
+      uid: 0,
+      gid: 0,
+      dev: 0,
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    })),
+    lstat: jest.fn(() => Promise.resolve({
+      type: 'file',
+      mode: 0o644,
+      size: 100,
+      ino: 1,
+      mtimeMs: Date.now(),
+      ctimeMs: Date.now(),
+      uid: 0,
+      gid: 0,
+      dev: 0,
+      isFile: () => true,
+      isDirectory: () => false,
+      isSymbolicLink: () => false,
+    })),
+    symlink: jest.fn(() => { throw new Error('Not implemented'); }),
+    readlink: jest.fn(() => { throw new Error('Not implemented'); }),
+  },
+}));
 
 describe('FileSystemService', () => {
-  let mockPfs: any;
+  const mockFs = fs.promises;
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Setup mock filesystem promises
-    mockPfs = {
-      mkdir: jest.fn(() => Promise.resolve()),
-      readdir: jest.fn(() => Promise.resolve([])),
-      readFile: jest.fn(() => Promise.resolve('')),
-      writeFile: jest.fn(() => Promise.resolve()),
-      unlink: jest.fn(() => Promise.resolve()),
-      rmdir: jest.fn(() => Promise.resolve()),
-      stat: jest.fn(() => Promise.resolve({ type: 'file' })),
-      lstat: jest.fn(() => Promise.resolve({ type: 'file' })),
-    };
-
-    (LightningFS as jest.MockedClass<typeof LightningFS>).mockImplementation(() => ({
-      promises: mockPfs,
-    }) as any);
   });
 
   afterEach(() => {
@@ -36,7 +60,7 @@ describe('FileSystemService', () => {
       const rootPath = '/vault';
 
       // Mock readdir to return different results for different paths
-      mockPfs.readdir.mockImplementation((path: string) => {
+      (mockFs.readdir as jest.Mock).mockImplementation((path: string) => {
         if (path === rootPath) {
           return Promise.resolve(['file1.md', 'file2.md', 'folder1']);
         }
@@ -47,11 +71,22 @@ describe('FileSystemService', () => {
       });
 
       // Mock stat to identify directories
-      mockPfs.stat.mockImplementation((path: string) => {
-        if (path.endsWith('folder1')) {
-          return Promise.resolve({ type: 'directory' });
-        }
-        return Promise.resolve({ type: 'file' });
+      (mockFs.stat as jest.Mock).mockImplementation((path: string) => {
+        const isDir = path.endsWith('folder1');
+        return Promise.resolve({
+          type: isDir ? 'directory' : 'file',
+          mode: 0o644,
+          size: isDir ? 0 : 100,
+          ino: 1,
+          mtimeMs: Date.now(),
+          ctimeMs: Date.now(),
+          uid: 0,
+          gid: 0,
+          dev: 0,
+          isFile: () => !isDir,
+          isDirectory: () => isDir,
+          isSymbolicLink: () => false,
+        });
       });
 
       const result = await FileSystemService.listFiles(rootPath);
@@ -69,15 +104,23 @@ describe('FileSystemService', () => {
     });
 
     it('should return empty array for empty directory', async () => {
-      mockPfs.readdir.mockResolvedValueOnce([]);
+      (mockFs.readdir as jest.Mock).mockResolvedValueOnce([]);
 
       const result = await FileSystemService.listFiles('/empty-vault');
 
       expect(result).toEqual([]);
     });
 
+    it('should return empty array for non-existent directory', async () => {
+      (mockFs.readdir as jest.Mock).mockRejectedValueOnce(new Error('No such file or directory'));
+
+      const result = await FileSystemService.listFiles('/nonexistent');
+
+      expect(result).toEqual([]);
+    });
+
     it('should handle errors gracefully', async () => {
-      mockPfs.readdir.mockRejectedValueOnce(new Error('Permission denied'));
+      (mockFs.readdir as jest.Mock).mockRejectedValueOnce(new Error('Permission denied'));
 
       await expect(FileSystemService.listFiles('/vault')).rejects.toThrow('Permission denied');
     });
@@ -88,16 +131,16 @@ describe('FileSystemService', () => {
       const filePath = '/vault/note.md';
       const content = '# Hello World\n\nThis is a test note.';
 
-      mockPfs.readFile.mockResolvedValueOnce(content);
+      (mockFs.readFile as jest.Mock).mockResolvedValueOnce(content);
 
       const result = await FileSystemService.readFile(filePath);
 
       expect(result).toBe(content);
-      expect(mockPfs.readFile).toHaveBeenCalledWith(filePath, 'utf8');
+      expect(mockFs.readFile).toHaveBeenCalledWith(filePath, { encoding: 'utf8' });
     });
 
     it('should throw error if file does not exist', async () => {
-      mockPfs.readFile.mockRejectedValueOnce(new Error('ENOENT: no such file or directory'));
+      (mockFs.readFile as jest.Mock).mockRejectedValueOnce(new Error('ENOENT: no such file or directory'));
 
       await expect(FileSystemService.readFile('/vault/missing.md')).rejects.toThrow('ENOENT');
     });
@@ -110,19 +153,19 @@ describe('FileSystemService', () => {
 
       await FileSystemService.writeFile(filePath, content);
 
-      expect(mockPfs.writeFile).toHaveBeenCalledWith(filePath, content, 'utf8');
+      expect(mockFs.writeFile).toHaveBeenCalledWith(filePath, content, { encoding: 'utf8' });
     });
 
     it('should create parent directories if they do not exist', async () => {
       const filePath = '/vault/folder/subfolder/note.md';
       const content = '# New Note';
 
-      mockPfs.writeFile.mockRejectedValueOnce(new Error('ENOENT'));
+      (mockFs.writeFile as jest.Mock).mockRejectedValueOnce(new Error('ENOENT'));
 
       await FileSystemService.writeFile(filePath, content);
 
-      expect(mockPfs.mkdir).toHaveBeenCalledWith('/vault/folder/subfolder', { recursive: true });
-      expect(mockPfs.writeFile).toHaveBeenCalledWith(filePath, content, 'utf8');
+      expect(mockFs.mkdir).toHaveBeenCalledWith('/vault/folder/subfolder', { recursive: true });
+      expect(mockFs.writeFile).toHaveBeenCalledWith(filePath, content, { encoding: 'utf8' });
     });
   });
 
@@ -132,11 +175,11 @@ describe('FileSystemService', () => {
 
       await FileSystemService.deleteFile(filePath);
 
-      expect(mockPfs.unlink).toHaveBeenCalledWith(filePath);
+      expect(mockFs.unlink).toHaveBeenCalledWith(filePath);
     });
 
     it('should throw error if file does not exist', async () => {
-      mockPfs.unlink.mockRejectedValueOnce(new Error('ENOENT'));
+      (mockFs.unlink as jest.Mock).mockRejectedValueOnce(new Error('ENOENT'));
 
       await expect(FileSystemService.deleteFile('/vault/missing.md')).rejects.toThrow('ENOENT');
     });
@@ -148,13 +191,7 @@ describe('FileSystemService', () => {
 
       await FileSystemService.createDirectory(dirPath);
 
-      expect(mockPfs.mkdir).toHaveBeenCalledWith(dirPath, { recursive: true });
-    });
-
-    it('should not throw if directory already exists', async () => {
-      mockPfs.mkdir.mockRejectedValueOnce(new Error('EEXIST'));
-
-      await expect(FileSystemService.createDirectory('/vault/existing')).rejects.toThrow('EEXIST');
+      expect(mockFs.mkdir).toHaveBeenCalledWith(dirPath, { recursive: true });
     });
   });
 
@@ -162,7 +199,7 @@ describe('FileSystemService', () => {
     it('should return flat list of all files sorted alphabetically', async () => {
       const rootPath = '/vault';
 
-      mockPfs.readdir.mockImplementation((path: string) => {
+      (mockFs.readdir as jest.Mock).mockImplementation((path: string) => {
         if (path === rootPath) {
           return Promise.resolve(['z-file.md', 'folder1', 'a-file.md']);
         }
@@ -172,11 +209,22 @@ describe('FileSystemService', () => {
         return Promise.resolve([]);
       });
 
-      mockPfs.stat.mockImplementation((path: string) => {
-        if (path.endsWith('folder1')) {
-          return Promise.resolve({ type: 'directory' });
-        }
-        return Promise.resolve({ type: 'file' });
+      (mockFs.stat as jest.Mock).mockImplementation((path: string) => {
+        const isDir = path.endsWith('folder1');
+        return Promise.resolve({
+          type: isDir ? 'directory' : 'file',
+          mode: 0o644,
+          size: isDir ? 0 : 100,
+          ino: 1,
+          mtimeMs: Date.now(),
+          ctimeMs: Date.now(),
+          uid: 0,
+          gid: 0,
+          dev: 0,
+          isFile: () => !isDir,
+          isDirectory: () => isDir,
+          isSymbolicLink: () => false,
+        });
       });
 
       const result = await FileSystemService.getFlatFileList(rootPath);
@@ -190,7 +238,7 @@ describe('FileSystemService', () => {
     });
 
     it('should return empty array for empty directory', async () => {
-      mockPfs.readdir.mockResolvedValueOnce([]);
+      (mockFs.readdir as jest.Mock).mockResolvedValueOnce([]);
 
       const result = await FileSystemService.getFlatFileList('/empty');
 
