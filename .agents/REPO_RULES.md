@@ -2,6 +2,8 @@
 
 1. <critical_workflow>
 **MANDATORY BUILD & RELAUNCH**
+
+### macOS Build and Relaunch
 Whenever you modify `.swift` files, you MUST rebuild and relaunch the app BEFORE you ask the user for feedback or perform git operations.
 
 Do not skip this step, even if unit tests pass. This overrides the "Minimize Verification Loops" rule.
@@ -9,6 +11,21 @@ Do not skip this step, even if unit tests pass. This overrides the "Minimize Ver
 Execute this exact command using the bash tool:
 ```bash
 pkill -9 "Synapse" || true && sleep 1 && xcodegen generate && xcodebuild -project "Synapse.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Synapse-*/Build/Products/Debug/Synapse.app
+```
+
+### Mobile Build and Relaunch
+
+Whenever you modify `mobile/` files, you MUST rebuild and relaunch the app BEFORE you ask the user for feedback or perform git operations.
+
+Do not skip this step, even if unit tests pass. This overrides the "Minimize Verification Loops" rule.
+
+Execute this exact command using the bash tool:
+```bash
+# for android
+cd mobile/android && ./gradlew assembleDebug
+
+# for ios
+cd mobile && npx eas build --platform ios --profile development
 ```
 
 When you do this, you MUST include this exact text in your response to the user:
