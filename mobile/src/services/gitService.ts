@@ -699,11 +699,23 @@ export class GitService {
     repoUrl: string,
     options?: RequestInit & { token?: string }
   ): Promise<T> {
+    const method = options?.method || 'GET';
     const token = options?.token ?? await this.getGitHubToken(repoUrl);
-    const response = await fetch(`https://api.github.com${path}`, {
-      method: options?.method || 'GET',
+    const separator = path.includes('?') ? '&' : '?';
+    const requestPath = method === 'GET'
+      ? `${path}${separator}cache_bust=${Date.now()}`
+      : path;
+
+    const response = await fetch(`https://api.github.com${requestPath}`, {
+      method,
       headers: {
         ...toGitHubApiHeaders(token),
+        ...(method === 'GET'
+          ? {
+              'Cache-Control': 'no-cache, no-store',
+              Pragma: 'no-cache',
+            }
+          : {}),
         ...(options?.headers || {}),
       },
       body: options?.body,

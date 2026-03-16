@@ -401,15 +401,15 @@ struct ContentView: View {
                         help: appState.isEditMode ? "Preview (⌘⇧P)" : "Edit (⌘⇧P)"
                     )
                     .keyboardShortcut("p", modifiers: [.command, .shift])
+                }
 
+                if appState.selectedFile != nil {
                     Button(action: {
-                        appState.saveCurrentFile(content: appState.fileContent)
-                        appState.autoPushIfEnabled()
+                        appState.saveAndSyncCurrentFile()
                     }) {
                         Image(systemName: "square.and.arrow.down")
                     }
                     .buttonStyle(PrimaryChromeButtonStyle())
-                    .keyboardShortcut("s", modifiers: .command)
                     .help("Save (⌘S)")
                     .opacity(appState.isDirty ? 1 : 0.78)
                 }

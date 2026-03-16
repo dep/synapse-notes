@@ -587,6 +587,16 @@ describe('GitService', () => {
         expect.stringContaining('"blob-new"'),
         { encoding: 'utf8' }
       );
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringMatching(/^https:\/\/api\.github\.com\/repos\/test\/repo\/branches\/main\?[^\s]*cache_bust=/),
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'Cache-Control': 'no-cache, no-store',
+            Pragma: 'no-cache',
+          }),
+        })
+      );
     });
   });
 

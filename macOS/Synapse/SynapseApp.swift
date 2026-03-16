@@ -57,6 +57,14 @@ struct SynapseApp: App {
                 .disabled(appState.rootURL == nil)
             }
 
+            CommandGroup(replacing: .saveItem) {
+                Button("Save") {
+                    appState.saveAndSyncCurrentFile()
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .disabled(appState.selectedFile == nil)
+            }
+
             CommandGroup(after: .textEditing) {
                 Button("Find in Note…") {
                     appState.presentSearch(mode: .currentFile)
