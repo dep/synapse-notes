@@ -61,19 +61,28 @@ enum GitError: LocalizedError, Equatable {
             lower.contains("signing failed") || lower.contains("no identities") {
             return .sshAuthFailed
         }
-        if lower.contains("host key verification failed") || lower.contains("host key") {
+        if lower.contains("host key verification failed") || lower.contains("host key") ||
+            (lower.contains("stricthostkeychecking") && lower.contains("failed")) {
             // Try to extract the hostname from the error
-            let host = stderr
-                .components(separatedBy: .newlines)
-                .first { $0.contains("Host") || $0.contains("host") }
-                .flatMap { line -> String? in
-                    // "Host key for X has changed" or "ECDSA host key for X"
-                    let words = line.components(separatedBy: " ")
-                    return words.first { word in
-                        word.contains(".") && !word.hasPrefix("-") && word.count > 3
-                    }
-                } ?? "the remote host"
-            return .sshHostUnknown(host)
+            // Look through all lines to find a valid hostname
+            let allLines = stderr.components(separatedBy: .newlines)
+            var foundHost: String?
+            
+            for line in allLines {
+                let words = line.components(separatedBy: " ")
+                foundHost = words.first { word in
+                    // Must contain a dot, not start with dash, be > 3 chars,
+                    // and not end with punctuation (to exclude "failed.", "done.", etc.)
+                    let cleanWord = word.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?"))
+                    return cleanWord.contains(".") && 
+                           !cleanWord.hasPrefix("-") && 
+                           cleanWord.count > 3 &&
+                           cleanWord == word  // word shouldn't have trailing punctuation
+                }
+                if foundHost != nil { break }
+            }
+            
+            return .sshHostUnknown(foundHost ?? "the remote host")
         }
         if lower.contains("could not resolve hostname") || lower.contains("name or service not known") {
             return .commandFailed("Could not reach the remote. Check your network connection and repository URL.")
