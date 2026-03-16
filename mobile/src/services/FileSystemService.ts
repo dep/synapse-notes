@@ -512,4 +512,39 @@ export class FileSystemService {
   static async getFlatFileList(dirPath: string, filters?: FileFilterOptions): Promise<FileNode[]> {
     return FileSystemService.getInstance().getFlatFileList(dirPath, filters);
   }
+
+  // Resolve a wikilink target to an actual file path (case-insensitive)
+  async resolveWikilink(target: string, rootPath: string): Promise<string | null> {
+    try {
+      // Get all markdown files in the repository
+      const allFiles = await this.getFlatFileList(rootPath, {
+        fileExtensionFilter: '*.md',
+        hiddenFileFolderFilter: '.git',
+      });
+
+      // Normalize the target: remove .md extension if present, convert to lowercase
+      const normalizedTarget = target.toLowerCase().replace(/\.md$/, '');
+
+      // Look for a case-insensitive match
+      for (const file of allFiles) {
+        // Get the filename without extension
+        const fileNameWithoutExt = file.name.toLowerCase().replace(/\.md$/, '');
+        
+        if (fileNameWithoutExt === normalizedTarget) {
+          return file.path;
+        }
+      }
+
+      // No match found
+      return null;
+    } catch (error) {
+      console.error('Failed to resolve wikilink:', error);
+      return null;
+    }
+  }
+
+  // Static wrapper for resolveWikilink
+  static async resolveWikilink(target: string, rootPath: string): Promise<string | null> {
+    return FileSystemService.getInstance().resolveWikilink(target, rootPath);
+  }
 }

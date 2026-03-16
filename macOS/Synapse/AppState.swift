@@ -1677,20 +1677,59 @@ class AppState: ObservableObject {
         stageGitChanges()
     }
 
-    /// Stages changes for git (used by auto-save to stage without committing)
-    private func stageGitChanges() {
-        // Only stage if auto-save or auto-push is enabled
-        guard (settings.autoSave || settings.autoPush), let git = gitService else { return }
+    func saveAndSyncCurrentFile() {
+        saveCurrentFile(content: fileContent)
+        syncToRemote()
+    }
 
+    /// Stage, commit, and push unconditionally. Called on every explicit CMD-S save.
+    func syncToRemote() {
+        guard let git = gitService, git.hasRemote() else { return }
+
+        gitSyncStatus = .pushing
         gitQueue.async { [weak self] in
             guard let self else { return }
+            do {
+                // Pull first, but don't abort if pull fails (e.g. no network)
+                try? git.pullRebase()
+
+                // Stage and push regardless — including conflicts so the user
+                // can resolve them in their own editor.
+                if git.hasChanges() {
+                    try git.stageAll()
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
+                    let timestamp = dateFormatter.string(from: Date())
+                    let hasConflicts = git.hasConflicts()
+                    let prefix = hasConflicts ? "conflict" : "save"
+                    try git.commit(message: "\(prefix): update notes [\(timestamp)]")
+                }
+
+                try git.push()
+
+                let newAhead = git.aheadCount()
+                DispatchQueue.main.async {
+                    self.gitAheadCount = newAhead
+                    self.gitSyncStatus = .idle
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.gitSyncStatus = .error(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    /// Stages changes for background auto-push (only when autoPush setting is on)
+    private func stageGitChanges() {
+        guard settings.autoPush, let git = gitService else { return }
+
+        gitQueue.async {
             do {
                 if git.hasChanges() {
                     try git.stageAll()
                 }
-            } catch {
-                // Silently fail - staging isn't critical, will be retried on push
-            }
+            } catch {}
         }
     }
 
@@ -1705,21 +1744,16 @@ class AppState: ObservableObject {
                 // Pull first to avoid conflicts
                 try git.pullRebase()
 
-                guard !git.hasConflicts() else {
-                    DispatchQueue.main.async {
-                        self.gitSyncStatus = .conflict("Merge conflicts detected. Resolve manually.")
-                    }
-                    return
-                }
-
-                // Stage any uncommitted changes and commit them
+                // Stage and push regardless — including conflicts so the user
+                // can resolve them in their own editor.
                 if git.hasChanges() {
                     try git.stageAll()
                     let dateFormatter = DateFormatter()
                     dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
                     let timestamp = dateFormatter.string(from: Date())
-                    let message = "auto: update notes [\(timestamp)]"
-                    try git.commit(message: message)
+                    let hasConflicts = git.hasConflicts()
+                    let prefix = hasConflicts ? "conflict" : "auto"
+                    try git.commit(message: "\(prefix): update notes [\(timestamp)]")
                 }
 
                 // Push all commits

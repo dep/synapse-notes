@@ -699,11 +699,23 @@ export class GitService {
     repoUrl: string,
     options?: RequestInit & { token?: string }
   ): Promise<T> {
+    const method = options?.method || 'GET';
     const token = options?.token ?? await this.getGitHubToken(repoUrl);
-    const response = await fetch(`https://api.github.com${path}`, {
-      method: options?.method || 'GET',
+    const separator = path.includes('?') ? '&' : '?';
+    const requestPath = method === 'GET'
+      ? `${path}${separator}cache_bust=${Date.now()}`
+      : path;
+
+    const response = await fetch(`https://api.github.com${requestPath}`, {
+      method,
       headers: {
         ...toGitHubApiHeaders(token),
+        ...(method === 'GET'
+          ? {
+              'Cache-Control': 'no-cache, no-store',
+              Pragma: 'no-cache',
+            }
+          : {}),
         ...(options?.headers || {}),
       },
       body: options?.body,
@@ -883,20 +895,14 @@ export class GitService {
       }
 
       if (previousEntry && previousEntry.sha !== blob.sha) {
-        const localContentBase64 = await FileSystem.readAsStringAsync(toExpoUri(targetPath), {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const localHash = await this.simpleHash(localContentBase64);
-
-        if (localHash === previousEntry.sha) {
-          await this.downloadGitHubBlobToPath(metadata, blob.sha, targetPath);
-          nextFiles[blob.path] = {
-            sha: blob.sha,
-            mode: blob.mode,
-            type: blob.mode === '120000' ? 'symlink' : 'blob',
-          };
-          continue;
-        }
+        // Remote has a newer version — always download it.
+        await this.downloadGitHubBlobToPath(metadata, blob.sha, targetPath);
+        nextFiles[blob.path] = {
+          sha: blob.sha,
+          mode: blob.mode,
+          type: blob.mode === '120000' ? 'symlink' : 'blob',
+        };
+        continue;
       }
 
       if (previousEntry) {

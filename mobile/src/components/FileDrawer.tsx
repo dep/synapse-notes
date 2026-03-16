@@ -21,6 +21,7 @@ import { SettingsStorage } from '../services/SettingsStorage';
 import { TemplateStorage } from '../services/TemplateStorage';
 import { GitService } from '../services/gitService';
 import { OnboardingStorage } from '../services/onboardingStorage';
+import { emitRepositoryRefresh } from '../services/repositoryEvents';
 
 interface FileDrawerProps {
   isOpen: boolean;
@@ -236,6 +237,7 @@ export function FileDrawer({
       if (repositoryPath) {
         try {
           await GitService.refreshRemote(repositoryPath);
+          await emitRepositoryRefresh(repositoryPath);
           console.log('[FileDrawer] Remote refresh completed');
         } catch (syncError) {
           console.error('[FileDrawer] Remote refresh failed (will still refresh local files):', syncError);

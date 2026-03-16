@@ -16,9 +16,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../theme/ThemeContext';
-import { FileSystemService } from '../services/FileSystemService';
+import { FileSystemService, FileNode } from '../services/FileSystemService';
 import { GitService } from '../services/gitService';
 import { OnboardingStorage } from '../services/onboardingStorage';
+import { subscribeToRepositoryRefresh } from '../services/repositoryEvents';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useFocusEffect } from '@react-navigation/native';
@@ -68,15 +69,68 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   const [hasChanges, setHasChanges] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
+  
+  // Wikilink picker state
+  const [showWikilinkPicker, setShowWikilinkPicker] = useState(false);
+  const [wikilinkSearch, setWikilinkSearch] = useState('');
+  const [availableNotes, setAvailableNotes] = useState<FileNode[]>([]);
+  const [filteredNotes, setFilteredNotes] = useState<FileNode[]>([]);
+  const [wikilinkStartPos, setWikilinkStartPos] = useState<number | null>(null);
+  const textInputRef = React.useRef<TextInput>(null);
+  const shouldRestoreEditorFocusRef = React.useRef(false);
+  const hasChangesRef = React.useRef(false);
+  
+  // Navigation history for back button support
+  const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
 
   useEffect(() => {
     loadFile();
   }, [filePath]);
 
+  useEffect(() => {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToRepositoryRefresh(async (repositoryPath) => {
+      if (!filePath.startsWith(repositoryPath)) {
+        return;
+      }
+
+      if (hasChanges) {
+        setRefreshStatus('Remote updates available; save or discard local edits to reload');
+        return;
+      }
+
+      try {
+        const fileContent = await FileSystemService.readFile(filePath);
+        setContent(fileContent);
+        setOriginalContent(fileContent);
+        setHasChanges(false);
+        setRefreshStatus('Updated from remote');
+        setTimeout(() => setRefreshStatus(null), 4000);
+      } catch (err) {
+        console.error('Failed to reload refreshed file:', err);
+      }
+    });
+
+    return unsubscribe;
+  }, [filePath, hasChanges]);
+
   const loadFile = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
+      if (repositoryPath) {
+        try {
+          await GitService.refreshRemote(repositoryPath);
+        } catch (pullErr) {
+          console.warn('Git refresh failed, using local version:', pullErr);
+        }
+      }
       const fileContent = await FileSystemService.readFile(filePath);
       setContent(fileContent);
       setOriginalContent(fileContent);
@@ -89,9 +143,88 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     }
   };
 
-  const handleContentChange = (newContent: string) => {
+  // Check if file has been modified externally and prompt user
+  const checkForExternalChanges = async () => {
+    if (hasChanges) {
+      // Don't check if user has unsaved changes - they're already editing
+      return;
+    }
+    
+    try {
+      const fileContent = await FileSystemService.readFile(filePath);
+      
+      // If the content on disk is different from what we loaded originally
+      if (fileContent !== originalContent && fileContent !== content) {
+        Alert.alert(
+          'Note Updated',
+          'This note has been updated elsewhere. Would you like to load the latest version?',
+          [
+            {
+              text: 'Keep Current',
+              style: 'cancel',
+              onPress: () => {
+                // Update originalContent to match disk so we don't prompt again
+                setOriginalContent(fileContent);
+              },
+            },
+            {
+              text: 'Get Latest',
+              style: 'default',
+              onPress: () => {
+                setContent(fileContent);
+                setOriginalContent(fileContent);
+                setHasChanges(false);
+              },
+            },
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Failed to check for external changes:', err);
+    }
+  };
+
+  const handleContentChange = async (newContent: string) => {
     setContent(newContent);
     setHasChanges(newContent !== originalContent);
+    
+    // Detect "[[" pattern for wikilink picker
+    if (!showWikilinkPicker) {
+      const lastTwoChars = newContent.slice(-2);
+      if (lastTwoChars === '[[') {
+        // Show wikilink picker
+        setShowWikilinkPicker(true);
+        setWikilinkStartPos(newContent.length - 2);
+        setWikilinkSearch('');
+        
+        // Load available notes
+        try {
+          const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
+          if (repositoryPath) {
+            const files = await FileSystemService.getFlatFileList(repositoryPath, {
+              fileExtensionFilter: '*.md',
+              hiddenFileFolderFilter: '.git',
+            });
+            setAvailableNotes(files);
+            setFilteredNotes(files);
+          }
+        } catch (err) {
+          console.error('Failed to load notes for wikilink picker:', err);
+        }
+      }
+    } else {
+      // Update search query based on what's typed after "[["
+      if (wikilinkStartPos !== null) {
+        const searchText = newContent.slice(wikilinkStartPos + 2);
+        setWikilinkSearch(searchText);
+        
+        // Filter notes
+        const filtered = availableNotes.filter(note => 
+          note.name.toLowerCase().replace(/\.md$/, '').includes(searchText.toLowerCase())
+        );
+        setFilteredNotes(filtered);
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -112,7 +245,40 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       setError('Failed to save file or sync repository');
     } finally {
       setIsSaving(false);
+      if (shouldRestoreEditorFocusRef.current && !isPreviewMode && !showWikilinkPicker) {
+        setTimeout(() => {
+          textInputRef.current?.focus();
+          shouldRestoreEditorFocusRef.current = false;
+        }, 0);
+      }
     }
+  };
+
+  // Handle wikilink selection from picker
+  const handleWikilinkSelect = (noteName: string) => {
+    if (wikilinkStartPos !== null) {
+      // Remove the "[[" and search text, insert the wikilink
+      const beforeWikilink = content.slice(0, wikilinkStartPos);
+      const afterWikilink = content.slice(wikilinkStartPos + 2 + wikilinkSearch.length);
+      const newContent = `${beforeWikilink}[[${noteName.replace(/\.md$/, '')}]]${afterWikilink}`;
+      
+      setContent(newContent);
+      setHasChanges(newContent !== originalContent);
+      
+      // Close picker
+      setShowWikilinkPicker(false);
+      setWikilinkStartPos(null);
+      setWikilinkSearch('');
+      setFilteredNotes([]);
+    }
+  };
+
+  // Handle closing wikilink picker without selection
+  const handleWikilinkDismiss = () => {
+    setShowWikilinkPicker(false);
+    setWikilinkStartPos(null);
+    setWikilinkSearch('');
+    setFilteredNotes([]);
   };
 
   // Handle back navigation with unsaved changes
@@ -160,6 +326,19 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           handleBackPress();
           return true;
         }
+        
+        // Check if we have navigation history
+        if (navigationHistory.length > 0) {
+          // Get the last file from history
+          const previousFile = navigationHistory[navigationHistory.length - 1];
+          // Remove it from history
+          setNavigationHistory(prev => prev.slice(0, -1));
+          // Navigate back to the previous file
+          navigation.navigate('Editor', { filePath: previousFile });
+          return true;
+        }
+        
+        // No history, go to home
         navigation.navigate('Home', { openDrawer: true });
         return true;
       };
@@ -167,7 +346,16 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
 
       return () => subscription.remove();
-    }, [hasChanges, handleBackPress, navigation])
+    }, [hasChanges, handleBackPress, navigation, navigationHistory])
+  );
+
+  // Pull and reload every time the screen gains focus, unless the user has unsaved edits.
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasChangesRef.current) {
+        loadFile();
+      }
+    }, [filePath])
   );
 
   // Intercept navigation before leaving
@@ -230,6 +418,30 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
 
   const handleTogglePreview = () => {
     setIsPreviewMode(!isPreviewMode);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setRefreshStatus(null);
+    try {
+      const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
+      setRefreshStatus(`repo: ${repositoryPath ?? 'none'}`);
+      if (repositoryPath) {
+        setRefreshStatus(`pulling from: ${repositoryPath}`);
+        await GitService.refreshRemote(repositoryPath);
+        setRefreshStatus('pull done — reading file…');
+      }
+      const fileContent = await FileSystemService.readFile(filePath);
+      setContent(fileContent);
+      setOriginalContent(fileContent);
+      setHasChanges(false);
+      setRefreshStatus(`✓ loaded (${fileContent.length} chars)`);
+      setTimeout(() => setRefreshStatus(null), 4000);
+    } catch (err: any) {
+      setRefreshStatus(`✗ ${err?.message ?? String(err)}`);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Parse wiki links for custom rendering
@@ -357,6 +569,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
               textDecorationLine: 'underline',
               fontWeight: '500',
             }}
+            onPress={() => handleLinkPress(href)}
           >
             {children}
           </Text>
@@ -371,11 +584,106 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
             color: theme.colors.primary,
             textDecorationLine: 'underline',
           }}
+          onPress={() => handleLinkPress(href)}
         >
           {children}
         </Text>
       );
     },
+  };
+
+  // Handle wikilink taps in preview mode
+  const handleLinkPress = async (url: string): Promise<boolean> => {
+    // Check if it's a wikilink
+    if (url.startsWith('synapse://wikilink/')) {
+      try {
+        // Extract the target from the URL
+        const encodedTarget = url.replace('synapse://wikilink/', '');
+        const target = decodeURIComponent(encodedTarget);
+
+        // Get the repository path
+        const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
+        if (!repositoryPath) {
+          Alert.alert('Error', 'No active repository found');
+          return false;
+        }
+
+        // Resolve the wikilink to an actual file path
+        const resolvedPath = await FileSystemService.resolveWikilink(target, repositoryPath);
+
+        if (resolvedPath) {
+          // Save current file before navigating if there are changes
+          if (hasChanges) {
+            try {
+              await FileSystemService.writeFile(filePath, content);
+              const repoPath = await OnboardingStorage.getActiveRepositoryPath();
+              if (repoPath) {
+                await GitService.sync(repoPath, [getRelativePath(repoPath, filePath)]);
+              }
+            } catch (err) {
+              console.error('Failed to save before navigation:', err);
+              Alert.alert('Error', 'Failed to save current note');
+              return false;
+            }
+          }
+          // Add current file to navigation history before navigating
+          setNavigationHistory(prev => [...prev, filePath]);
+          // Navigate to the resolved note
+          navigation.navigate('Editor', { filePath: resolvedPath });
+        } else {
+          // Show "Note not found" alert with option to create
+          Alert.alert(
+            'Note not found',
+            `The note "${target}" does not exist.`,
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+              },
+              {
+                text: 'Create Note',
+                onPress: async () => {
+                  // Save current file before navigating if there are changes
+                  if (hasChanges) {
+                    try {
+                      await FileSystemService.writeFile(filePath, content);
+                      const repoPath = await OnboardingStorage.getActiveRepositoryPath();
+                      if (repoPath) {
+                        await GitService.sync(repoPath, [getRelativePath(repoPath, filePath)]);
+                      }
+                    } catch (err) {
+                      console.error('Failed to save before navigation:', err);
+                      Alert.alert('Error', 'Failed to save current note');
+                      return;
+                    }
+                  }
+                  // Create the note with the target name
+                  const newFilePath = FileSystemService.join(repositoryPath, `${target}.md`);
+                  try {
+                    await FileSystemService.writeFile(newFilePath, `# ${target}\n\n`);
+                    // Add current file to navigation history before navigating
+                    setNavigationHistory(prev => [...prev, filePath]);
+                    navigation.navigate('Editor', { filePath: newFilePath });
+                  } catch (err) {
+                    console.error('Failed to create note:', err);
+                    Alert.alert('Error', 'Failed to create note');
+                  }
+                },
+              },
+            ]
+          );
+        }
+
+        return false; // Prevent default link handling
+      } catch (err) {
+        console.error('Failed to handle wikilink:', err);
+        Alert.alert('Error', 'Failed to navigate to note');
+        return false;
+      }
+    }
+
+    // For regular links, let the system handle them
+    return true;
   };
 
   if (isLoading) {
@@ -409,16 +717,29 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           <MaterialIcons name="circle" size={12} color={theme.colors.primary} style={styles.unsavedIndicator} />
         )}
 
+        {/* Refresh Button */}
+        <TouchableOpacity
+          style={styles.previewToggleButton}
+          onPress={handleRefresh}
+          disabled={isRefreshing}
+          testID="refresh-button"
+        >
+          {isRefreshing
+            ? <ActivityIndicator size="small" color={theme.colors.primary} />
+            : <MaterialIcons name="refresh" size={24} color={theme.colors.primary} />
+          }
+        </TouchableOpacity>
+
         {/* Preview Toggle Button */}
         <TouchableOpacity
           style={styles.previewToggleButton}
           onPress={handleTogglePreview}
           testID="preview-toggle-button"
         >
-          <MaterialIcons 
-            name={isPreviewMode ? "edit" : "visibility"} 
-            size={24} 
-            color={theme.colors.text} 
+          <MaterialIcons
+            name={isPreviewMode ? "edit" : "visibility"}
+            size={24}
+            color={theme.colors.text}
           />
         </TouchableOpacity>
         
@@ -428,6 +749,9 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
             styles.saveButton,
             { backgroundColor: hasChanges ? theme.colors.primary : theme.colors.border },
           ]}
+          onPressIn={() => {
+            shouldRestoreEditorFocusRef.current = textInputRef.current?.isFocused() ?? false;
+          }}
           onPress={handleSave}
           disabled={!hasChanges || isSaving}
         >
@@ -466,6 +790,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
             <Markdown 
               style={markdownStyles}
               rules={renderRules}
+              onLinkPress={handleLinkPress}
             >
               {previewContent}
             </Markdown>
@@ -475,6 +800,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
             <TextInput
               testID="editor-input"
+              ref={textInputRef}
               style={[
                 styles.editor,
                 {
@@ -496,6 +822,62 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      {/* Wikilink Picker Modal */}
+      {showWikilinkPicker && (
+        <View style={styles.wikilinkModalOverlay}>
+          <View style={[styles.wikilinkModal, { backgroundColor: theme.colors.card }]}>
+            <View style={styles.wikilinkModalHeader}>
+              <Text style={[styles.wikilinkModalTitle, { color: theme.colors.text }]}>
+                Link to note
+              </Text>
+              <TouchableOpacity onPress={handleWikilinkDismiss}>
+                <MaterialIcons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <TextInput
+              style={[styles.wikilinkSearchInput, { 
+                color: theme.colors.text,
+                backgroundColor: isDark ? '#2d2d2d' : '#f0f0f0',
+                borderColor: theme.colors.border,
+              }]}
+              value={wikilinkSearch}
+              onChangeText={(text) => {
+                setWikilinkSearch(text);
+                const filtered = availableNotes.filter(note => 
+                  note.name.toLowerCase().replace(/\.md$/, '').includes(text.toLowerCase())
+                );
+                setFilteredNotes(filtered);
+              }}
+              placeholder="Search notes..."
+              placeholderTextColor={theme.colors.text + '60'}
+              autoFocus
+            />
+            
+            <ScrollView style={styles.wikilinkList} keyboardShouldPersistTaps="handled">
+              {filteredNotes.length === 0 ? (
+                <Text style={[styles.wikilinkEmptyText, { color: theme.colors.text + '80' }]}>
+                  {wikilinkSearch ? 'No notes found' : 'Type to search notes'}
+                </Text>
+              ) : (
+                filteredNotes.map((note) => (
+                  <TouchableOpacity
+                    key={note.path}
+                    style={styles.wikilinkListItem}
+                    onPress={() => handleWikilinkSelect(note.name)}
+                  >
+                    <MaterialIcons name="description" size={20} color={theme.colors.primary} />
+                    <Text style={[styles.wikilinkListItemText, { color: theme.colors.text }]}>
+                      {note.name.replace(/\.md$/, '')}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -601,5 +983,65 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 3,
+  },
+  wikilinkModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  wikilinkModal: {
+    width: '80%',
+    maxHeight: '60%',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  wikilinkModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  wikilinkModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  wikilinkSearchInput: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  wikilinkList: {
+    maxHeight: 300,
+  },
+  wikilinkListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  wikilinkListItemText: {
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  wikilinkEmptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 24,
   },
 });

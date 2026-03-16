@@ -445,6 +445,12 @@ struct RawEditor: NSViewRepresentable {
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
             return (textView as? LinkAwareTextView)?.handleLinkClick(link) ?? false
         }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard parent.appState.settings.hideMarkdownWhileEditing,
+                  let tv = textView else { return }
+            tv.revealWikilinkAtCursor()
+        }
     }
 }
 
@@ -681,9 +687,12 @@ extension LinkAwareTextView {
         hideGroup("(\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 1)
         hideGroup("(\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 3)
 
-        // Wiki links [[note]] — hide the [[ and ]] delimiters
+        // Wiki links [[note]] or [[note|alias]] — hide [[ and ]]
         hideGroup("(\\[\\[)([^\\]]+)(\\]\\])", group: 1)
         hideGroup("(\\[\\[)([^\\]]+)(\\]\\])", group: 3)
+        // When an alias is present ([[note|alias]]), also hide the "note|" prefix
+        // so only the alias text is visible.
+        hideGroup("(\\[\\[)([^\\]|]+\\|)([^\\]]+)(\\]\\])", group: 2)
 
         // Embed ![[note]] — hide ![[  and  ]]
         hideGroup("(!\\[\\[)([^\\]]+)(\\]\\])", group: 1)
@@ -711,6 +720,52 @@ extension LinkAwareTextView {
             }
         }
 
+        storage.endEditing()
+
+        // After hiding, reveal the wikilink the cursor is currently inside.
+        if isEditable { revealWikilinkAtCursor() }
+    }
+
+    /// Unhides the [[/]] delimiters (and any alias prefix) of the wikilink that
+    /// contains the cursor, so the user can see and edit the raw syntax.
+    func revealWikilinkAtCursor() {
+        guard let storage = textStorage else { return }
+        let cursor = selectedRange().location
+        guard cursor != NSNotFound else { return }
+        let nsText = storage.string as NSString
+        let len = nsText.length
+        guard len > 0 else { return }
+
+        // Find the nearest [[ before the cursor on the same line.
+        let lineStart = nsText.lineRange(for: NSRange(location: min(cursor, len - 1), length: 0)).location
+        let searchLen = min(cursor, len) - lineStart
+        guard searchLen >= 0 else { return }
+        let sub = nsText.substring(with: NSRange(location: lineStart, length: searchLen)) as NSString
+        let bracketRange = sub.range(of: "[[", options: .backwards)
+        guard bracketRange.location != NSNotFound else { return }
+
+        let absStart = lineStart + bracketRange.location
+        // Find the closing ]] after the cursor.
+        let afterCursor = min(cursor, len)
+        let searchAfterLen = len - afterCursor
+        guard searchAfterLen >= 0 else { return }
+        let afterSub = nsText.substring(with: NSRange(location: afterCursor, length: searchAfterLen)) as NSString
+        let closeRange = afterSub.range(of: "]]")
+        guard closeRange.location != NSNotFound else { return }
+        let absEnd = afterCursor + closeRange.location + 2  // past ]]
+
+        // Make sure no newline is between [[ and ]]
+        let tokenRange = NSRange(location: absStart, length: absEnd - absStart)
+        guard tokenRange.length <= 200 else { return }
+        let token = nsText.substring(with: tokenRange)
+        guard !token.contains("\n") else { return }
+
+        let visibleAttrs: [NSAttributedString.Key: Any] = [
+            .font: MarkdownTheme.body,
+            .foregroundColor: MarkdownTheme.dimColor,
+        ]
+        storage.beginEditing()
+        storage.addAttributes(visibleAttrs, range: tokenRange)
         storage.endEditing()
     }
 
@@ -1116,6 +1171,8 @@ class LinkAwareTextView: NSTextView {
     /// Set when the user ESCs the wiki-link picker. Suppresses reopening the picker
     /// until the cursor leaves the current [[ token (which calls dismissCompletion).
     fileprivate var wikilinkPickerSuppressed = false
+    /// Selected text captured before the wikilink palette opens; used to produce [[name|alias]].
+    fileprivate var pendingWikilinkAlias: String? = nil
     private var eventMonitor: Any?
     private var inlineImageViews: [String: NSImageView] = [:]
     private var inlineVideoViews: [String: YouTubePreviewView] = [:]
@@ -1147,16 +1204,17 @@ class LinkAwareTextView: NSTextView {
         if activatePaneOnReadOnlyInteraction(isEditable: isEditable, onActivatePane: onActivatePane) {
             return
         }
-        // Handle clicks on wiki links (stored as .wikilinkTarget to preserve our custom color).
-        if event.modifierFlags.contains(.command) || !isEditable {
-            let point = convert(event.locationInWindow, from: nil)
-            if let layout = layoutManager, let container = textContainer {
-                let charIndex = layout.characterIndex(for: point, in: container, fractionOfDistanceBetweenInsertionPoints: nil)
-                if charIndex < (string as NSString).length,
-                   let target = textStorage?.attribute(.wikilinkTarget, at: charIndex, effectiveRange: nil) as? String {
-                    _ = handleLinkClick(target)
-                    return
-                }
+        // Wiki link clicks always open the note — never place the cursor inside the link.
+        // Use fractionOfDistanceBetweenInsertionPoints to confirm the click landed on a glyph,
+        // not just near one (avoids false triggers from clicks below/beside the link).
+        let point = convert(event.locationInWindow, from: nil)
+        if let layout = layoutManager, let container = textContainer {
+            var fraction: CGFloat = 0
+            let charIndex = layout.characterIndex(for: point, in: container, fractionOfDistanceBetweenInsertionPoints: &fraction)
+            if charIndex < (string as NSString).length, fraction > 0, fraction < 1,
+               let target = textStorage?.attribute(.wikilinkTarget, at: charIndex, effectiveRange: nil) as? String {
+                _ = handleLinkClick(target)
+                return
             }
         }
         super.mouseDown(with: event)
@@ -1506,6 +1564,16 @@ class LinkAwareTextView: NSTextView {
             paste(self)
             return true
         }
+        // CMD-K with a non-empty selection: open the wikilink picker and use the
+        // selected text as the alias, so the result is [[picked-note|selected text]].
+        if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "k" {
+            let sel = selectedRange()
+            if sel.length > 0, let selectedText = (string as NSString?)?.substring(with: sel), !selectedText.isEmpty {
+                pendingWikilinkAlias = selectedText
+                onWikiLinkRequest?()
+                return true
+            }
+        }
         return super.performKeyEquivalent(with: event)
     }
 
@@ -1663,22 +1731,44 @@ class LinkAwareTextView: NSTextView {
     }
 
     func insertLink(_ url: URL) {
+        let name = url.deletingPathExtension().lastPathComponent
+        let alias = pendingWikilinkAlias
+        pendingWikilinkAlias = nil
+
+        if linkTypingRange == nil, let alias, !alias.isEmpty {
+            // CMD-K with selected text: replace the selection with [[name|alias]].
+            let selRange = selectedRange()
+            guard selRange.location != NSNotFound else { return }
+            let linkText = "[[\(name)|\(alias)]]"
+            if shouldChangeText(in: selRange, replacementString: linkText) {
+                replaceCharacters(in: selRange, with: linkText)
+                didChangeText()
+            }
+            return
+        }
+
+        // Normal [[...]] typing flow.
         guard let range = linkTypingRange else { return }
         guard range.location >= 0, range.location + range.length <= (string as NSString).length else {
             dismissCompletion()
             return
         }
         let typed = (string as NSString).substring(with: range)
-        // Safety guard: only replace a local wiki-link token, never a broad text span.
         guard typed.hasPrefix("[["), !typed.contains("\n"), range.length <= 120 else {
             dismissCompletion()
             return
         }
-        let name = url.deletingPathExtension().lastPathComponent
         let linkText = "[[\(name)]]"
         if shouldChangeText(in: range, replacementString: linkText) {
             replaceCharacters(in: range, with: linkText)
             didChangeText()
+            // Restore focus and place cursor after ]] once the palette has dismissed.
+            let afterLink = range.location + (linkText as NSString).length
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.window?.makeFirstResponder(self)
+                self.setSelectedRange(NSRange(location: afterLink, length: 0))
+            }
         }
         dismissCompletion()
     }

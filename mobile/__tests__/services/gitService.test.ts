@@ -526,6 +526,66 @@ describe('GitService', () => {
     });
   });
 
+  describe('refreshRemote', () => {
+    it('busts caches for GitHub API refresh requests so recent remote changes appear immediately', async () => {
+      const localPath = 'file:///mock/documents/vault/repo';
+      const metadata = {
+        version: 1,
+        transport: 'github-api',
+        repoUrl: 'https://github.com/test/repo',
+        owner: 'test',
+        repo: 'repo',
+        branch: 'main',
+        commitSha: 'commit-sha-1',
+        treeSha: 'tree-sha-1',
+        files: {
+          'README.md': { sha: 'old-readme-sha', mode: '100644', type: 'blob' },
+        },
+      };
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+        JSON.stringify({ ['https://github.com/test/repo']: { username: 'token', token: 'ghp_testtoken123' } })
+      );
+
+      (FileSystem.getInfoAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return { exists: true, isDirectory: false, size: 0 };
+        if (path === 'file:///mock/documents/vault/repo/README.md') return { exists: true, isDirectory: false, size: 0 };
+        return { exists: false, isDirectory: false, size: 0 };
+      });
+
+      (FileSystem.readAsStringAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return JSON.stringify(metadata);
+        return '';
+      });
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'remote-commit-sha' } }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ tree: { sha: 'remote-tree-sha' } }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            tree: [
+              { path: 'README.md', type: 'blob', mode: '100644', sha: 'new-readme-sha' },
+            ],
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ content: 'IyBOZXcK', encoding: 'base64' }) });
+
+      await GitService.refreshRemote(localPath);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringMatching(/^https:\/\/api\.github\.com\/repos\/test\/repo\/branches\/main\?[^\s]*cache_bust=/),
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'Cache-Control': 'no-cache, no-store',
+            Pragma: 'no-cache',
+          }),
+        })
+      );
+    });
+  });
+
   describe('Error Handling', () => {
     describe('GitError', () => {
       it('should create error with specific type', () => {
