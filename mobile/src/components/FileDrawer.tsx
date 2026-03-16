@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -73,6 +74,12 @@ export function FileDrawer({
   });
   const [templatesDirectory, setTemplatesDirectory] = useState<string>('templates');
   const slideAnim = useState(new Animated.Value(-Dimensions.get('window').width * 0.8))[0];
+  
+  // Vault-wide search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ file: FileNode; lineNumber: number; lineText: string; matchIndex: number }[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Load saved preferences and file filters on mount
   useEffect(() => {
@@ -296,6 +303,84 @@ export function FileDrawer({
 
   const getSortedFiles = useCallback(() => sortFiles(files), [files, sortFiles]);
   const getSortedFlatFiles = useCallback(() => sortFiles(flatFiles), [flatFiles, sortFiles]);
+
+  // Vault-wide search function
+  const performVaultSearch = useCallback(async (query: string) => {
+    if (!query.trim() || !vaultPath) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    
+    try {
+      // Get all markdown files
+      const allFiles = await FileSystemService.getFlatFileList(vaultPath, {
+        fileExtensionFilter: '*.md',
+        hiddenFileFolderFilter: '.git',
+      });
+
+      const results: { file: FileNode; lineNumber: number; lineText: string; matchIndex: number }[] = [];
+      const lowerQuery = query.toLowerCase();
+
+      // Search through each file
+      for (const file of allFiles) {
+        try {
+          const content = await FileSystemService.readFile(file.path);
+          const lines = content.split('\n');
+          
+          lines.forEach((line, index) => {
+            if (line.toLowerCase().includes(lowerQuery)) {
+              results.push({
+                file,
+                lineNumber: index + 1,
+                lineText: line.trim().substring(0, 100), // Limit preview length
+                matchIndex: line.toLowerCase().indexOf(lowerQuery),
+              });
+            }
+          });
+        } catch (err) {
+          console.warn(`[FileDrawer] Error reading file ${file.path}:`, err);
+        }
+      }
+
+      setSearchResults(results);
+    } catch (error) {
+      console.error('[FileDrawer] Search error:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [vaultPath]);
+
+  // Debounced search handler
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(() => {
+      performVaultSearch(query);
+    }, 300); // 300ms debounce
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setIsSearching(false);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+  };
 
   const openDrawer = () => {
     setIsOpen(true);
@@ -775,6 +860,65 @@ export function FileDrawer({
               </TouchableOpacity>
             </View>
 
+            {/* Vault Search */}
+            <View style={[styles.searchContainer, { backgroundColor: theme.colors.card }]}>
+              <View style={styles.searchInputContainer}>
+                <MaterialIcons name="search" size={20} color={theme.colors.text + '60'} style={styles.searchIcon} />
+                <TextInput
+                  testID="vault-search-input"
+                  style={[styles.searchInput, { color: theme.colors.text }]}
+                  value={searchQuery}
+                  onChangeText={handleSearchChange}
+                  placeholder="Search all notes..."
+                  placeholderTextColor={theme.colors.text + '60'}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={clearSearch} testID="clear-search-button">
+                    <MaterialIcons name="close" size={20} color={theme.colors.text + '60'} />
+                  </TouchableOpacity>
+                )}
+                {isSearching && (
+                  <ActivityIndicator size="small" color={theme.colors.primary} style={styles.searchSpinner} />
+                )}
+              </View>
+              
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <View style={styles.searchResultsContainer}>
+                  <Text style={[styles.searchResultsHeader, { color: theme.colors.text + '70' }]}>
+                    {searchResults.length} match{searchResults.length !== 1 ? 'es' : ''}
+                  </Text>
+                  <ScrollView style={styles.searchResultsList} testID="search-results-list">
+                    {searchResults.map((result, index) => (
+                      <TouchableOpacity
+                        key={`${result.file.path}-${result.lineNumber}-${index}`}
+                        style={[
+                          styles.searchResultItem,
+                          { borderBottomColor: theme.colors.border },
+                          activeFilePath === result.file.path && styles.searchResultItemActive
+                        ]}
+                        onPress={() => handleFileSelect(result.file.path)}
+                        testID={`search-result-${index}`}
+                      >
+                        <View style={styles.searchResultHeader}>
+                          <MaterialIcons name="description" size={16} color={theme.colors.primary} />
+                          <Text style={[styles.searchResultFileName, { color: theme.colors.text }]} numberOfLines={1}>
+                            {result.file.name.replace(/\.md$/, '')}
+                          </Text>
+                          <Text style={[styles.searchResultLineNumber, { color: theme.colors.text + '50' }]}>
+                            Line {result.lineNumber}
+                          </Text>
+                        </View>
+                        <Text style={[styles.searchResultPreview, { color: theme.colors.text + '80' }]} numberOfLines={2}>
+                          {result.lineText}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
             {/* Pinned Items */}
             {pinnedItems.length > 0 && (
               <View style={styles.pinnedSection}>
@@ -1167,5 +1311,70 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  searchContainer: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    padding: 0,
+  },
+  searchSpinner: {
+    marginLeft: 8,
+  },
+  searchResultsContainer: {
+    marginTop: 12,
+    maxHeight: 300,
+  },
+  searchResultsHeader: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  searchResultsList: {
+    maxHeight: 250,
+  },
+  searchResultItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+  },
+  searchResultItemActive: {
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+  },
+  searchResultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  searchResultFileName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+    flex: 1,
+  },
+  searchResultLineNumber: {
+    fontSize: 11,
+    marginLeft: 8,
+  },
+  searchResultPreview: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginLeft: 22,
   },
 });
