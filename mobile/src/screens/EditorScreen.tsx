@@ -303,6 +303,30 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     setCurrentMatchIndex(0);
   };
 
+  const exitSearchAndEdit = (cursorPosition: number) => {
+    // Close search mode
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    setSearchMatches([]);
+    setCurrentMatchIndex(0);
+    
+    // Focus the text input and set cursor position
+    setTimeout(() => {
+      if (textInputRef.current) {
+        textInputRef.current.focus();
+        // Try to set selection if the API supports it
+        try {
+          // @ts-ignore - React Native TextInput may have setNativeProps
+          textInputRef.current.setNativeProps({
+            selection: { start: cursorPosition, end: cursorPosition }
+          });
+        } catch (e) {
+          console.log('Could not set cursor position:', e);
+        }
+      }
+    }, 100);
+  };
+
   const performSearch = (query: string) => {
     setSearchQuery(query);
     if (!query.trim()) {
@@ -933,18 +957,26 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                   // Find matches on this line
                   const lineMatches = searchMatches.filter(m => m.line === lineIndex);
                   
+                  // Calculate cursor position for this line
+                  const lineStartPos = content.split('\n').slice(0, lineIndex).join('\n').length + (lineIndex > 0 ? 1 : 0);
+                  
                   if (lineMatches.length === 0) {
                     return (
-                      <Text key={lineIndex} style={[styles.searchLine, { color: theme.colors.text }]}>
-                        {line || ' '}
-                      </Text>
+                      <TouchableOpacity 
+                        key={lineIndex} 
+                        onPress={() => exitSearchAndEdit(lineStartPos + line.length)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.searchLine, { color: theme.colors.text }]}>
+                          {line || ' '}
+                        </Text>
+                      </TouchableOpacity>
                     );
                   }
                   
                   // Build highlighted line
                   const parts: JSX.Element[] = [];
                   let lastEnd = 0;
-                  const isActiveLine = lineIndex === searchMatches[currentMatchIndex]?.line;
                   
                   lineMatches.forEach((match, idx) => {
                     // Text before match
@@ -957,8 +989,8 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                     }
                     
                     // Highlighted match text
-                    const isActiveMatch = lineIndex === searchMatches[currentMatchIndex].line && 
-                                         match.start === searchMatches[currentMatchIndex].start;
+                    const isActiveMatch = lineIndex === searchMatches[currentMatchIndex]?.line && 
+                                         match.start === searchMatches[currentMatchIndex]?.start;
                     parts.push(
                       <Text 
                         key={`match-${idx}`} 
@@ -986,9 +1018,15 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                   }
                   
                   return (
-                    <Text key={lineIndex} style={styles.searchLine}>
-                      {parts.length > 0 ? parts : ' '}
-                    </Text>
+                    <TouchableOpacity 
+                      key={lineIndex} 
+                      onPress={() => exitSearchAndEdit(lineStartPos + line.length)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.searchLine}>
+                        {parts.length > 0 ? parts : ' '}
+                      </Text>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
