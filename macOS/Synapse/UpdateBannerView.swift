@@ -1,22 +1,23 @@
 import SwiftUI
 
-/// Non-blocking banner shown when an update has been installed
+/// Banner shown when an update is available, linking to GitHub releases
 struct UpdateBannerView: View {
     let version: String
     @Binding var isPresented: Bool
+    var onDownload: () -> Void
     
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.down.circle.fill")
                 .font(.system(size: 20))
-                .foregroundColor(.green)
+                .foregroundColor(SynapseTheme.accent)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Synapse has been updated to v\(version)")
+                Text("Update available: v\(version)")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.primary)
                 
-                Text("Restart the app to apply the update")
+                Text("Download the latest version from GitHub")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
             }
@@ -24,9 +25,9 @@ struct UpdateBannerView: View {
             Spacer()
             
             Button(action: {
-                NSApplication.shared.terminate(nil)
+                onDownload()
             }) {
-                Text("Restart Now")
+                Text("Download")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
@@ -61,7 +62,11 @@ struct UpdateBannerView: View {
 }
 
 #Preview {
-    UpdateBannerView(version: "1.1.0", isPresented: .constant(true))
-        .frame(width: 500)
-        .preferredColorScheme(.dark)
+    UpdateBannerView(
+        version: "1.1.0",
+        isPresented: .constant(true),
+        onDownload: {}
+    )
+    .frame(width: 500)
+    .preferredColorScheme(.dark)
 }

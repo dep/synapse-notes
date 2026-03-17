@@ -83,7 +83,13 @@ struct ContentView: View {
 
             if showUpdateBanner, let version = autoUpdater.latestVersion {
                 VStack {
-                    UpdateBannerView(version: version, isPresented: $showUpdateBanner)
+                    UpdateBannerView(
+                        version: version,
+                        isPresented: $showUpdateBanner,
+                        onDownload: {
+                            autoUpdater.openReleasesPage()
+                        }
+                    )
                     Spacer()
                 }
                 .zIndex(3)
@@ -229,8 +235,8 @@ struct ContentView: View {
             TemplateRenameSheet(request: request)
                 .environmentObject(appState)
         }
-        .onChange(of: autoUpdater.updateInstalled) { installed in
-            if installed {
+        .onChange(of: autoUpdater.updateAvailable) { available in
+            if available {
                 withAnimation {
                     showUpdateBanner = true
                 }
