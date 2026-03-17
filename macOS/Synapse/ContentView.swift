@@ -80,7 +80,7 @@ struct ContentView: View {
             }
 
             Group {
-                Button("") { appState.presentCommandPalette() }
+                Button("") { NotificationCenter.default.post(name: .commandKPressed, object: nil) }
                     .keyboardShortcut("k", modifiers: .command)
                     .hidden()
                 Button("") { appState.presentCommandPalette() }

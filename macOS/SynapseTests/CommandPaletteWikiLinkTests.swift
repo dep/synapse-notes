@@ -106,6 +106,41 @@ final class CommandPaletteWikiLinkTests: XCTestCase {
         XCTAssertEqual(wikiLinkRequestCount, 0)
     }
 
+    func test_presentCommandPalette_doesNotOverrideActiveWikiLinkPickerFlow() {
+        let textView = LinkAwareTextView()
+        let targetFile = tempDirectory.appendingPathComponent("TargetNote.md")
+        try? "Content".write(to: targetFile, atomically: true, encoding: .utf8)
+
+        textView.onWikiLinkRequest = { [weak self, weak textView] in
+            self?.sut.wikiLinkCompletionHandler = { url in
+                textView?.onWikiLinkComplete?(url)
+            }
+            self?.sut.wikiLinkDismissHandler = {
+                textView?.onWikiLinkDismiss?()
+            }
+            self?.sut.presentCommandPalette(mode: .wikiLink)
+        }
+        textView.onWikiLinkComplete = { [weak textView] url in
+            textView?.insertLink(url)
+        }
+
+        textView.string = "Link this text please"
+        textView.setSelectedRange(NSRange(location: 5, length: 9))
+
+        let handled = textView.performKeyEquivalent(with: commandKEvent())
+        XCTAssertTrue(handled)
+        XCTAssertEqual(sut.commandPaletteMode, .wikiLink)
+
+        // Simulate the global hidden SwiftUI shortcut firing after the text view already handled CMD-K.
+        sut.presentCommandPalette()
+
+        XCTAssertEqual(sut.commandPaletteMode, .wikiLink)
+
+        sut.handleWikiLinkSelection(fileURL: targetFile, cursorPosition: 0)
+
+        XCTAssertEqual(textView.string, "Link [[TargetNote|this text]] please")
+    }
+
     private func commandKEvent() -> NSEvent {
         NSEvent.keyEvent(
             with: .keyDown,

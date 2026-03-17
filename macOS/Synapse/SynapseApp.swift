@@ -51,7 +51,7 @@ struct SynapseApp: App {
                 .disabled(appState.rootURL == nil)
 
                 Button("Command Palette…") {
-                    appState.presentCommandPalette()
+                    NotificationCenter.default.post(name: .commandKPressed, object: nil)
                 }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(appState.rootURL == nil)

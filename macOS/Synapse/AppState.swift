@@ -1150,7 +1150,11 @@ class AppState: ObservableObject {
 
     func presentCommandPalette(mode: CommandPaletteMode = .files) {
         guard rootURL != nil else { return }
-        commandPaletteMode = mode
+        if mode == .files, wikiLinkCompletionHandler != nil {
+            commandPaletteMode = .wikiLink
+        } else {
+            commandPaletteMode = mode
+        }
         isCommandPalettePresented = true
     }
 
@@ -1164,6 +1168,7 @@ class AppState: ObservableObject {
         commandPaletteMode = .files
         targetDirectoryForTemplate = nil
         pendingTemplateURL = nil
+        wikiLinkCompletionHandler = nil
         wikiLinkDismissHandler = nil
     }
 

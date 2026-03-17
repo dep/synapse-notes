@@ -297,6 +297,10 @@ struct RawEditor: NSViewRepresentable {
         textView.installSearchObservers()
         textView.installFocusObserver()
         textView.installSaveCursorObserver(appState: context.coordinator.parent.appState)
+        textView.installCommandKObserver()
+        textView.onCommandPaletteFallback = { [weak appState] in
+            appState?.presentCommandPalette()
+        }
         
         // Set up wiki link callbacks
         textView.onWikiLinkRequest = { [weak appState, weak textView] in
@@ -1219,6 +1223,8 @@ class LinkAwareTextView: NSTextView {
     var onWikiLinkDismiss: (() -> Void)?   // Called when the picker is dismissed via ESC
     var slashCommandNowProvider: () -> Date = Date.init
     var slashCommandTimeZone: TimeZone = .current
+    /// Called when CMD-K fires but the editor has no selection, so the normal command palette should open.
+    var onCommandPaletteFallback: (() -> Void)?
 
     private var completionPopover: NSPopover?
     private var completionVC: CompletionViewController?
@@ -1324,6 +1330,39 @@ class LinkAwareTextView: NSTextView {
             appState.pendingCursorRange = self.selectedRange()
             appState.pendingScrollOffsetY = self.enclosingScrollView?.contentView.bounds.origin.y ?? 0
         }
+    }
+
+    // MARK: - CMD-K observer
+
+    private var commandKObserver: Any?
+
+    func installCommandKObserver() {
+        guard commandKObserver == nil else { return }
+        commandKObserver = NotificationCenter.default.addObserver(
+            forName: .commandKPressed,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isEditable else {
+                self?.onCommandPaletteFallback?()
+                return
+            }
+            let sel = self.selectedRange()
+            if sel.length > 0,
+               let selectedText = (self.string as NSString?)?.substring(with: sel),
+               !selectedText.isEmpty {
+                self.pendingWikilinkAlias = selectedText
+                self.pendingWikilinkSelectionRange = sel
+                self.onWikiLinkRequest?()
+            } else {
+                self.onCommandPaletteFallback?()
+            }
+        }
+    }
+
+    func removeCommandKObserver() {
+        if let obs = commandKObserver { NotificationCenter.default.removeObserver(obs) }
+        commandKObserver = nil
     }
 
     // MARK: - Search highlight support
