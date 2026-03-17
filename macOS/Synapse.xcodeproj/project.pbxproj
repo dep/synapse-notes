@@ -111,6 +111,7 @@
 		FFB20CCC7CDB7FD7D16E73EE /* AppStateSettingsPropagationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DC2A24B73EE5F6505170332 /* AppStateSettingsPropagationTests.swift */; };
 		76B1FAD07E6AC9C3D5A49B5D /* UpdateBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A7390F4392559FCA7047A2 /* UpdateBannerView.swift */; };
 		8808A822F7A0C9061D620532 /* AutoUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E3232273571E749E175B57 /* AutoUpdater.swift */; };
+		FCB55BBF078DCE3D3635B0CB /* AutoUpdaterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E5D11142C56584FF7F5815 /* AutoUpdaterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -229,6 +230,7 @@
 		FF3182DCA96C9518DC154E22 /* GitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitService.swift; sourceTree = "<group>"; };
 		23A7390F4392559FCA7047A2 /* UpdateBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateBannerView.swift; sourceTree = "<group>"; };
 		F8E3232273571E749E175B57 /* AutoUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoUpdater.swift; sourceTree = "<group>"; };
+		D6E5D11142C56584FF7F5815 /* AutoUpdaterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoUpdaterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -329,6 +331,7 @@
 				879B52DC9366FD1D0BA57D20 /* AppStateTemplateVariablesTests.swift */,
 				ED347CEFEE6A6F742F99580B /* AppStateUntitledNoteTests.swift */,
 				EF0502C0261847F74C47B810 /* AppStateWikiLinkTests.swift */,
+				D6E5D11142C56584FF7F5815 /* AutoUpdaterTests.swift */,
 				0A550D18D4F2CA38FCA1D0B8 /* CodeBlockCopyButtonTests.swift */,
 				71DDA03EE1F69F7782A6C13A /* CodeBlockLayoutTests.swift */,
 				A307C880E354FA57E8BFEB62 /* CollapsibleSectionsTests.swift */,
@@ -510,6 +513,7 @@
 				C9FF200E8A6D943707610F1E /* AppStateTemplatesTests.swift in Sources */,
 				97059684F4D6FB15BE399547 /* AppStateUntitledNoteTests.swift in Sources */,
 				7FA55FF63CB1CC6E03BEEBCE /* AppStateWikiLinkTests.swift in Sources */,
+				FCB55BBF078DCE3D3635B0CB /* AutoUpdaterTests.swift in Sources */,
 				B87F1BB42DB175A44CDDAE72 /* CodeBlockCopyButtonTests.swift in Sources */,
 				6460A69C604E78BA3A371AE9 /* CodeBlockLayoutTests.swift in Sources */,
 				E84D8DF773FF8BED5152D2BC /* CollapsibleSectionsTests.swift in Sources */,
