@@ -1692,7 +1692,9 @@ class AppState: ObservableObject {
     }
 
     func saveCurrentFile(content: String) {
-        guard let url = selectedFile else { return }
+        // selectedFile can be temporarily cleared by folder-focused UI states while a file tab
+        // remains active. Fall back to the active file tab so dirty edits are not dropped.
+        guard let url = selectedFile ?? activeTab?.fileURL else { return }
         try? content.write(to: url, atomically: true, encoding: .utf8)
         isDirty = false
         lastObservedModificationDate = fileModificationDate(for: url)

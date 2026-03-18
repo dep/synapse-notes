@@ -140,6 +140,23 @@ final class AppStateSaveTests: XCTestCase {
         XCTAssertEqual(savedA, "modified A", "Dirty content should be saved before navigating away")
     }
 
+    func test_openFile_whenDirtyAndSelectedFileWasCleared_stillSavesPreviousActiveFile() throws {
+        let fileA = makeFile(named: "dirty-a.md", content: "original A")
+        let fileB = makeFile(named: "dirty-b.md", content: "content B")
+
+        sut.openFile(fileA)
+        sut.fileContent = "modified A"
+        sut.isDirty = true
+
+        // Matches pinned-folder focus behavior in FileTreeView, which clears selection.
+        sut.selectedFile = nil
+
+        sut.openFile(fileB)
+
+        let savedA = try String(contentsOf: fileA, encoding: .utf8)
+        XCTAssertEqual(savedA, "modified A", "Dirty content should still be saved even if selectedFile was temporarily cleared")
+    }
+
     func test_openFile_whenNotDirty_doesNotOverwriteExistingContent() throws {
         let fileA = makeFile(named: "clean_a.md", content: "original A")
         let fileB = makeFile(named: "clean_b.md", content: "content B")
