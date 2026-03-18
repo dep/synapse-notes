@@ -110,6 +110,7 @@
 		F03FCDD03015035E226FE7CD /* GitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3182DCA96C9518DC154E22 /* GitService.swift */; };
 		F0CC31A93376DEA4A2F12A95 /* SynapseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E13069F2D634A684FAE713 /* SynapseApp.swift */; };
 		F130A3AE3317CD34B8419BAA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CB8BA24E7E55C8EF0A3530F0 /* Assets.xcassets */; };
+		F4AE6BB73560EDBD541B5187 /* ImageSidebarEmbedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A03956EC9D388F74A50F6F3 /* ImageSidebarEmbedTests.swift */; };
 		FA748D708DD0F029A45CA494 /* GraphPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ADBC72A6A85DB161568424D /* GraphPaneView.swift */; };
 		FFB20CCC7CDB7FD7D16E73EE /* AppStateSettingsPropagationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DC2A24B73EE5F6505170332 /* AppStateSettingsPropagationTests.swift */; };
 /* End PBXBuildFile section */
@@ -184,6 +185,7 @@
 		7F7186E8801E8BC8BAA0678D /* AppStateDailyNotesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateDailyNotesTests.swift; sourceTree = "<group>"; };
 		84754D16BCE7669177FF151A /* PinningFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinningFeatureTests.swift; sourceTree = "<group>"; };
 		879B52DC9366FD1D0BA57D20 /* AppStateTemplateVariablesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTemplateVariablesTests.swift; sourceTree = "<group>"; };
+		8A03956EC9D388F74A50F6F3 /* ImageSidebarEmbedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSidebarEmbedTests.swift; sourceTree = "<group>"; };
 		8DC2A24B73EE5F6505170332 /* AppStateSettingsPropagationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSettingsPropagationTests.swift; sourceTree = "<group>"; };
 		8E6A63BB6A6141AA83800A2E /* AppStateCloneRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateCloneRepositoryTests.swift; sourceTree = "<group>"; };
 		8F24B33A93487844014AF953 /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
@@ -350,6 +352,7 @@
 				6C665A271CAB4E35735B89A9 /* GitServiceTests.swift */,
 				C55EAAB85AA800B037CDF588 /* GraphNodeColorTests.swift */,
 				AC8CA87990A19BCF411A9424 /* ImagePasteTests.swift */,
+				8A03956EC9D388F74A50F6F3 /* ImageSidebarEmbedTests.swift */,
 				625B7F4419FE877A036D3664 /* ListContinuationTests.swift */,
 				9D419E073C2917DEE1A85E20 /* NoteGraphModelTests.swift */,
 				670E10F779C6DB84F830893C /* PinnedItemStructTests.swift */,
@@ -532,6 +535,7 @@
 				D1DF0C68FA69ABC62DB00659 /* GitServiceTests.swift in Sources */,
 				E0730BEEF94695E2F06AFE72 /* GraphNodeColorTests.swift in Sources */,
 				3BAD93BD9ED210549AF41A07 /* ImagePasteTests.swift in Sources */,
+				F4AE6BB73560EDBD541B5187 /* ImageSidebarEmbedTests.swift in Sources */,
 				98ECF354C8B6A66507E3C7FE /* ListContinuationTests.swift in Sources */,
 				9C491E4C25AF389520BC1BD1 /* NoteGraphModelTests.swift in Sources */,
 				03ECED0F956DB0D5C6067DEE /* PinnedItemStructTests.swift in Sources */,

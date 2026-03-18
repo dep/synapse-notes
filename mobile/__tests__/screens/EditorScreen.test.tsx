@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { ThemeProvider } from '../../src/theme/ThemeContext';
-import { EditorScreen } from '../../src/screens/EditorScreen';
+import { EditorScreen, preparePreviewContent } from '../../src/screens/EditorScreen';
 import { FileSystemService } from '../../src/services/FileSystemService';
 import { GitService } from '../../src/services/gitService';
 import { OnboardingStorage } from '../../src/services/onboardingStorage';
@@ -13,7 +13,8 @@ jest.mock('../../src/services/FileSystemService', () => ({
     readFile: jest.fn(),
     writeFile: jest.fn(),
     resolveWikilink: jest.fn(),
-    join: jest.fn((...paths: string[]) => paths.join('/')),
+    dirname: jest.fn((path: string) => path.replace(/\/[^/]*$/, '')),
+    join: jest.fn((base: string, target: string) => `${base.replace(/\/+$/, '')}/${target.replace(/^\/+/, '')}`),
   },
 }));
 
@@ -166,6 +167,25 @@ describe('EditorScreen', () => {
 
       // Regular markdown links don't trigger resolveWikilink
       // They should be handled differently
+    });
+
+    it('resolves image embeds in preview mode to local file URIs wrapped in placeholder', async () => {
+      const contentWithImageEmbed = '![Diagram](diagram.png)\n\n![[diagram.png]]';
+      const previewContent = preparePreviewContent(contentWithImageEmbed, 'file:///vault/repo/note.md');
+
+      expect(previewContent).toContain('![Diagram](synapse-local://file:///vault/repo/diagram.png)');
+      expect(previewContent).toContain('![diagram.png](synapse-local://file:///vault/repo/diagram.png)');
+    });
+
+    it('uses a placeholder scheme so markdown-it does not strip local image URIs', async () => {
+      const contentWithImageEmbed = '![](diagram.png)';
+      const previewContent = preparePreviewContent(contentWithImageEmbed, 'file:///vault/repo/note.md');
+
+      // file:// is blocked by markdown-it's validateLink — the preview content
+      // must wrap local URIs in the synapse-local:// placeholder scheme.
+      // A bare ](file:// opening (without the placeholder prefix) must NOT appear.
+      expect(previewContent).not.toMatch(/\]\(file:\/\//);
+      expect(previewContent).toContain('synapse-local://file:///vault/repo/diagram.png');
     });
   });
 
