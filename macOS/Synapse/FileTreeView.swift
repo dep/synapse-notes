@@ -493,6 +493,13 @@ struct FileTreeView: View {
     }
 
     private func focusPinnedFolder(_ folder: URL, proxy: ScrollViewProxy) {
+        // Switch to folder view mode when tapping a pinned folder
+        fileTreeMode = .folder
+        settings.fileTreeMode = .folder
+        
+        // Clear selected file to show folder view instead of file view
+        appState.selectedFile = nil
+        
         // Collapse all root-level folders except the one being focused.
         let rootDirs = nodes.filter { $0.isDirectory }.map { $0.url }
         for dir in rootDirs where dir != folder {
