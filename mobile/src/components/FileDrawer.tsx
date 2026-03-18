@@ -59,6 +59,7 @@ export function FileDrawer({
   const [isOpen, setIsOpen] = useState(initialIsOpen);
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [sortOption, setSortOption] = useState<SortOption>('name-asc');
+  const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
   const [files, setFiles] = useState<FileNode[]>([]);
   const [flatFiles, setFlatFiles] = useState<FileNode[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -81,24 +82,27 @@ export function FileDrawer({
   const [isSearching, setIsSearching] = useState(false);
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  const loadPreferences = useCallback(async () => {
+    setHasLoadedPreferences(false);
+    try {
+      const savedViewMode = await AsyncStorage.getItem(STORAGE_KEYS.viewMode);
+      const savedSortOption = await AsyncStorage.getItem(STORAGE_KEYS.sortOption);
+      
+      if (savedViewMode) {
+        setViewMode(savedViewMode as ViewMode);
+      }
+      if (savedSortOption) {
+        setSortOption(savedSortOption as SortOption);
+      }
+    } catch (error) {
+      console.error('[FileDrawer] Failed to load preferences:', error);
+    } finally {
+      setHasLoadedPreferences(true);
+    }
+  }, []);
+
   // Load saved preferences and file filters on mount
   useEffect(() => {
-    const loadPreferences = async () => {
-      try {
-        const savedViewMode = await AsyncStorage.getItem(STORAGE_KEYS.viewMode);
-        const savedSortOption = await AsyncStorage.getItem(STORAGE_KEYS.sortOption);
-        
-        if (savedViewMode) {
-          setViewMode(savedViewMode as ViewMode);
-        }
-        if (savedSortOption) {
-          setSortOption(savedSortOption as SortOption);
-        }
-      } catch (error) {
-        console.error('[FileDrawer] Failed to load preferences:', error);
-      }
-    };
-
     const loadFileFilters = async () => {
       try {
         const settings = await SettingsStorage.getAllFileBrowserSettings();
@@ -120,21 +124,34 @@ export function FileDrawer({
     loadPreferences();
     loadFileFilters();
     loadTemplatesDirectory();
-  }, []);
+  }, [loadPreferences]);
+
+  // Reload preferences when drawer opens (in case they changed or component remounted)
+  useEffect(() => {
+    if (isOpen) {
+      loadPreferences();
+    }
+  }, [isOpen, loadPreferences]);
 
   // Save view mode when it changes
   useEffect(() => {
+    if (!hasLoadedPreferences) {
+      return;
+    }
     AsyncStorage.setItem(STORAGE_KEYS.viewMode, viewMode).catch(error => {
       console.error('[FileDrawer] Failed to save view mode:', error);
     });
-  }, [viewMode]);
+  }, [viewMode, hasLoadedPreferences]);
 
   // Save sort option when it changes
   useEffect(() => {
+    if (!hasLoadedPreferences) {
+      return;
+    }
     AsyncStorage.setItem(STORAGE_KEYS.sortOption, sortOption).catch(error => {
       console.error('[FileDrawer] Failed to save sort option:', error);
     });
-  }, [sortOption]);
+  }, [sortOption, hasLoadedPreferences]);
 
   // Sync with parent isOpen prop
   useEffect(() => {
@@ -192,11 +209,13 @@ export function FileDrawer({
     }
   }, [isOpen, vaultPath]);
 
+  // Eagerly pre-load flat file list whenever the drawer opens so switching to
+  // Files view is instant. If already loaded or loading, this is a no-op.
   useEffect(() => {
-    if (isOpen && viewMode === 'flat' && flatFiles.length === 0 && !isLoadingFlat) {
+    if (isOpen && flatFiles.length === 0 && !isLoadingFlat) {
       loadFlatFiles();
     }
-  }, [isOpen, viewMode, vaultPath, flatFiles.length, isLoadingFlat, loadFlatFiles]);
+  }, [isOpen, vaultPath, flatFiles.length, isLoadingFlat, loadFlatFiles]);
 
   const updateNodeChildren = useCallback((nodes: FileNode[], targetPath: string, children: FileNode[]): FileNode[] => {
     return nodes.map((node) => {

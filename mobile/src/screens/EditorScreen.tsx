@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   TextInput,
   TouchableOpacity,
@@ -31,6 +32,64 @@ const getRelativePath = (root: string, filePath: string) => {
     return normalizedFile;
   }
   return normalizedFile.slice(normalizedRoot.length + 1);
+};
+
+export const hasUriScheme = (value: string) => /^[a-z][a-z0-9+.-]*:/i.test(value);
+
+// markdown-it's validateLink blocks file:// URIs. We wrap them in a
+// placeholder scheme that markdown-it accepts, then unwrap in the
+// custom image render rule before passing to the native Image component.
+export const LOCAL_IMAGE_SCHEME = 'synapse-local://';
+
+export const resolveLocalMarkdownPath = (basePath: string, targetPath: string) => {
+  if (!targetPath.trim() || hasUriScheme(targetPath.trim())) {
+    return targetPath.trim();
+  }
+
+  const baseDir = FileSystemService.dirname(basePath);
+  return FileSystemService.join(baseDir, targetPath.trim());
+};
+
+export const parseWikiLinks = (text: string): string => {
+  return text.replace(
+    /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (match, target, display) => {
+      const displayText = display || target;
+      return `[${displayText}](synapse://wikilink/${encodeURIComponent(target)})`;
+    }
+  );
+};
+
+export const parseImageEmbeds = (text: string, sourcePath: string): string => {
+  const wrapLocal = (path: string) => {
+    // Already a remote URI — leave it alone
+    if (/^https?:\/\//i.test(path) || /^data:/i.test(path)) {
+      return path;
+    }
+    // Wrap local / file:// paths so markdown-it won't strip them
+    return `${LOCAL_IMAGE_SCHEME}${path}`;
+  };
+
+  const withWikiImageEmbeds = text.replace(
+    /!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (match, target, display) => {
+      const resolvedPath = resolveLocalMarkdownPath(sourcePath, target);
+      const altText = display || target;
+      return `![${altText}](${wrapLocal(resolvedPath)})`;
+    }
+  );
+
+  return withWikiImageEmbeds.replace(
+    /!\[([^\]]*)\]\(((?![a-z][a-z0-9+.-]*:)[^)]+)\)/gi,
+    (match, altText, src) => {
+      const resolvedPath = resolveLocalMarkdownPath(sourcePath, src);
+      return `![${altText}](${wrapLocal(resolvedPath)})`;
+    }
+  );
+};
+
+export const preparePreviewContent = (text: string, sourcePath: string): string => {
+  return parseWikiLinks(parseImageEmbeds(text, sourcePath));
 };
 
 type EditorScreenProps = NativeStackScreenProps<RootStackParamList, 'Editor'>;
@@ -546,17 +605,6 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   };
 
   // Parse wiki links for custom rendering
-  const parseWikiLinks = (text: string): string => {
-    // Convert [[Target|Display]] or [[Target]] to markdown links
-    return text.replace(
-      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-      (match, target, display) => {
-        const displayText = display || target;
-        return `[${displayText}](synapse://wikilink/${encodeURIComponent(target)})`;
-      }
-    );
-  };
-
   // Markdown styles based on theme
   const markdownStyles = {
     body: {
@@ -655,8 +703,24 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     },
   };
 
-  // Custom render rules for wiki links
+  // Custom render rules for wiki links and local images
   const renderRules = {
+    image: (node: any, _children: any, _parent: any, styles: any) => {
+      const { src, alt } = node.attributes;
+      // Unwrap the synapse-local:// placeholder to recover the real file:// URI
+      const uri = src?.startsWith(LOCAL_IMAGE_SCHEME)
+        ? src.slice(LOCAL_IMAGE_SCHEME.length)
+        : src;
+      return (
+        <Image
+          key={node.key}
+          source={{ uri }}
+          accessible={!!alt}
+          accessibilityLabel={alt}
+          style={[styles._VIEW_SAFE_image, { width: '100%', height: 200, resizeMode: 'contain' }]}
+        />
+      );
+    },
     link: (node: any, children: any, parent: any, styles: any) => {
       const { href } = node.attributes;
       
@@ -795,7 +859,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     );
   }
 
-  const previewContent = parseWikiLinks(content);
+  const previewContent = preparePreviewContent(content, filePath);
 
   return (
     <SafeAreaView testID="editor-container" style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
@@ -939,6 +1003,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
               style={markdownStyles}
               rules={renderRules}
               onLinkPress={handleLinkPress}
+              allowedImageHandlers={['data:image/png;base64', 'data:image/gif;base64', 'data:image/jpeg;base64', 'https://', 'http://', LOCAL_IMAGE_SCHEME]}
             >
               {previewContent}
             </Markdown>

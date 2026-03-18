@@ -71,7 +71,9 @@ struct EditorView: View {
     var readOnlyFile: URL? = nil
     var readOnlyContent: String? = nil
 
-    @State private var embeddedNotes: [EmbeddedNoteInfo] = []
+    @State private var embeddedNotes: [SidebarEmbedInfo] = []
+    @State private var selectedEmbedID: String? = nil
+    @State private var scrollToEmbedRange: NSRange? = nil
 
     private var isReadOnly: Bool { readOnlyFile != nil }
     private var displayFile: URL? { readOnlyFile ?? appState.selectedFile }
@@ -100,7 +102,9 @@ struct EditorView: View {
                                 text: .constant(displayContent),
                                 isEditable: false,
                                 paneIndex: paneIndex,
-                                embeddedNotes: .constant([])
+                                embeddedNotes: .constant([]),
+                                selectedEmbedID: .constant(nil),
+                                scrollToRange: .constant(nil)
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
@@ -109,7 +113,9 @@ struct EditorView: View {
                                 isEditable: true,
                                 hideMarkdown: appState.settings.hideMarkdownWhileEditing,
                                 paneIndex: paneIndex,
-                                embeddedNotes: $embeddedNotes
+                                embeddedNotes: $embeddedNotes,
+                                selectedEmbedID: $selectedEmbedID,
+                                scrollToRange: $scrollToEmbedRange
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
@@ -119,12 +125,16 @@ struct EditorView: View {
                             EmbeddedNotesPanel(
                                 notes: embeddedNotes,
                                 allFiles: appState.allFiles,
+                                selectedEmbedID: selectedEmbedID,
                                 onOpenFile: { url, openInNewTab in
                                     if openInNewTab {
                                         appState.openFileInNewTab(url)
                                     } else {
                                         appState.openFile(url)
                                     }
+                                },
+                                onScrollToEmbed: { range in
+                                    scrollToEmbedRange = range
                                 }
                             )
                             .frame(width: 320)
@@ -247,7 +257,9 @@ struct RawEditor: NSViewRepresentable {
     var isEditable: Bool = true
     var hideMarkdown: Bool = false
     var paneIndex: Int = 0
-    @Binding var embeddedNotes: [EmbeddedNoteInfo]
+    @Binding var embeddedNotes: [SidebarEmbedInfo]
+    @Binding var selectedEmbedID: String?
+    @Binding var scrollToRange: NSRange?
     @EnvironmentObject var appState: AppState
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -367,24 +379,36 @@ struct RawEditor: NSViewRepresentable {
                 appState.openFile(url)
             }
         }
+        textView.onSelectEmbed = { embedID in
+            // Access the binding directly from RawEditor
+            self.selectedEmbedID = embedID
+        }
         textView.onMatchCountUpdate = { count in appState.searchMatchCount = count }
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
         textView.refreshInlineImagePreviews()
 
         // Update embedded notes for side panel
         DispatchQueue.main.async {
-            let matches = textView.inlineEmbedMatches()
-            let newNotes = matches.map { match in
-                EmbeddedNoteInfo(
-                    id: match.id,
-                    noteName: match.noteName,
-                    content: match.content,
-                    noteURL: match.noteURL,
-                    isUnresolved: match.noteURL == nil
-                )
+            let noteMatches = textView.inlineEmbedMatches()
+            let imageMatches = textView.inlineImageMatches()
+            let currentFileURL = textView.currentFileURL
+            
+            // Convert note matches to SidebarEmbedInfo
+            var allEmbeds: [SidebarEmbedInfo] = noteMatches.map { match in
+                SidebarEmbedInfo.fromEmbedMatch(match)
             }
-            if newNotes != embeddedNotes {
-                embeddedNotes = newNotes
+            
+            // Convert image matches to SidebarEmbedInfo
+            let imageEmbeds = imageMatches.map { match in
+                SidebarEmbedInfo.fromImageMatch(match, relativeTo: currentFileURL)
+            }
+            allEmbeds.append(contentsOf: imageEmbeds)
+            
+            // Sort by document position
+            allEmbeds.sort { $0.range.location < $1.range.location }
+            
+            if allEmbeds != embeddedNotes {
+                embeddedNotes = allEmbeds
             }
         }
 
@@ -403,6 +427,17 @@ struct RawEditor: NSViewRepresentable {
             let clamped = min(position, textView.string.count)
             textView.setSelectedRange(NSRange(location: clamped, length: 0))
             textView.scrollRangeToVisible(NSRange(location: clamped, length: 0))
+        }
+
+        // Scroll editor to an embed range when triggered from the sidebar
+        if let range = scrollToRange {
+            let len = textView.string.count
+            let safeLoc = min(range.location, len)
+            let safeLen = min(range.length, len - safeLoc)
+            let safeRange = NSRange(location: safeLoc, length: safeLen)
+            textView.setSelectedRange(safeRange)
+            textView.scrollRangeToVisible(safeRange)
+            DispatchQueue.main.async { self.scrollToRange = nil }
         }
 
         if isEditable, let q = consumePendingSearchQuery(from: appState) {
@@ -469,6 +504,7 @@ struct RawEditor: NSViewRepresentable {
             guard parent.appState.settings.hideMarkdownWhileEditing,
                   let tv = textView else { return }
             tv.revealWikilinkAtCursor()
+            tv.revealImageEmbedAtCursor()
         }
     }
 }
@@ -722,9 +758,26 @@ extension LinkAwareTextView {
         hide("^> ", options: [.anchorsMatchLines])
 
 
+        // Image embeds ![caption](url) — hide ![ and ](url), keep caption visible.
+        // Only hide when caption is non-empty; if [] leave the full markdown visible.
+        hideGroup("(!\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 1)
+        hideGroup("(!\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 3)
+
+        // Dim caption text for image embeds
+        let imageCaptionRegex = try? NSRegularExpression(pattern: "!\\[([^\\]]+)\\]\\([^)]+\\)")
+        imageCaptionRegex?.enumerateMatches(in: text, options: [], range: fullRange) { match, _, _ in
+            guard let match, match.numberOfRanges > 1 else { return }
+            let captionRange = match.range(at: 1)
+            guard captionRange.location != NSNotFound else { return }
+            storage.addAttributes([
+                .foregroundColor: MarkdownTheme.dimColor,
+            ], range: captionRange)
+        }
+
         // Markdown links [label](url) — hide [, ](url) parts, keep label visible
-        hideGroup("(\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 1)
-        hideGroup("(\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 3)
+        // (negative lookbehind not needed here as images matched above first)
+        hideGroup("((?<!!)\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 1)
+        hideGroup("((?<!!)\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 3)
 
         // Wiki links [[note]] or [[note|alias]] — hide [[ and ]]
         hideGroup("(\\[\\[)([^\\]]+)(\\]\\])", group: 1)
@@ -763,8 +816,11 @@ extension LinkAwareTextView {
         requestImmediateRedraw(for: fullRange)
         lastAppliedEditorDisplayMode = .preview
 
-        // After hiding, reveal the wikilink the cursor is currently inside.
-        if isEditable { revealWikilinkAtCursor() }
+        // After hiding, reveal the wikilink/image embed the cursor is currently inside.
+        if isEditable {
+            revealWikilinkAtCursor()
+            revealImageEmbedAtCursor()
+        }
     }
 
     /// Unhides the [[/]] delimiters (and any alias prefix) of the wikilink that
@@ -808,6 +864,39 @@ extension LinkAwareTextView {
         storage.beginEditing()
         storage.addAttributes(visibleAttrs, range: tokenRange)
         storage.endEditing()
+    }
+
+    /// Unhides the full `![caption](url)` token containing the cursor so the
+    /// user can see and edit the raw image markdown syntax.
+    func revealImageEmbedAtCursor() {
+        guard let storage = textStorage else { return }
+        let cursor = selectedRange().location
+        guard cursor != NSNotFound else { return }
+        let nsText = storage.string as NSString
+        let len = nsText.length
+        guard len > 0 else { return }
+
+        // Search the whole string for image embed tokens and check if cursor is inside one
+        guard let regex = try? NSRegularExpression(pattern: #"!\[[^\]]*\]\([^)]+\)"#) else { return }
+        let fullRange = NSRange(location: 0, length: len)
+        let matches = regex.matches(in: storage.string, range: fullRange)
+
+        for match in matches {
+            let range = match.range
+            // Cursor is "inside" if it's within or adjacent to the token
+            let extendedRange = NSRange(location: max(0, range.location - 1),
+                                        length: range.length + 2)
+            if NSLocationInRange(cursor, extendedRange) || cursor == NSMaxRange(range) {
+                let visibleAttrs: [NSAttributedString.Key: Any] = [
+                    .font: MarkdownTheme.body,
+                    .foregroundColor: MarkdownTheme.dimColor,
+                ]
+                storage.beginEditing()
+                storage.addAttributes(visibleAttrs, range: range)
+                storage.endEditing()
+                return
+            }
+        }
     }
 
     func applyMarkdownStyling() {
@@ -984,6 +1073,9 @@ extension LinkAwareTextView {
             }
         }
 
+        // Image embeds are now shown only in sidebar, not inline
+        // Skip adding paragraph spacing for inline image previews
+        /*
         for match in self.visibleInlineImageMatches() {
             let paragraphStyle = (storage.attribute(.paragraphStyle, at: match.paragraphRange.location, effectiveRange: nil) as? NSMutableParagraphStyle)
                 ?? NSMutableParagraphStyle()
@@ -992,6 +1084,7 @@ extension LinkAwareTextView {
             storage.addAttribute(.paragraphStyle, value: updatedStyle, range: match.paragraphRange)
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: match.range)
         }
+        */
 
         applyCollapsibleStyling(storage: storage)
         storage.endEditing()
@@ -1216,6 +1309,7 @@ class LinkAwareTextView: NSTextView {
     var onOpenFile: ((URL, Bool) -> Void)?
     var onActivatePane: (() -> Void)?
     var onCreateNote: ((String, URL?) -> Void)?  // name, preferred directory
+    var onSelectEmbed: ((String) -> Void)?  // embed ID when clicking on markdown
     var currentFileURL: URL?
     var onMatchCountUpdate: ((Int) -> Void)?
     var onWikiLinkRequest: (() -> Void)?   // Called when [[ is typed
@@ -1257,7 +1351,7 @@ class LinkAwareTextView: NSTextView {
     private static let embedRegex = try? NSRegularExpression(pattern: #"!\[\[([^\]]+)\]\]"#)
 
     private static let inlineImageCache = NSCache<NSString, NSImage>()
-    private static let inlineImageRegex = try? NSRegularExpression(pattern: #"!\[[^\]]*\]\((.+?)\)(?=\s|$)"#, options: [.anchorsMatchLines])
+    private static let inlineImageRegex = try? NSRegularExpression(pattern: #"!\[([^\]]*)\]\((.+?)\)"#, options: [])
     private static let youtubeThumbnailCache = NSCache<NSString, NSImage>()
     private static var youtubeTitleCache: [String: String] = [:]
     private static let youtubeDetector: NSDataDetector? = {
@@ -1269,12 +1363,56 @@ class LinkAwareTextView: NSTextView {
             return
         }
         let point = convert(event.locationInWindow, from: nil)
+        
+        // Check if clicking on an image markdown
+        if let embedID = imageEmbedTarget(at: point) {
+            onSelectEmbed?(embedID)
+            return
+        }
+        
         if let target = wikilinkTarget(at: point) {
             let openInNewTab = event.modifierFlags.contains(.command)
             _ = handleLinkClick(target, openInNewTab: openInNewTab)
             return
         }
         super.mouseDown(with: event)
+    }
+
+    func imageEmbedTarget(at viewPoint: NSPoint) -> String? {
+        guard let layout = layoutManager, let container = textContainer else { return nil }
+
+        let containerPoint = NSPoint(
+            x: viewPoint.x - textContainerOrigin.x,
+            y: viewPoint.y - textContainerOrigin.y
+        )
+        var fraction: CGFloat = 0
+        let charIndex = layout.characterIndex(
+            for: containerPoint,
+            in: container,
+            fractionOfDistanceBetweenInsertionPoints: &fraction
+        )
+        guard charIndex < (string as NSString).length else { return nil }
+
+        let glyphIndex = layout.glyphIndexForCharacter(at: charIndex)
+        let glyphRect = layout.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: container)
+        guard glyphRect.contains(containerPoint) else { return nil }
+
+        // Check if this character is part of an image markdown
+        let nsText = string as NSString
+        let textRange = NSRange(location: 0, length: nsText.length)
+        
+        guard let regex = Self.inlineImageRegex else { return nil }
+        let matches = regex.matches(in: string, range: textRange)
+        
+        for match in matches {
+            let matchRange = match.range(at: 0)
+            if NSLocationInRange(charIndex, matchRange) {
+                let source = nsText.substring(with: match.range(at: 2)).trimmingCharacters(in: .whitespacesAndNewlines)
+                return "\(matchRange.location)-\(source)"
+            }
+        }
+        
+        return nil
     }
 
     func wikilinkTarget(at viewPoint: NSPoint) -> String? {
@@ -1931,39 +2069,8 @@ class LinkAwareTextView: NSTextView {
 
 
     func refreshInlineImagePreviews() {
-        guard let layoutManager, let textContainer else { return }
-        layoutManager.ensureLayout(for: textContainer)
-
-        let matches = visibleInlineImageMatches()
-        let activeKeys = Set(matches.map(\.id))
-
-        for key in Array(inlineImageViews.keys) where !activeKeys.contains(key) {
-            guard let view = inlineImageViews[key] else { continue }
-            view.removeFromSuperview()
-            inlineImageViews.removeValue(forKey: key)
-        }
-
-        for key in Array(inlineVideoViews.keys) {
-            guard let view = inlineVideoViews[key] else { continue }
-            view.removeFromSuperview()
-            inlineVideoViews.removeValue(forKey: key)
-        }
-
-        let availableWidth = max(120, bounds.width - textContainerInset.width * 2 - 20)
-        let maxPreviewWidth = min(availableWidth, 520)
-
-        for match in matches {
-            guard let resolvedURL = resolvedInlineImageURL(for: match.source) else { continue }
-            let cacheKey = resolvedURL.absoluteString as NSString
-
-            if let image = Self.inlineImageCache.object(forKey: cacheKey) {
-                placeInlineImage(image, for: match, layoutManager: layoutManager, textContainer: textContainer, maxWidth: maxPreviewWidth)
-            } else {
-                inlineImageViews[match.id]?.removeFromSuperview()
-                inlineImageViews.removeValue(forKey: match.id)
-                loadInlineImage(from: resolvedURL, cacheKey: cacheKey, maxPixelSize: maxPreviewWidth * 2)
-            }
-        }
+        // Inline image previews disabled - images now only show in sidebar
+        // This function is kept for compatibility but does nothing
     }
 
     // MARK: - Embedded Notes
@@ -2016,11 +2123,18 @@ class LinkAwareTextView: NSTextView {
         let range = NSRange(location: 0, length: nsText.length)
 
         return regex.matches(in: string, range: range).compactMap { match in
-            guard match.numberOfRanges > 1 else { return nil }
-            let source = nsText.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard match.numberOfRanges > 2 else { return nil }
+            let caption = nsText.substring(with: match.range(at: 1))
+            let source = nsText.substring(with: match.range(at: 2)).trimmingCharacters(in: .whitespacesAndNewlines)
             let fullRange = match.range(at: 0)
             let paragraphRange = nsText.paragraphRange(for: fullRange)
-            return InlineImageMatch(id: "\(fullRange.location)-\(source)", range: fullRange, paragraphRange: paragraphRange, source: source)
+            return InlineImageMatch(
+                id: "\(fullRange.location)-\(source)",
+                range: fullRange,
+                paragraphRange: paragraphRange,
+                source: source,
+                caption: caption
+            )
         }
     }
 
@@ -2556,6 +2670,7 @@ struct InlineImageMatch {
     let range: NSRange
     let paragraphRange: NSRange
     let source: String
+    let caption: String
 }
 
 struct InlineEmbedMatch {
@@ -2593,12 +2708,92 @@ struct EmbeddedNoteInfo: Identifiable, Equatable {
     }
 }
 
+// MARK: - Unified Sidebar Embed Model
+
+/// The type of content embedded in the sidebar
+enum SidebarEmbedType {
+    case note
+    case image
+}
+
+/// Unified information about any embed (note or image) for the sidebar
+struct SidebarEmbedInfo: Identifiable, Equatable {
+    let id: String
+    let type: SidebarEmbedType
+    let title: String?       // For notes (note name)
+    let caption: String?     // For images (caption text)
+    let content: String?     // For notes (note content)
+    let source: String?      // For images (URL/path string)
+    let resolvedURL: URL?    // Resolved URL for both notes and images
+    let isUnresolved: Bool
+    let range: NSRange      // Position in document for sorting
+    
+    /// Creates a SidebarEmbedInfo from an InlineEmbedMatch (note embed)
+    static func fromEmbedMatch(_ match: InlineEmbedMatch) -> SidebarEmbedInfo {
+        SidebarEmbedInfo(
+            id: match.id,
+            type: .note,
+            title: match.noteName,
+            caption: nil,
+            content: match.content,
+            source: nil,
+            resolvedURL: match.noteURL,
+            isUnresolved: match.noteURL == nil,
+            range: match.range
+        )
+    }
+    
+    /// Creates a SidebarEmbedInfo from an InlineImageMatch (image embed)
+    static func fromImageMatch(_ match: InlineImageMatch, relativeTo noteURL: URL?) -> SidebarEmbedInfo {
+        let resolved = resolvedSidebarImageURL(for: match.source, relativeTo: noteURL)
+        return SidebarEmbedInfo(
+            id: match.id,
+            type: .image,
+            title: nil,
+            caption: match.caption.isEmpty ? nil : match.caption,
+            content: nil,
+            source: match.source,
+            resolvedURL: resolved,
+            isUnresolved: resolved == nil,
+            range: match.range
+        )
+    }
+}
+
+/// Resolves an image source string to a URL for sidebar display
+func resolvedSidebarImageURL(for source: String, relativeTo noteURL: URL?) -> URL? {
+    let cleanedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleanedSource.isEmpty else { return nil }
+    
+    // Handle web URLs
+    if cleanedSource.hasPrefix("http://") || cleanedSource.hasPrefix("https://") {
+        return URL(string: cleanedSource)
+    }
+    
+    // Handle file:// URLs
+    if cleanedSource.hasPrefix("file://") {
+        return URL(string: cleanedSource)
+    }
+    
+    // Handle absolute paths
+    if cleanedSource.hasPrefix("/") {
+        return URL(fileURLWithPath: cleanedSource)
+    }
+    
+    // Handle relative paths
+    guard let noteURL = noteURL else { return nil }
+    let baseURL = noteURL.deletingLastPathComponent()
+    return URL(fileURLWithPath: cleanedSource, relativeTo: baseURL).standardizedFileURL
+}
+
 // MARK: - Embedded Notes Side Panel
 
 struct EmbeddedNotesPanel: NSViewRepresentable {
-    let notes: [EmbeddedNoteInfo]
+    let notes: [SidebarEmbedInfo]
     let allFiles: [URL]
+    let selectedEmbedID: String?
     let onOpenFile: (URL, Bool) -> Void // (url, openInNewTab)
+    let onScrollToEmbed: ((NSRange) -> Void)?
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -2616,39 +2811,113 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let documentView = scrollView.documentView else { return }
-
-        // Remove existing embed views
-        documentView.subviews.forEach { $0.removeFromSuperview() }
-
+        
         let width: CGFloat = 304 // 320 - 16 padding
-        var currentY: CGFloat = 8
         let spacing: CGFloat = 12
-
-        for note in notes {
-            let embedView = EmbeddedNoteView()
-            embedView.onOpenNote = { url, openInNewTab in
-                onOpenFile(url, openInNewTab)
+        var currentY: CGFloat = 8
+        var selectedView: NSView?
+        var selectedViewY: CGFloat = 0
+        
+        // Track which embed IDs we've processed
+        var processedIDs = Set<String>()
+        
+        for embed in notes {
+            processedIDs.insert(embed.id)
+            let isSelected = embed.id == selectedEmbedID
+            
+            // Find existing view for this embed ID
+            let existingView = documentView.subviews.first { $0.identifier?.rawValue == embed.id }
+            
+            switch embed.type {
+            case .note:
+                let embedView: EmbeddedNoteView
+                if let existing = existingView as? EmbeddedNoteView {
+                    embedView = existing
+                } else {
+                    embedView = EmbeddedNoteView()
+                    embedView.identifier = NSUserInterfaceItemIdentifier(embed.id)
+                    embedView.onOpenNote = { url, openInNewTab in
+                        onOpenFile(url, openInNewTab)
+                    }
+                    documentView.addSubview(embedView)
+                }
+                
+                embedView.configure(
+                    noteName: embed.title ?? "Note",
+                    content: embed.content,
+                    noteURL: embed.resolvedURL,
+                    isUnresolved: embed.isUnresolved
+                )
+                
+                // Calculate height
+                let preferredSize = embedView.preferredSize(for: embed.content)
+                let height = min(preferredSize.height, 400)
+                
+                embedView.frame = NSRect(x: 0, y: currentY, width: width, height: height)
+                
+                if isSelected {
+                    selectedView = embedView
+                    selectedViewY = currentY
+                }
+                
+                currentY += height + spacing
+                
+            case .image:
+                let imageView: EmbeddedImageView
+                if let existing = existingView as? EmbeddedImageView {
+                    imageView = existing
+                } else {
+                    imageView = EmbeddedImageView()
+                    imageView.identifier = NSUserInterfaceItemIdentifier(embed.id)
+                    imageView.onOpenImage = { url, openInNewTab in
+                        onOpenFile(url, openInNewTab)
+                    }
+                    imageView.onScrollToMarkdown = { [range = embed.range] in
+                        onScrollToEmbed?(range)
+                    }
+                    documentView.addSubview(imageView)
+                }
+                
+                imageView.configure(
+                    caption: embed.caption,
+                    imageURL: embed.resolvedURL,
+                    isUnresolved: embed.isUnresolved,
+                    isSelected: isSelected
+                )
+                
+                let height: CGFloat = embed.caption != nil ? 220 : 200
+                imageView.frame = NSRect(x: 0, y: currentY, width: width, height: height)
+                
+                if isSelected {
+                    selectedView = imageView
+                    selectedViewY = currentY
+                }
+                
+                currentY += height + spacing
             }
-            embedView.configure(
-                noteName: note.noteName,
-                content: note.content,
-                noteURL: note.noteURL,
-                isUnresolved: note.isUnresolved
-            )
-
-            // Calculate height
-            let preferredSize = embedView.preferredSize(for: note.content)
-            let height = min(preferredSize.height, 400) // Max 400px per embed
-
-            embedView.frame = NSRect(x: 0, y: currentY, width: width, height: height)
-            documentView.addSubview(embedView)
-
-            currentY += height + spacing
+        }
+        
+        // Remove views that are no longer needed
+        documentView.subviews.forEach { view in
+            if let id = view.identifier?.rawValue, !processedIDs.contains(id) {
+                view.removeFromSuperview()
+            }
         }
 
         // Set document view size
         let totalHeight = max(currentY - spacing + 8, scrollView.bounds.height)
         documentView.frame = NSRect(x: 0, y: 0, width: width, height: totalHeight)
+        
+        // Scroll selected view into view
+        if let selectedView = selectedView {
+            let visibleRect = NSRect(
+                x: 0,
+                y: selectedViewY,
+                width: width,
+                height: selectedView.frame.height
+            )
+            scrollView.contentView.scrollToVisible(visibleRect)
+        }
     }
 }
 
@@ -2821,6 +3090,298 @@ final class EmbeddedNoteView: NSView {
         let totalHeight = padding + buttonHeight + spacing + min(contentHeight, 300) + spacing + titleHeight + padding
 
         return NSSize(width: panelWidth, height: min(max(totalHeight, minPanelHeight), maxPanelHeight))
+    }
+}
+
+// MARK: - Embedded Image View
+
+final class EmbeddedImageView: NSView {
+    private let imageView = NSImageView()
+    private let captionField = NSTextField(labelWithString: "")
+    private let borderView = NSView()
+    private let openButton = NSButton()
+    private var targetURL: URL?
+    private var isSelected: Bool = false
+    var onOpenImage: ((URL, Bool) -> Void)?
+    var onScrollToMarkdown: (() -> Void)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    func configure(caption: String?, imageURL: URL?, isUnresolved: Bool, isSelected: Bool = false) {
+        targetURL = imageURL
+        self.isSelected = isSelected
+        
+        if isUnresolved {
+            captionField.stringValue = caption ?? "Image not found"
+            imageView.image = nil
+        } else {
+            captionField.stringValue = caption ?? ""
+            // Load image asynchronously
+            if let imageURL = imageURL {
+                loadImage(from: imageURL)
+            }
+        }
+        
+        captionField.isHidden = (caption == nil || caption?.isEmpty == true)
+        
+        // Update border color based on selection state
+        updateBorderAppearance()
+    }
+    
+    private func updateBorderAppearance() {
+        borderView.layer?.borderWidth = isSelected ? 3 : 1
+        borderView.layer?.borderColor = isSelected 
+            ? NSColor(SynapseTheme.accent).cgColor 
+            : NSColor(SynapseTheme.border).cgColor
+    }
+
+    private func loadImage(from url: URL) {
+        // Load image in background
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let image = NSImage(contentsOf: url) else { return }
+            DispatchQueue.main.async {
+                self?.imageView.image = image
+            }
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.masksToBounds = true
+
+        // Update border frame and appearance
+        borderView.frame = bounds
+        updateBorderAppearance()
+
+        let padding: CGFloat = 12
+        let spacing: CGFloat = 8
+        let buttonHeight: CGFloat = 28
+        let captionHeight: CGFloat = captionField.isHidden ? 0 : 20
+
+        // Image view takes most of the space
+        let imageY = padding + (captionField.isHidden ? 0 : captionHeight + spacing) + buttonHeight + spacing
+        let imageHeight = bounds.height - imageY - padding
+        imageView.frame = NSRect(
+            x: padding,
+            y: padding + buttonHeight + spacing + (captionField.isHidden ? 0 : captionHeight + spacing),
+            width: bounds.width - padding * 2,
+            height: max(imageHeight, 100)
+        )
+        imageView.imageScaling = .scaleProportionallyDown
+        imageView.contentTintColor = nil
+
+        // Caption label
+        if !captionField.isHidden {
+            captionField.frame = NSRect(
+                x: padding,
+                y: bounds.height - padding - captionHeight,
+                width: bounds.width - padding * 2,
+                height: captionHeight
+            )
+            captionField.font = .systemFont(ofSize: 13, weight: .medium)
+            captionField.textColor = NSColor(SynapseTheme.textSecondary)
+            captionField.lineBreakMode = .byTruncatingTail
+            captionField.alignment = .center
+        }
+
+        // Open button at bottom
+        openButton.frame = NSRect(
+            x: padding,
+            y: padding,
+            width: bounds.width - padding * 2,
+            height: buttonHeight
+        )
+        openButton.bezelStyle = .rounded
+        openButton.font = .systemFont(ofSize: 12, weight: .medium)
+    }
+
+    private var imageViewerController: ImageViewerWindowController?
+
+    @objc private func openImage() {
+        guard let targetURL = targetURL else { return }
+        
+        let viewer = ImageViewerWindowController(imageURL: targetURL, caption: captionField.stringValue.isEmpty ? nil : captionField.stringValue)
+        imageViewerController = viewer // retain strongly so it isn't deallocated before image loads
+        viewer.showFullScreen()
+    }
+
+    @objc private func openImageInNewTab() {
+        // Also use modal for Cmd+click
+        openImage()
+    }
+
+    private func setup() {
+        // Setup border view layer properties
+        borderView.wantsLayer = true
+        borderView.layer?.cornerRadius = 6
+        borderView.layer?.masksToBounds = true
+        
+        addSubview(borderView)
+        addSubview(imageView)
+        addSubview(captionField)
+
+        openButton.title = "Open Image"
+        openButton.bezelStyle = .rounded
+        openButton.target = self
+        openButton.action = #selector(openImage)
+        addSubview(openButton)
+        
+        // Click on image thumbnail scrolls editor to the markdown
+        let click = NSClickGestureRecognizer(target: self, action: #selector(thumbnailClicked))
+        imageView.addGestureRecognizer(click)
+        
+        // Initial border appearance
+        updateBorderAppearance()
+    }
+
+    @objc private func thumbnailClicked() {
+        onScrollToMarkdown?()
+    }
+}
+
+// MARK: - Full Screen Image Viewer
+
+/// A simple full-screen window for viewing images
+final class ImageViewerWindowController: NSWindowController {
+    private let imageView = NSImageView()
+    private var imageURL: URL?
+    private var localMonitor: Any?
+    
+    init(imageURL: URL, caption: String?) {
+        let window = NSWindow(
+            contentRect: NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = caption ?? imageURL.lastPathComponent
+        window.titlebarAppearsTransparent = false
+        window.backgroundColor = .black
+        window.isOpaque = true
+        window.hasShadow = true
+        
+        super.init(window: window)
+        
+        self.imageURL = imageURL
+        setupContentView()
+        setupImageView()
+        setupCloseButton()
+        setupEscapeHandler()
+        loadImage()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    deinit {
+        // Remove the local monitor when the window controller is deallocated
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+    
+    private func setupContentView() {
+        guard let window = window else { return }
+        
+        let contentView = NSView()
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.black.cgColor
+        window.contentView = contentView
+    }
+    
+    private func setupImageView() {
+        guard let contentView = window?.contentView else { return }
+        
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.imageAlignment = .alignCenter
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.wantsLayer = true
+        imageView.layer?.backgroundColor = NSColor.clear.cgColor
+        
+        contentView.addSubview(imageView)
+        
+        NSLayoutConstraint.activate([
+            imageView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            imageView.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.95),
+            imageView.heightAnchor.constraint(lessThanOrEqualTo: contentView.heightAnchor, multiplier: 0.85),
+            imageView.widthAnchor.constraint(lessThanOrEqualToConstant: 2000),
+            imageView.heightAnchor.constraint(lessThanOrEqualToConstant: 2000)
+        ])
+    }
+    
+    private func setupCloseButton() {
+        // Native window close button (traffic light) is sufficient — no custom button needed
+    }
+    
+    private func setupEscapeHandler() {
+        // Add local event monitor for this window only
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self, let window = self.window else { return event }
+            
+            // Only handle if this window is key
+            if NSApp.keyWindow == window && event.keyCode == 53 {
+                self.closeWindow()
+                return nil
+            }
+            return event
+        }
+    }
+    
+    private func loadImage() {
+        guard let imageURL = imageURL else { return }
+        
+        // Check if file exists first
+        let fileManager = FileManager.default
+        if !fileManager.fileExists(atPath: imageURL.path) {
+            print("Image file does not exist at: \(imageURL.path)")
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let image = NSImage(contentsOf: imageURL) else {
+                print("Failed to load image from: \(imageURL.path)")
+                return
+            }
+            DispatchQueue.main.async {
+                self?.imageView.image = image
+                print("Image loaded successfully: \(image.size.width)x\(image.size.height)")
+            }
+        }
+    }
+    
+    @objc private func closeWindow() {
+        window?.close()
+    }
+    
+    func showFullScreen() {
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        
+        // Make it nearly full screen but keep title bar
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let padding: CGFloat = 40
+            let newFrame = NSRect(
+                x: screenFrame.origin.x + padding,
+                y: screenFrame.origin.y + padding,
+                width: screenFrame.width - (padding * 2),
+                height: screenFrame.height - (padding * 2)
+            )
+            window?.setFrame(newFrame, display: true, animate: true)
+        }
     }
 }
 

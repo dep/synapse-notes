@@ -61,11 +61,25 @@ jest.mock('react-native', () => {
   return {
     View: mockComponent('View'),
     Text: mockComponent('Text'),
+    Image: mockComponent('Image'),
     TouchableOpacity: mockComponent('TouchableOpacity'),
     ScrollView: mockComponent('ScrollView'),
     Modal: mockComponent('Modal'),
     TextInput: mockComponent('TextInput'),
     ActivityIndicator: mockComponent('ActivityIndicator'),
+    KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
+    BackHandler: {
+      addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+      removeEventListener: jest.fn(),
+    },
+    Platform: {
+      OS: 'android',
+      select: jest.fn((obj) => obj.android ?? obj.default),
+    },
+    AppState: {
+      currentState: 'active',
+      addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    },
     Animated: {
       View: mockComponent('Animated.View'),
       Value: jest.fn((val) => ({

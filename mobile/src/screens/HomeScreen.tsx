@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, AppState, AppStateStatus, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -12,6 +12,8 @@ import { OnboardingStorage } from '../services/onboardingStorage';
 import { DailyNoteService } from '../services/DailyNoteService';
 import { TemplateStorage } from '../services/TemplateStorage';
 import { PinningStorage, PinnedItem } from '../services/PinningStorage';
+import { GitService } from '../services/gitService';
+import { emitRepositoryRefresh } from '../services/repositoryEvents';
 import * as FileSystem from 'expo-file-system/legacy';
 
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -31,12 +33,14 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
   const { theme, isDark, toggleTheme, followSystem, setFollowSystem } = useTheme();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>(undefined);
-  const [repositoryPath, setRepositoryPath] = useState<string>(getVaultPath());
+  const [repositoryPath, setRepositoryPath] = useState<string | null>(null);
   const [hasOpenedDailyNote, setHasOpenedDailyNote] = useState(false);
   const [isTemplatePickerVisible, setIsTemplatePickerVisible] = useState(false);
   const [isNewFolderDialogVisible, setIsNewFolderDialogVisible] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const appState = useRef<AppStateStatus>('active');
 
   const repoName = repositoryPath
     ? repositoryPath.replace(/\/+$/, '').split('/').pop() || null
@@ -45,9 +49,7 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
   useEffect(() => {
     const loadRepositoryPath = async () => {
       const savedPath = await OnboardingStorage.getActiveRepositoryPath();
-      if (savedPath) {
-        setRepositoryPath(savedPath);
-      }
+      setRepositoryPath(savedPath ?? getVaultPath());
     };
 
     loadRepositoryPath();
@@ -99,6 +101,41 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
       navigation.setParams({ openDrawer: undefined });
     }
   }, [route.params?.openDrawer]);
+
+  // Pull latest from remote in the background
+  const pullLatest = async (repoPath: string) => {
+    if (!repoPath) return;
+    setIsSyncing(true);
+    try {
+      await GitService.refreshRemote(repoPath);
+      await emitRepositoryRefresh(repoPath);
+    } catch (error) {
+      console.error('[HomeScreen] Background pull failed:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Pull on mount (once repository path is known)
+  useEffect(() => {
+    if (repositoryPath) {
+      pullLatest(repositoryPath);
+    }
+  }, [repositoryPath]);
+
+  // Pull again whenever the app comes back to the foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (appState.current !== 'active' && nextState === 'active') {
+        if (repositoryPath) {
+          pullLatest(repositoryPath);
+        }
+      }
+      appState.current = nextState;
+    });
+
+    return () => subscription.remove();
+  }, [repositoryPath]);
 
   const handleFileSelect = (path: string) => {
     setActiveFilePath(path);
@@ -185,6 +222,14 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           Synapse
         </Text>
+        {isSyncing && (
+          <ActivityIndicator
+            testID="sync-indicator"
+            size="small"
+            color={theme.colors.primary}
+            style={styles.syncIndicator}
+          />
+        )}
         <TouchableOpacity
           style={styles.settingsButtonHeader}
           onPress={() => navigation.navigate('Settings')}
