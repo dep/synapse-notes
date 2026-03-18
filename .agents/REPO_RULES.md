@@ -10,7 +10,7 @@ Do not skip this step, even if unit tests pass. This overrides the "Minimize Ver
 
 Execute this exact command using the bash tool:
 ```bash
-pkill -9 "Synapse" || true && sleep 1 && xcodegen generate && xcodebuild -project "Synapse.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Synapse-*/Build/Products/Debug/Synapse.app
+pkill -9 "Synapse" || true && sleep 1 && xcodegen generate && xcodebuild -project "Synapse.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build && open ~/Library/Developer/Xcode/DerivedData/Synapse-cdwicvkuefghruawgarjfsqkskpg/Build/Products/Debug/Synapse.app
 ```
 
 ### Mobile Build and Relaunch

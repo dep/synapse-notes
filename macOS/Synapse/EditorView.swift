@@ -1815,6 +1815,16 @@ class LinkAwareTextView: NSTextView {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "v" {
+            // Only intercept paste when this text view (or one of its descendants) is the first responder.
+            // If focus is on a terminal or browser pane, let the event pass through naturally.
+            let responder = window?.firstResponder
+            let isSelfFocused: Bool
+            if let view = responder as? NSView {
+                isSelfFocused = view === self || view.isDescendant(of: self)
+            } else {
+                isSelfFocused = responder === self
+            }
+            guard isSelfFocused else { return false }
             paste(self)
             return true
         }
