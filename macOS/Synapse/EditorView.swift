@@ -379,6 +379,9 @@ struct RawEditor: NSViewRepresentable {
                 appState.openFile(url)
             }
         }
+        textView.onOpenExternalURL = { url in
+            NSWorkspace.shared.open(url)
+        }
         textView.onSelectEmbed = { embedID in
             // Access the binding directly from RawEditor
             self.selectedEmbedID = embedID
@@ -1309,6 +1312,7 @@ class LinkAwareTextView: NSTextView {
     var onOpenFile: ((URL, Bool) -> Void)?
     var onActivatePane: (() -> Void)?
     var onCreateNote: ((String, URL?) -> Void)?  // name, preferred directory
+    var onOpenExternalURL: ((URL) -> Void)?  // External URL opening (defaults to NSWorkspace)
     var onSelectEmbed: ((String) -> Void)?  // embed ID when clicking on markdown
     var currentFileURL: URL?
     var onMatchCountUpdate: ((Int) -> Void)?
@@ -2035,7 +2039,12 @@ class LinkAwareTextView: NSTextView {
 
     func handleLinkClick(_ link: Any, openInNewTab: Bool) -> Bool {
         if let url = link as? URL {
-            NSWorkspace.shared.open(url)
+            // Use injected callback if available, otherwise fall back to NSWorkspace
+            if let onOpenExternalURL = onOpenExternalURL {
+                onOpenExternalURL(url)
+            } else {
+                NSWorkspace.shared.open(url)
+            }
             return true
         }
 
@@ -2885,7 +2894,7 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
                     isSelected: isSelected
                 )
                 
-                let height: CGFloat = embed.caption != nil ? 220 : 200
+                let height: CGFloat = embed.caption != nil ? 246 : 228
                 imageView.frame = NSRect(x: 0, y: currentY, width: width, height: height)
                 
                 if isSelected {
@@ -3099,6 +3108,7 @@ final class EmbeddedImageView: NSView {
     private let imageView = NSImageView()
     private let captionField = NSTextField(labelWithString: "")
     private let borderView = NSView()
+    private let previewBackgroundView = NSView()
     private let openButton = NSButton()
     private var targetURL: URL?
     private var isSelected: Bool = false
@@ -3118,6 +3128,7 @@ final class EmbeddedImageView: NSView {
     func configure(caption: String?, imageURL: URL?, isUnresolved: Bool, isSelected: Bool = false) {
         targetURL = imageURL
         self.isSelected = isSelected
+        openButton.isHidden = imageURL == nil || isUnresolved
         
         if isUnresolved {
             captionField.stringValue = caption ?? "Image not found"
@@ -3149,6 +3160,7 @@ final class EmbeddedImageView: NSView {
             guard let image = NSImage(contentsOf: url) else { return }
             DispatchQueue.main.async {
                 self?.imageView.image = image
+                self?.needsLayout = true
             }
         }
     }
@@ -3165,20 +3177,38 @@ final class EmbeddedImageView: NSView {
         updateBorderAppearance()
 
         let padding: CGFloat = 12
-        let spacing: CGFloat = 8
-        let buttonHeight: CGFloat = 28
+        let spacing: CGFloat = 10
+        let buttonHeight: CGFloat = openButton.isHidden ? 0 : 24
         let captionHeight: CGFloat = captionField.isHidden ? 0 : 20
 
-        // Image view takes most of the space
-        let imageY = padding + (captionField.isHidden ? 0 : captionHeight + spacing) + buttonHeight + spacing
-        let imageHeight = bounds.height - imageY - padding
-        imageView.frame = NSRect(
+        let buttonY = padding
+        let previewBottom = buttonY + buttonHeight + (openButton.isHidden ? 0 : spacing)
+        let previewTop = bounds.height - padding - captionHeight - (captionField.isHidden ? 0 : spacing)
+        let previewRect = NSRect(
             x: padding,
-            y: padding + buttonHeight + spacing + (captionField.isHidden ? 0 : captionHeight + spacing),
+            y: previewBottom,
             width: bounds.width - padding * 2,
-            height: max(imageHeight, 100)
+            height: max(120, previewTop - previewBottom)
         )
-        imageView.imageScaling = .scaleProportionallyDown
+
+        previewBackgroundView.frame = previewRect
+
+        let contentRect = previewRect.insetBy(dx: 8, dy: 8)
+        if let image = imageView.image, image.size.width > 0, image.size.height > 0 {
+            let widthRatio = contentRect.width / image.size.width
+            let heightRatio = contentRect.height / image.size.height
+            let scale = min(widthRatio, heightRatio)
+            let drawSize = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+            imageView.frame = NSRect(
+                x: round(contentRect.midX - drawSize.width / 2),
+                y: round(contentRect.midY - drawSize.height / 2),
+                width: round(drawSize.width),
+                height: round(drawSize.height)
+            )
+        } else {
+            imageView.frame = contentRect
+        }
+        imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.contentTintColor = nil
 
         // Caption label
@@ -3189,21 +3219,21 @@ final class EmbeddedImageView: NSView {
                 width: bounds.width - padding * 2,
                 height: captionHeight
             )
-            captionField.font = .systemFont(ofSize: 13, weight: .medium)
+            captionField.font = .monospacedSystemFont(ofSize: 12, weight: .semibold)
             captionField.textColor = NSColor(SynapseTheme.textSecondary)
-            captionField.lineBreakMode = .byTruncatingTail
-            captionField.alignment = .center
+            captionField.lineBreakMode = .byTruncatingMiddle
+            captionField.alignment = .left
         }
 
-        // Open button at bottom
+        let buttonWidth = min(124, bounds.width - padding * 2)
         openButton.frame = NSRect(
-            x: padding,
+            x: round((bounds.width - buttonWidth) / 2),
             y: padding,
-            width: bounds.width - padding * 2,
+            width: buttonWidth,
             height: buttonHeight
         )
         openButton.bezelStyle = .rounded
-        openButton.font = .systemFont(ofSize: 12, weight: .medium)
+        openButton.font = .systemFont(ofSize: 11, weight: .semibold)
     }
 
     private var imageViewerController: ImageViewerWindowController?
@@ -3226,12 +3256,19 @@ final class EmbeddedImageView: NSView {
         borderView.wantsLayer = true
         borderView.layer?.cornerRadius = 6
         borderView.layer?.masksToBounds = true
+        borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
         
         addSubview(borderView)
+        previewBackgroundView.wantsLayer = true
+        previewBackgroundView.layer?.cornerRadius = 8
+        previewBackgroundView.layer?.masksToBounds = true
+        previewBackgroundView.layer?.backgroundColor = SynapseTheme.editorCodeBackground.cgColor
+        previewBackgroundView.layer?.borderWidth = 0
+        addSubview(previewBackgroundView)
         addSubview(imageView)
         addSubview(captionField)
 
-        openButton.title = "Open Image"
+        openButton.title = "Open"
         openButton.bezelStyle = .rounded
         openButton.target = self
         openButton.action = #selector(openImage)
@@ -3252,16 +3289,26 @@ final class EmbeddedImageView: NSView {
 
 // MARK: - Full Screen Image Viewer
 
-/// A simple full-screen window for viewing images
+/// A full-screen window for viewing images with zoom and pan support
 final class ImageViewerWindowController: NSWindowController {
     private let imageView = NSImageView()
+    private let imageContainerView = NSView()
     private var imageURL: URL?
     private var localMonitor: Any?
+    private var scrollMonitor: Any?
+    private var scrollView: NSScrollView!
+    private var currentZoom: CGFloat = 1.0
+    private var minZoom: CGFloat = 0.1
+    private var maxZoom: CGFloat = 5.0
+    private var imageSize: NSSize = .zero
+    private var imageWidthConstraint: NSLayoutConstraint?
+    private var imageHeightConstraint: NSLayoutConstraint?
+    private var gestureStartZoom: CGFloat = 1.0
     
     init(imageURL: URL, caption: String?) {
         let window = NSWindow(
             contentRect: NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .fullSizeContentView, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -3286,52 +3333,164 @@ final class ImageViewerWindowController: NSWindowController {
     }
     
     deinit {
-        // Remove the local monitor when the window controller is deallocated
         if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = scrollMonitor {
             NSEvent.removeMonitor(monitor)
         }
     }
     
     private func setupContentView() {
         guard let window = window else { return }
-        
-        let contentView = NSView()
-        contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor.black.cgColor
-        window.contentView = contentView
+
+        scrollView = NSScrollView(frame: window.contentView?.bounds ?? .zero)
+        scrollView.autoresizingMask = [.width, .height]
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.allowsMagnification = false
+        scrollView.backgroundColor = .black
+        scrollView.drawsBackground = true
+
+        window.contentView = scrollView
     }
     
     private func setupImageView() {
-        guard let contentView = window?.contentView else { return }
-        
-        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageContainerView.wantsLayer = true
+        imageContainerView.layer?.backgroundColor = NSColor.black.cgColor
+        imageContainerView.frame = scrollView.bounds
+
+        imageView.imageScaling = .scaleAxesIndependently
         imageView.imageAlignment = .alignCenter
-        imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.wantsLayer = true
         imageView.layer?.backgroundColor = NSColor.clear.cgColor
-        
-        contentView.addSubview(imageView)
-        
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+
+        imageContainerView.addSubview(imageView)
+        imageWidthConstraint = imageView.widthAnchor.constraint(equalToConstant: 100)
+        imageHeightConstraint = imageView.heightAnchor.constraint(equalToConstant: 100)
+
         NSLayoutConstraint.activate([
-            imageView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            imageView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            imageView.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.95),
-            imageView.heightAnchor.constraint(lessThanOrEqualTo: contentView.heightAnchor, multiplier: 0.85),
-            imageView.widthAnchor.constraint(lessThanOrEqualToConstant: 2000),
-            imageView.heightAnchor.constraint(lessThanOrEqualToConstant: 2000)
+            imageView.centerXAnchor.constraint(equalTo: imageContainerView.centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: imageContainerView.centerYAnchor),
+            imageWidthConstraint!,
+            imageHeightConstraint!
         ])
+
+        scrollView.documentView = imageContainerView
+
+        setupGestureRecognizers()
+        setupScrollWheelZoom()
+    }
+    
+    private func setupScrollWheelZoom() {
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self = self, let window = self.window else { return event }
+
+            if NSApp.keyWindow == window && event.modifierFlags.contains(.control) {
+                let delta = event.scrollingDeltaY
+                let zoomFactor = pow(1.01, delta * 0.35)
+                let newZoom = self.currentZoom * zoomFactor
+                self.setZoom(newZoom, animated: false)
+                return nil
+            }
+            return event
+        }
+    }
+    
+    private func setupGestureRecognizers() {
+        let doubleClickGesture = NSClickGestureRecognizer(target: self, action: #selector(handleDoubleClick))
+        doubleClickGesture.numberOfClicksRequired = 2
+        imageView.addGestureRecognizer(doubleClickGesture)
+
+        let magnifyGesture = NSMagnificationGestureRecognizer(target: self, action: #selector(handleMagnify(_:)))
+        imageView.addGestureRecognizer(magnifyGesture)
+    }
+    
+    @objc private func handleDoubleClick() {
+        // Toggle between fit-to-screen and 100% zoom
+        if currentZoom != 1.0 {
+            setZoom(1.0, animated: true)
+        } else {
+            fitImageToScreen()
+        }
+    }
+    
+    @objc private func handleMagnify(_ gesture: NSMagnificationGestureRecognizer) {
+        switch gesture.state {
+        case .began:
+            gestureStartZoom = currentZoom
+        case .changed:
+            let newZoom = gestureStartZoom * (1 + gesture.magnification)
+            setZoom(newZoom, animated: false)
+        default:
+            break
+        }
+    }
+    
+    private func setZoom(_ zoom: CGFloat, animated: Bool) {
+        let clampedZoom = max(minZoom, min(maxZoom, zoom))
+        currentZoom = clampedZoom
+
+        let applyLayout = { self.layoutImage(centerViewport: true) }
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.15
+                applyLayout()
+            }
+        } else {
+            applyLayout()
+        }
+    }
+
+    private func fitImageToScreen() {
+        guard imageSize != .zero, let window = window else { return }
+
+        let visibleFrame = window.contentView?.bounds ?? window.frame
+        let titleBarHeight: CGFloat = 28
+        let availableHeight = visibleFrame.height - titleBarHeight - 40
+        let availableWidth = visibleFrame.width - 40
+
+        let widthRatio = availableWidth / imageSize.width
+        let heightRatio = availableHeight / imageSize.height
+        currentZoom = min(widthRatio, heightRatio, 1.0)
+        layoutImage(centerViewport: true)
+    }
+
+    private func layoutImage(centerViewport: Bool) {
+        guard imageSize != .zero else { return }
+
+        let visibleSize = scrollView.contentView.bounds.size
+        let scaledSize = NSSize(width: imageSize.width * currentZoom, height: imageSize.height * currentZoom)
+        let containerSize = NSSize(
+            width: max(visibleSize.width, scaledSize.width),
+            height: max(visibleSize.height, scaledSize.height)
+        )
+
+        imageContainerView.frame = NSRect(origin: .zero, size: containerSize)
+        imageWidthConstraint?.constant = scaledSize.width
+        imageHeightConstraint?.constant = scaledSize.height
+        imageContainerView.layoutSubtreeIfNeeded()
+
+        if centerViewport {
+            let centeredOrigin = NSPoint(
+                x: max(0, (containerSize.width - visibleSize.width) / 2),
+                y: max(0, (containerSize.height - visibleSize.height) / 2)
+            )
+            scrollView.contentView.scroll(to: centeredOrigin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
     }
     
     private func setupCloseButton() {
-        // Native window close button (traffic light) is sufficient — no custom button needed
+        // Native window close button (traffic light) is sufficient
     }
     
     private func setupEscapeHandler() {
-        // Add local event monitor for this window only
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self, let window = self.window else { return event }
             
-            // Only handle if this window is key
             if NSApp.keyWindow == window && event.keyCode == 53 {
                 self.closeWindow()
                 return nil
@@ -3343,7 +3502,6 @@ final class ImageViewerWindowController: NSWindowController {
     private func loadImage() {
         guard let imageURL = imageURL else { return }
         
-        // Check if file exists first
         let fileManager = FileManager.default
         if !fileManager.fileExists(atPath: imageURL.path) {
             print("Image file does not exist at: \(imageURL.path)")
@@ -3355,11 +3513,19 @@ final class ImageViewerWindowController: NSWindowController {
                 print("Failed to load image from: \(imageURL.path)")
                 return
             }
+            
             DispatchQueue.main.async {
+                self?.imageSize = image.size
                 self?.imageView.image = image
+                self?.updateImageViewSize()
+                self?.fitImageToScreen()
                 print("Image loaded successfully: \(image.size.width)x\(image.size.height)")
             }
         }
+    }
+    
+    private func updateImageViewSize() {
+        layoutImage(centerViewport: true)
     }
     
     @objc private func closeWindow() {

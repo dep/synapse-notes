@@ -103,13 +103,18 @@ final class WikiLinkClickTests: XCTestCase {
     func test_handleLinkClick_URL_opensExternally() {
         // Arrange
         let externalURL = URL(string: "https://example.com")!
+        var openedExternalURLs: [URL] = []
+        textView.onOpenExternalURL = { url in
+            openedExternalURLs.append(url)
+        }
         
         // Act
         let result = textView.handleLinkClick(externalURL, openInNewTab: false)
         
-        // Assert - URLs should be opened externally via NSWorkspace
+        // Assert - URLs should be opened via the callback
         XCTAssertTrue(result, "handleLinkClick should return true for external URLs")
-        // Note: We can't easily test NSWorkspace.open, but the method should return true
+        XCTAssertEqual(openedExternalURLs.count, 1, "Should have opened exactly one external URL")
+        XCTAssertEqual(openedExternalURLs.first, externalURL, "Should open the correct external URL")
     }
 
     func test_handleLinkClick_withAlias_resolvesCorrectly() {
