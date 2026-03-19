@@ -78,6 +78,13 @@ struct EditorView: View {
     @State private var selectedEmbedID: String? = nil
     @State private var scrollToEmbedRange: NSRange? = nil
 
+    // MARK: - File History State
+    @State private var showHistoryModal: Bool = false
+    @State private var fileHistory: [GitService.FileCommit] = []
+    @State private var selectedCommit: GitService.FileCommit? = nil
+    @State private var historicalContent: String? = nil
+    @State private var isLoadingHistory: Bool = false
+
     private var isReadOnly: Bool { readOnlyFile != nil }
     private var usesExternalEditableState: Bool { editableFile != nil && editableContent != nil }
     private var displayFile: URL? { readOnlyFile ?? editableFile ?? appState.selectedFile }
@@ -173,6 +180,24 @@ struct EditorView: View {
         }
         .animation(.easeInOut(duration: 0.15), value: participatesInGlobalEditorCommands ? appState.isSearchPresented : false)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            if let file = displayFile {
+                loadFileHistory(for: file)
+            }
+        }
+        .onChange(of: displayFile) { newFile in
+            if let file = newFile {
+                loadFileHistory(for: file)
+            } else {
+                fileHistory = []
+            }
+        }
+        .overlay {
+            if showHistoryModal {
+                historyModal
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+        }
     }
 
     private func markEditorDirty() {
@@ -265,6 +290,263 @@ struct EditorView: View {
             } else {
                 TinyBadge(text: "Synced")
             }
+
+            // View History button (only when file has git history and not in read-only mode)
+            if !isReadOnly, let file = displayFile, !fileHistory.isEmpty {
+                Button(action: {
+                    loadFileHistory(for: file)
+                    showHistoryModal = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("History")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(SynapseTheme.accent)
+                }
+                .buttonStyle(.plain)
+                .help("View previous versions of this file")
+            }
+        }
+    }
+
+    // MARK: - File History Helpers
+
+    private func loadFileHistory(for file: URL) {
+        print("[DEBUG] Loading file history for: \(file.path)")
+        print("[DEBUG] appState.rootURL: \(String(describing: appState.rootURL))")
+        
+        guard let rootURL = appState.rootURL else {
+            print("[DEBUG] No rootURL available")
+            fileHistory = []
+            return
+        }
+        
+        print("[DEBUG] Attempting to create GitService with: \(rootURL.path)")
+        print("[DEBUG] Is git repo: \(GitService.isGitRepo(at: rootURL))")
+        
+        guard let gitService = try? GitService(repoURL: rootURL) else {
+            print("[DEBUG] Failed to create GitService")
+            fileHistory = []
+            return
+        }
+        
+        let history = gitService.getFileHistory(for: file)
+        print("[DEBUG] Found \(history.count) commits")
+        fileHistory = history
+    }
+
+    private func selectCommit(_ commit: GitService.FileCommit) {
+        selectedCommit = commit
+        isLoadingHistory = true
+        
+        guard let rootURL = appState.rootURL,
+              let gitService = try? GitService(repoURL: rootURL),
+              let file = displayFile else {
+            historicalContent = nil
+            isLoadingHistory = false
+            return
+        }
+        
+        historicalContent = gitService.getFileContent(at: commit.sha, for: file)
+        isLoadingHistory = false
+    }
+
+    private func restoreHistoricalVersion() {
+        guard let content = historicalContent else { return }
+        
+        if let editableContent = editableContent {
+            editableContent.wrappedValue = content
+            editableIsDirty?.wrappedValue = true
+        } else {
+            appState.fileContent = content
+            appState.isDirty = true
+        }
+        
+        showHistoryModal = false
+        selectedCommit = nil
+        historicalContent = nil
+    }
+
+    // MARK: - History Modal
+
+    @ViewBuilder
+    private var historyModal: some View {
+        ZStack {
+            // Backdrop
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    showHistoryModal = false
+                }
+            
+            // Modal content
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    // Show back button when viewing a specific commit
+                    if selectedCommit != nil {
+                        Button(action: {
+                            selectedCommit = nil
+                            historicalContent = nil
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Back")
+                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                            }
+                            .foregroundStyle(SynapseTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 8)
+                    }
+                    
+                    Text(selectedCommit == nil ? "Version History" : "Historical Version")
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                        .foregroundStyle(SynapseTheme.textPrimary)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        showHistoryModal = false
+                        selectedCommit = nil
+                        historicalContent = nil
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(SynapseTheme.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(SynapseTheme.panel)
+                
+                Divider()
+                    .background(SynapseTheme.border)
+                
+                // Content
+                if let commit = selectedCommit {
+                    // Preview mode
+                    VStack(spacing: 12) {
+                        // Commit info
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(commit.message)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(SynapseTheme.textPrimary)
+                            Text(commit.date, style: .date)
+                                .font(.system(size: 12))
+                                .foregroundStyle(SynapseTheme.textMuted)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        
+                        // Historical content preview
+                        if isLoadingHistory {
+                            Spacer()
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Spacer()
+                        } else if let content = historicalContent {
+                            RawEditor(
+                                text: .constant(content),
+                                currentFileURL: displayFile,
+                                isEditable: false,
+                                hideMarkdown: false,
+                                paneIndex: paneIndex,
+                                embeddedNotes: $embeddedNotes,
+                                selectedEmbedID: $selectedEmbedID,
+                                scrollToRange: .constant(nil),
+                                participatesInGlobalEditorCommands: false
+                            )
+                            .environmentObject(appState)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            Spacer()
+                            Text("Failed to load historical version")
+                                .foregroundStyle(SynapseTheme.textMuted)
+                            Spacer()
+                        }
+                        
+                        // Restore button
+                        Button(action: restoreHistoricalVersion) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.uturn.backward.circle.fill")
+                                    .font(.system(size: 14))
+                                Text("Restore this version")
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(SynapseTheme.accent)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(historicalContent == nil)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    // Commit list mode
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(fileHistory.enumerated()), id: \.element.sha) { index, commit in
+                                Button(action: { selectCommit(commit) }) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "clock")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(SynapseTheme.accent)
+                                        
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(commit.message)
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundStyle(SynapseTheme.textPrimary)
+                                                .lineLimit(2)
+                                                .multilineTextAlignment(.leading)
+                                            Text(commit.date, style: .date)
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(SynapseTheme.textMuted)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(SynapseTheme.textMuted)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                
+                                if index < fileHistory.count - 1 {
+                                    Divider()
+                                        .background(SynapseTheme.border)
+                                        .padding(.leading, 44)
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(width: 520, height: 580)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(SynapseTheme.panelElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(SynapseTheme.border, lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.25), radius: 20, x: 0, y: 10)
         }
     }
 }
