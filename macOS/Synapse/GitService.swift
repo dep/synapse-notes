@@ -176,6 +176,62 @@ final class GitService {
         return !out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // MARK: - File History
+
+    struct FileCommit: Equatable {
+        let sha: String
+        let message: String
+        let date: Date
+    }
+
+    /// Get commit history for a specific file
+    func getFileHistory(for fileURL: URL) -> [FileCommit] {
+        let relativePath = fileURL.path.replacingOccurrences(of: repoURL.path, with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        
+        guard !relativePath.isEmpty else { return [] }
+        
+        // Format: sha|date|message (using | as separator since it's rare in commit messages)
+        // Using %cI for strict ISO 8601 format
+        let format = "%H|%cI|%s"
+        let output = (try? run(["log", "--format=\(format)", "--", relativePath])) ?? ""
+        
+        guard !output.isEmpty else { return [] }
+        
+        let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+        let formatter = ISO8601DateFormatter()
+        
+        return lines.compactMap { line -> FileCommit? in
+            let components = line.components(separatedBy: "|")
+            guard components.count >= 3 else { return nil }
+            
+            let sha = components[0]
+            let dateString = components[1]
+            let message = components.dropFirst(2).joined(separator: "|") // In case message contains |
+            
+            guard let date = formatter.date(from: dateString) else { return nil }
+            
+            return FileCommit(sha: sha, message: message, date: date)
+        }
+    }
+
+    /// Get file content at a specific commit
+    func getFileContent(at commitSha: String, for fileURL: URL) -> String? {
+        let relativePath = fileURL.path.replacingOccurrences(of: repoURL.path, with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        
+        guard !relativePath.isEmpty else { return nil }
+        
+        do {
+            let content = try run(["show", "\(commitSha):\(relativePath)"])
+            return content
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: Private
 
     @discardableResult

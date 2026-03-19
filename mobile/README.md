@@ -42,12 +42,14 @@ mobile/
 │   ├── components/     # Reusable UI components
 │   ├── screens/        # Screen components
 │   │   ├── HomeScreen.tsx
+│   │   ├── EditorScreen.tsx       # Note editor with history & search
 │   │   ├── SettingsScreen.tsx
 │   │   ├── OnboardingScreen.tsx
 │   │   └── CloneRepositoryScreen.tsx
 │   ├── navigation/     # Navigation configuration
 │   │   └── AppNavigator.tsx
 │   ├── services/       # API and external service integrations
+│   │   ├── gitService.ts           # Git operations including history
 │   │   └── onboardingStorage.ts
 │   ├── hooks/          # Custom React hooks
 │   └── theme/          # Theme and styling
@@ -90,6 +92,14 @@ mobile/
   - Shows file name, line number, and matching line preview
   - Tappable results to open the file
   - Matches light/dark theme automatically
+
+### Version History
+- **View History**: Browse and restore previous versions of your notes
+  - History button appears in editor header when file has git commits
+  - Shows list of commits with message and date
+  - Preview any historical version with syntax-highlighted markdown
+  - Restore button replaces current content with selected version
+  - File is marked with unsaved changes after restore, ready to save/commit
 
 ### Dependencies
 - **Expo SDK 55**: Latest stable Expo framework

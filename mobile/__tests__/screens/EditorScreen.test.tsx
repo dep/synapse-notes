@@ -22,6 +22,9 @@ jest.mock('../../src/services/gitService', () => ({
   GitService: {
     sync: jest.fn(),
     refreshRemote: jest.fn(),
+    getFileHistory: jest.fn(),
+    getFileContentAtCommit: jest.fn(),
+    isRepository: jest.fn(),
   },
 }));
 
@@ -70,6 +73,9 @@ describe('EditorScreen', () => {
     (FileSystemService.resolveWikilink as jest.Mock).mockResolvedValue(null);
     (GitService.sync as jest.Mock).mockResolvedValue({ pulled: true, committed: 'sha', pushed: true });
     (GitService.refreshRemote as jest.Mock).mockResolvedValue(undefined);
+    (GitService.getFileHistory as jest.Mock).mockResolvedValue([]);
+    (GitService.getFileContentAtCommit as jest.Mock).mockResolvedValue(null);
+    (GitService.isRepository as jest.Mock).mockResolvedValue(true);
     (OnboardingStorage.getActiveRepositoryPath as jest.Mock).mockResolvedValue('file:///vault/repo');
   });
 
@@ -219,4 +225,123 @@ describe('EditorScreen', () => {
     });
   });
 
+  describe('View History', () => {
+    it('shows View History button when file has commit history', async () => {
+      (GitService.getFileHistory as jest.Mock).mockResolvedValue([
+        { sha: 'abc123', message: 'Initial commit', date: new Date('2024-01-01') },
+      ]);
+
+      const { getByTestId } = renderScreen();
+
+      await waitFor(() => {
+        expect(GitService.getFileHistory).toHaveBeenCalledWith('file:///vault/repo', 'note.md');
+      });
+
+      expect(getByTestId('view-history-button')).toBeTruthy();
+    });
+
+    it('does not show View History button when file has no history', async () => {
+      (GitService.getFileHistory as jest.Mock).mockResolvedValue([]);
+
+      const { queryByTestId } = renderScreen();
+
+      await waitFor(() => {
+        expect(GitService.getFileHistory).toHaveBeenCalled();
+      });
+
+      expect(queryByTestId('view-history-button')).toBeNull();
+    });
+
+    it('opens history modal when View History button is clicked', async () => {
+      (GitService.getFileHistory as jest.Mock).mockResolvedValue([
+        { sha: 'abc123', message: 'Initial commit', date: new Date('2024-01-01') },
+        { sha: 'def456', message: 'Update content', date: new Date('2024-01-02') },
+      ]);
+
+      const { getByTestId, getByText } = renderScreen();
+
+      await waitFor(() => {
+        expect(getByTestId('view-history-button')).toBeTruthy();
+      });
+
+      act(() => {
+        fireEvent.press(getByTestId('view-history-button'));
+      });
+
+      await waitFor(() => {
+        expect(getByText('Initial commit')).toBeTruthy();
+        expect(getByText('Update content')).toBeTruthy();
+      });
+    });
+
+    it('shows file content preview when selecting a commit', async () => {
+      const mockContent = '# Historical Version';
+      (GitService.getFileHistory as jest.Mock).mockResolvedValue([
+        { sha: 'abc123', message: 'Initial commit', date: new Date('2024-01-01') },
+      ]);
+      (GitService.getFileContentAtCommit as jest.Mock).mockResolvedValue(mockContent);
+
+      const { getByTestId, getByText } = renderScreen();
+
+      await waitFor(() => {
+        expect(getByTestId('view-history-button')).toBeTruthy();
+      });
+
+      act(() => {
+        fireEvent.press(getByTestId('view-history-button'));
+      });
+
+      await waitFor(() => {
+        expect(getByText('Initial commit')).toBeTruthy();
+      });
+
+      act(() => {
+        fireEvent.press(getByText('Initial commit'));
+      });
+
+      await waitFor(() => {
+        expect(getByText('Restore this version')).toBeTruthy();
+        expect(GitService.getFileContentAtCommit).toHaveBeenCalledWith('file:///vault/repo', 'note.md', 'abc123');
+      });
+    });
+
+    it('restores file content when Restore button is clicked', async () => {
+      const mockContent = '# Historical Version';
+      (GitService.getFileHistory as jest.Mock).mockResolvedValue([
+        { sha: 'abc123', message: 'Initial commit', date: new Date('2024-01-01') },
+      ]);
+      (GitService.getFileContentAtCommit as jest.Mock).mockResolvedValue(mockContent);
+
+      const { getByTestId, getByText, queryByText } = renderScreen();
+
+      await waitFor(() => {
+        expect(getByTestId('view-history-button')).toBeTruthy();
+      });
+
+      act(() => {
+        fireEvent.press(getByTestId('view-history-button'));
+      });
+
+      await waitFor(() => {
+        expect(getByText('Initial commit')).toBeTruthy();
+      });
+
+      act(() => {
+        fireEvent.press(getByText('Initial commit'));
+      });
+
+      await waitFor(() => {
+        expect(getByText('Restore this version')).toBeTruthy();
+      });
+
+      act(() => {
+        fireEvent.press(getByText('Restore this version'));
+      });
+
+      await waitFor(() => {
+        // Modal should close
+        expect(queryByText('Initial commit')).toBeNull();
+      });
+    });
+  });
 });

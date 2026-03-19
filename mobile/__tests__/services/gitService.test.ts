@@ -691,4 +691,136 @@ describe('GitService', () => {
       });
     });
   });
+
+  describe('File History', () => {
+    describe('getFileHistory', () => {
+      it('should return commit history for a file', async () => {
+        const localPath = '/repos/test-repo';
+        const filePath = 'test.md';
+        const mockCommits = [
+          {
+            oid: 'abc123',
+            commit: {
+              message: 'Update test file',
+              committer: { timestamp: 1704067200 },
+            },
+          },
+          {
+            oid: 'def456',
+            commit: {
+              message: 'Initial commit',
+              committer: { timestamp: 1703980800 },
+            },
+          },
+        ];
+
+        (git.log as jest.Mock).mockResolvedValueOnce(mockCommits);
+
+        const result = await GitService.getFileHistory(localPath, filePath);
+
+        expect(result).toHaveLength(2);
+        expect(result[0].sha).toBe('abc123');
+        expect(result[0].message).toBe('Update test file');
+        expect(result[0].date).toBeInstanceOf(Date);
+        expect(result[1].sha).toBe('def456');
+        expect(result[1].message).toBe('Initial commit');
+      });
+
+      it('should return empty array when file has no history', async () => {
+        const localPath = '/repos/test-repo';
+        const filePath = 'new-file.md';
+
+        (git.log as jest.Mock).mockRejectedValueOnce(
+          new Error('no such file or directory')
+        );
+
+        const result = await GitService.getFileHistory(localPath, filePath);
+
+        expect(result).toEqual([]);
+      });
+
+      it('should return empty array for untracked files', async () => {
+        const localPath = '/repos/test-repo';
+        const filePath = 'untracked.md';
+
+        (git.log as jest.Mock).mockRejectedValueOnce(new Error('file not found'));
+
+        const result = await GitService.getFileHistory(localPath, filePath);
+
+        expect(result).toEqual([]);
+      });
+    });
+
+    describe('getFileContentAtCommit', () => {
+      it('should return file content at a specific commit', async () => {
+        const localPath = '/repos/test-repo';
+        const filePath = 'test.md';
+        const commitSha = 'abc123';
+        const fileContent = 'Hello, World!';
+
+        const mockCommit = {
+          oid: commitSha,
+          commit: {
+            tree: 'tree-sha',
+          },
+        };
+
+        const mockTree = {
+          tree: [
+            { path: 'test.md', oid: 'blob-sha', type: 'blob' },
+          ],
+        };
+
+        const mockBlob = {
+          blob: Buffer.from(fileContent),
+        };
+
+        (git.readCommit as jest.Mock).mockResolvedValueOnce(mockCommit);
+        (git.readTree as jest.Mock).mockResolvedValueOnce(mockTree);
+        (git.readBlob as jest.Mock).mockResolvedValueOnce(mockBlob);
+
+        const result = await GitService.getFileContentAtCommit(localPath, filePath, commitSha);
+
+        expect(result).toBe(fileContent);
+      });
+
+      it('should return null when file not found in commit', async () => {
+        const localPath = '/repos/test-repo';
+        const filePath = 'missing.md';
+        const commitSha = 'abc123';
+
+        const mockCommit = {
+          oid: commitSha,
+          commit: {
+            tree: 'tree-sha',
+          },
+        };
+
+        const mockTree = {
+          tree: [
+            { path: 'other.md', oid: 'blob-sha', type: 'blob' },
+          ],
+        };
+
+        (git.readCommit as jest.Mock).mockResolvedValueOnce(mockCommit);
+        (git.readTree as jest.Mock).mockResolvedValueOnce(mockTree);
+
+        const result = await GitService.getFileContentAtCommit(localPath, filePath, commitSha);
+
+        expect(result).toBeNull();
+      });
+
+      it('should return null on error', async () => {
+        const localPath = '/repos/test-repo';
+        const filePath = 'test.md';
+        const commitSha = 'invalid-sha';
+
+        (git.readCommit as jest.Mock).mockRejectedValueOnce(new Error('Invalid commit'));
+
+        const result = await GitService.getFileContentAtCommit(localPath, filePath, commitSha);
+
+        expect(result).toBeNull();
+      });
+    });
+  });
 });

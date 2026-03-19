@@ -116,4 +116,103 @@ final class GitServiceTests: XCTestCase {
             }
         XCTAssertFalse(hasConflict, "Clean porcelain output should not be detected as a conflict")
     }
+
+    // MARK: - File History
+
+    func test_getFileHistory_returnsEmptyArrayForUntrackedFile() throws {
+        // Create a git repo
+        let dotGit = tempDir.appendingPathComponent(".git", isDirectory: true)
+        try FileManager.default.createDirectory(at: dotGit, withIntermediateDirectories: false)
+
+        // Initialize the repo
+        let initProcess = Process()
+        initProcess.currentDirectoryURL = tempDir
+        initProcess.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        initProcess.arguments = ["init"]
+        try initProcess.run()
+        initProcess.waitUntilExit()
+
+        // Configure git user
+        let configProcess = Process()
+        configProcess.currentDirectoryURL = tempDir
+        configProcess.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        configProcess.arguments = ["config", "user.email", "test@example.com"]
+        try configProcess.run()
+        configProcess.waitUntilExit()
+
+        let configProcess2 = Process()
+        configProcess2.currentDirectoryURL = tempDir
+        configProcess2.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        configProcess2.arguments = ["config", "user.name", "Test User"]
+        try configProcess2.run()
+        configProcess2.waitUntilExit()
+
+        // Create a file (but don't commit it)
+        let testFile = tempDir.appendingPathComponent("untracked.md")
+        FileManager.default.createFile(atPath: testFile.path, contents: "# Test".data(using: .utf8))
+
+        do {
+            let service = try GitService(repoURL: tempDir)
+            let history = service.getFileHistory(for: testFile)
+            XCTAssertTrue(history.isEmpty, "Untracked file should have empty history")
+        } catch GitError.gitNotFound {
+            throw XCTSkip("git not available on this system")
+        }
+    }
+
+    func test_getFileHistory_returnsCommitsForTrackedFile() throws {
+        // Create a git repo
+        let dotGit = tempDir.appendingPathComponent(".git", isDirectory: true)
+        try FileManager.default.createDirectory(at: dotGit, withIntermediateDirectories: false)
+
+        // Initialize the repo
+        let initProcess = Process()
+        initProcess.currentDirectoryURL = tempDir
+        initProcess.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        initProcess.arguments = ["init"]
+        try initProcess.run()
+        initProcess.waitUntilExit()
+
+        // Configure git user
+        let configProcess = Process()
+        configProcess.currentDirectoryURL = tempDir
+        configProcess.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        configProcess.arguments = ["config", "user.email", "test@example.com"]
+        try configProcess.run()
+        configProcess.waitUntilExit()
+
+        let configProcess2 = Process()
+        configProcess2.currentDirectoryURL = tempDir
+        configProcess2.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        configProcess2.arguments = ["config", "user.name", "Test User"]
+        try configProcess2.run()
+        configProcess2.waitUntilExit()
+
+        // Create and commit a file
+        let testFile = tempDir.appendingPathComponent("tracked.md")
+        FileManager.default.createFile(atPath: testFile.path, contents: "# Initial".data(using: .utf8))
+
+        let addProcess = Process()
+        addProcess.currentDirectoryURL = tempDir
+        addProcess.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        addProcess.arguments = ["add", "tracked.md"]
+        try addProcess.run()
+        addProcess.waitUntilExit()
+
+        let commitProcess = Process()
+        commitProcess.currentDirectoryURL = tempDir
+        commitProcess.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        commitProcess.arguments = ["commit", "-m", "Initial commit"]
+        try commitProcess.run()
+        commitProcess.waitUntilExit()
+
+        do {
+            let service = try GitService(repoURL: tempDir)
+            let history = service.getFileHistory(for: testFile)
+            XCTAssertEqual(history.count, 1, "Tracked file should have one commit")
+            XCTAssertEqual(history.first?.message, "Initial commit")
+        } catch GitError.gitNotFound {
+            throw XCTSkip("git not available on this system")
+        }
+    }
 }
