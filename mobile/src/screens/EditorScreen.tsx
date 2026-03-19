@@ -131,6 +131,13 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
   
+  // File history state
+  const [fileHistory, setFileHistory] = useState<Array<{ sha: string; message: string; date: Date }>>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedCommit, setSelectedCommit] = useState<{ sha: string; message: string; date: Date } | null>(null);
+  const [historicalContent, setHistoricalContent] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
   // Wikilink picker state
   const [showWikilinkPicker, setShowWikilinkPicker] = useState(false);
   const [wikilinkSearch, setWikilinkSearch] = useState('');
@@ -153,6 +160,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
 
   useEffect(() => {
     loadFile();
+    loadFileHistory();
   }, [filePath]);
 
   useEffect(() => {
@@ -207,6 +215,69 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadFileHistory = async () => {
+    try {
+      const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
+      if (!repositoryPath) {
+        setFileHistory([]);
+        return;
+      }
+
+      const isRepo = await GitService.isRepository(repositoryPath);
+      if (!isRepo) {
+        setFileHistory([]);
+        return;
+      }
+
+      const relativePath = getRelativePath(repositoryPath, filePath);
+      const history = await GitService.getFileHistory(repositoryPath, relativePath);
+      setFileHistory(history);
+    } catch (err) {
+      console.error('Failed to load file history:', err);
+      setFileHistory([]);
+    }
+  };
+
+  const handleViewHistory = () => {
+    setShowHistoryModal(true);
+    setSelectedCommit(null);
+    setHistoricalContent(null);
+  };
+
+  const handleSelectCommit = async (commit: { sha: string; message: string; date: Date }) => {
+    setSelectedCommit(commit);
+    setIsLoadingHistory(true);
+    try {
+      const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
+      if (repositoryPath) {
+        const relativePath = getRelativePath(repositoryPath, filePath);
+        const content = await GitService.getFileContentAtCommit(repositoryPath, relativePath, commit.sha);
+        setHistoricalContent(content);
+      }
+    } catch (err) {
+      console.error('Failed to load historical content:', err);
+      setHistoricalContent(null);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleRestoreVersion = () => {
+    if (historicalContent !== null) {
+      setContent(historicalContent);
+      setHasChanges(true);
+      setShowHistoryModal(false);
+      setSelectedCommit(null);
+      setHistoricalContent(null);
+    }
+  };
+
+  const handleCloseHistory = () => {
+    setShowHistoryModal(false);
+    setSelectedCommit(null);
+    setHistoricalContent(null);
   };
 
   // Check if file has been modified externally and prompt user
@@ -882,6 +953,17 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           <MaterialIcons name="circle" size={12} color={theme.colors.primary} style={styles.unsavedIndicator} />
         )}
 
+        {/* View History Button - only shown when file has git history */}
+        {fileHistory.length > 0 && (
+          <TouchableOpacity
+            style={styles.viewHistoryButton}
+            onPress={handleViewHistory}
+            testID="view-history-button"
+          >
+            <MaterialIcons name="history" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+        )}
+
         {/* Refresh Button */}
         <TouchableOpacity
           style={styles.previewToggleButton}
@@ -1178,6 +1260,96 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           </View>
         </View>
       )}
+
+      {/* History Modal */}
+      {showHistoryModal && (
+        <View style={styles.historyModalOverlay}>
+          <View style={[styles.historyModal, { backgroundColor: theme.colors.card }]}>
+            <View style={styles.historyModalHeader}>
+              <Text style={[styles.historyModalTitle, { color: theme.colors.text }]}>
+                {selectedCommit ? 'Historical Version' : 'Version History'}
+              </Text>
+              <TouchableOpacity onPress={handleCloseHistory}>
+                <MaterialIcons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            {selectedCommit ? (
+              // Show historical version preview
+              <View style={styles.historyPreviewContainer}>
+                <ScrollView style={styles.historyPreview}>
+                  {isLoadingHistory ? (
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                  ) : historicalContent ? (
+                    <Markdown
+                      style={{
+                        body: { color: theme.colors.text, fontSize: 16, lineHeight: 26 },
+                        heading1: { color: theme.colors.text, fontSize: 28, fontWeight: '700', marginBottom: 16, marginTop: 24 },
+                        heading2: { color: theme.colors.text, fontSize: 22, fontWeight: '700', marginBottom: 12, marginTop: 20 },
+                        heading3: { color: theme.colors.text, fontSize: 18, fontWeight: '600', marginBottom: 10, marginTop: 16 },
+                        strong: { fontWeight: '700', color: theme.colors.text },
+                        em: { fontStyle: 'italic', color: theme.colors.text },
+                        code_inline: { backgroundColor: isDark ? '#2d2d2d' : '#f0f0f0', color: isDark ? '#e0e0e0' : '#333', fontFamily: 'monospace', fontSize: 14 },
+                        code_block: { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5', color: isDark ? '#d4d4d4' : '#333', fontFamily: 'monospace', fontSize: 14, padding: 16, borderRadius: 8 },
+                        link: { color: theme.colors.primary },
+                        blockquote: { backgroundColor: isDark ? '#2d2d2d' : '#f0f0f0', borderLeftWidth: 4, borderLeftColor: theme.colors.primary, paddingLeft: 16, paddingVertical: 8 },
+                        paragraph: { marginVertical: 8 },
+                      }}
+                    >
+                      {preparePreviewContent(historicalContent, filePath)}
+                    </Markdown>
+                  ) : (
+                    <Text style={{ color: theme.colors.text }}>Failed to load historical version</Text>
+                  )}
+                </ScrollView>
+                
+                <TouchableOpacity
+                  style={[styles.restoreButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={handleRestoreVersion}
+                  disabled={historicalContent === null}
+                >
+                  <MaterialIcons name="restore" size={20} color={theme.colors.background} />
+                  <Text style={[styles.restoreButtonText, { color: theme.colors.background }]}>
+                    Restore this version
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // Show commit list
+              <ScrollView style={styles.historyList}>
+                {fileHistory.length === 0 ? (
+                  <Text style={[styles.historyEmptyText, { color: theme.colors.text + '80' }]}>
+                    No history available for this file
+                  </Text>
+                ) : (
+                  fileHistory.map((commit, index) => (
+                    <TouchableOpacity
+                      key={commit.sha}
+                      style={[
+                        styles.historyListItem,
+                        { borderBottomColor: theme.colors.border },
+                        index === fileHistory.length - 1 && { borderBottomWidth: 0 }
+                      ]}
+                      onPress={() => handleSelectCommit(commit)}
+                    >
+                      <MaterialIcons name="commit" size={20} color={theme.colors.primary} />
+                      <View style={styles.historyItemContent}>
+                        <Text style={[styles.historyItemMessage, { color: theme.colors.text }]} numberOfLines={2}>
+                          {commit.message}
+                        </Text>
+                        <Text style={[styles.historyItemDate, { color: theme.colors.text + '80' }]}>
+                          {commit.date.toLocaleDateString()} {commit.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      </View>
+                      <MaterialIcons name="chevron-right" size={20} color={theme.colors.text + '40'} />
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1389,5 +1561,94 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 26,
     flexWrap: 'wrap',
+  },
+  viewHistoryButton: {
+    padding: 8,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  historyModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  historyModal: {
+    width: '85%',
+    maxHeight: '70%',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  historyModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  historyModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  historyList: {
+    maxHeight: 400,
+  },
+  historyListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+  },
+  historyItemContent: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  historyItemMessage: {
+    fontSize: 15,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  historyItemDate: {
+    fontSize: 12,
+  },
+  historyEmptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 24,
+  },
+  historyPreviewContainer: {
+    flex: 1,
+    maxHeight: 450,
+  },
+  historyPreview: {
+    flex: 1,
+    padding: 16,
+    maxHeight: 380,
+  },
+  restoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 8,
+  },
+  restoreButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

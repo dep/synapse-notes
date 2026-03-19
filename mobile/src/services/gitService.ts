@@ -1432,6 +1432,71 @@ export class GitService {
     }
   }
 
+  /**
+   * Get commit history for a specific file
+   * @param dir - Repository directory
+   * @param filePath - Relative path to the file
+   * @returns Array of commits for the file, with message and date
+   */
+  async getFileHistory(
+    dir: string,
+    filePath: string
+  ): Promise<Array<{ sha: string; message: string; date: Date }>> {
+    try {
+      const commits = await git.log({
+        fs,
+        dir,
+        filepath: filePath,
+        ref: 'HEAD',
+      });
+
+      return commits.map((commit) => ({
+        sha: commit.oid,
+        message: commit.commit.message.trim(),
+        date: new Date(commit.commit.committer.timestamp * 1000),
+      }));
+    } catch (error) {
+      // If the file has no history or git operation fails, return empty array
+      if ((error as Error).message?.includes('no such file or directory')) {
+        return [];
+      }
+      // For other errors, also return empty array (file may not be tracked)
+      return [];
+    }
+  }
+
+  /**
+   * Get file content at a specific commit
+   * @param dir - Repository directory
+   * @param filePath - Relative path to the file
+   * @param commitSha - Commit SHA to retrieve content from
+   * @returns File content as string
+   */
+  async getFileContentAtCommit(
+    dir: string,
+    filePath: string,
+    commitSha: string
+  ): Promise<string | null> {
+    try {
+      // First, get the commit tree
+      const commit = await git.readCommit({ fs, dir, oid: commitSha });
+      const tree = await git.readTree({ fs, dir, oid: commit.commit.tree });
+
+      // Find the file in the tree
+      const fileEntry = tree.tree.find((entry) => entry.path === filePath);
+      if (!fileEntry) {
+        return null;
+      }
+
+      // Read the blob content
+      const { blob } = await git.readBlob({ fs, dir, oid: fileEntry.oid });
+      return Buffer.from(blob).toString('utf-8');
+    } catch (error) {
+      console.error('[getFileContentAtCommit] Error:', error);
+      return null;
+    }
+  }
+
   // Static wrappers for convenience
   static async clone(
     url: string,
@@ -1471,5 +1536,20 @@ export class GitService {
 
   static async isRepository(dir: string): Promise<boolean> {
     return GitService.getInstance().isRepository(dir);
+  }
+
+  static async getFileHistory(
+    dir: string,
+    filePath: string
+  ): Promise<Array<{ sha: string; message: string; date: Date }>> {
+    return GitService.getInstance().getFileHistory(dir, filePath);
+  }
+
+  static async getFileContentAtCommit(
+    dir: string,
+    filePath: string,
+    commitSha: string
+  ): Promise<string | null> {
+    return GitService.getInstance().getFileContentAtCommit(dir, filePath, commitSha);
   }
 }
