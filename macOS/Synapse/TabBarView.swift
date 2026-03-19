@@ -76,6 +76,11 @@ struct TabItemView: View {
             withAnimation(.easeInOut(duration: 0.1)) {
                 isHovered = hovering
             }
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
         }
         .onTapGesture {
             onSelect()

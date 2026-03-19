@@ -184,29 +184,36 @@ struct FileTreeView: View {
             }
 
                 if dailyNotesEnabled, appState.rootURL != nil {
-                    Button(action: { appState.openTodayNote() }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .foregroundStyle(SynapseTheme.accent)
-                                .frame(width: 16)
-                            Text("Today")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(SynapseTheme.textPrimary)
-                            Spacer()
-                        }
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 8)
-                        .background {
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(SynapseTheme.row)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .stroke(SynapseTheme.rowBorder, lineWidth: 1)
-                                }
-                        }
+                Button(action: { appState.openTodayNote() }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(SynapseTheme.accent)
+                            .frame(width: 16)
+                        Text("Today")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(SynapseTheme.textPrimary)
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 2)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(SynapseTheme.row)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .stroke(SynapseTheme.rowBorder, lineWidth: 1)
+                            }
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 2)
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
                 }
 
                 // MARK: - Pinned Section
@@ -313,34 +320,41 @@ struct FileTreeView: View {
                                 .padding(.vertical, 8)
                         } else {
                             LazyVStack(alignment: .leading, spacing: 2) {
-                                ForEach(flatFiles, id: \.self) { url in
-                                    Button(action: { appState.openFile(url) }) {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "doc.text")
-                                                .font(.system(size: 11))
-                                                .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textMuted)
-                                                .frame(width: 14)
-                                            VStack(alignment: .leading, spacing: 1) {
-                                                Text(url.deletingPathExtension().lastPathComponent)
-                                                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                                                    .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textPrimary)
-                                                    .lineLimit(1)
-                                                Text(appState.relativePath(for: url))
-                                                    .font(.system(size: 10, weight: .regular, design: .rounded))
-                                                    .foregroundStyle(appState.selectedFile == url ? Color.white.opacity(0.8) : SynapseTheme.textMuted)
-                                                    .lineLimit(1)
-                                            }
-                                            Spacer()
-                                        }
-                                        .padding(.vertical, 5)
-                                        .padding(.horizontal, 6)
-                                        .background(appState.selectedFile == url ? SynapseTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                        ForEach(flatFiles, id: \.self) { url in
+                            Button(action: { appState.openFile(url) }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc.text")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textMuted)
+                                        .frame(width: 14)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(url.deletingPathExtension().lastPathComponent)
+                                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                                            .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textPrimary)
+                                            .lineLimit(1)
+                                        Text(appState.relativePath(for: url))
+                                            .font(.system(size: 10, weight: .regular, design: .rounded))
+                                            .foregroundStyle(appState.selectedFile == url ? Color.white.opacity(0.8) : SynapseTheme.textMuted)
+                                            .lineLimit(1)
                                     }
-                                    .buttonStyle(.plain)
-                                    .onDrag {
-                                        sidebarFileItemProvider(for: url)
-                                    }
+                                    Spacer()
                                 }
+                                .padding(.vertical, 5)
+                                .padding(.horizontal, 6)
+                                .background(appState.selectedFile == url ? SynapseTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { hovering in
+                                if hovering {
+                                    NSCursor.pointingHand.push()
+                                } else {
+                                    NSCursor.pop()
+                                }
+                            }
+                            .onDrag {
+                                sidebarFileItemProvider(for: url)
+                            }
+                        }
                             }
                             .padding(.vertical, 4)
                         }
@@ -671,6 +685,13 @@ struct FileNodeRow: View {
             }
             .contentShape(Rectangle())
             .onTapGesture(perform: handleTap)
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
             .modifier(FileNodeDragModifier(fileURL: node.isDirectory ? nil : node.url))
             .contextMenu {
                 Button("New Note") { appState.presentRootNoteSheet(in: contextDirectory) }
@@ -776,6 +797,13 @@ struct PinnedItemRow: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 2)
+        .onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
         .simultaneousGesture(
             TapGesture()
                 .modifiers(.command)

@@ -1054,6 +1054,13 @@ struct DynamicSidebarView: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(SynapseTheme.border, lineWidth: 1))
             }
             .buttonStyle(.plain)
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
             .help(isCollapsedToRail ? "Expand Sidebar" : "Collapse Sidebar")
             Spacer(minLength: 0)
         }
@@ -1142,6 +1149,13 @@ struct SidebarPaneInContainer: View {
                 }
                 .buttonStyle(.plain)
                 .modifier(SidebarPaneDragModifier(pane: pane))
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
 
                 // Remove button — visible on hover
                 Button { showRemoveConfirmation = true } label: {
@@ -1153,6 +1167,13 @@ struct SidebarPaneInContainer: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    if hovering {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
                 .help("Remove \(pane.title)")
             }
             .padding(.horizontal, 12)

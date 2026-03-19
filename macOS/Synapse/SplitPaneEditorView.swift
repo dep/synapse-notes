@@ -56,6 +56,13 @@ struct PaneView: View {
                 inactiveContent
                     .background(SynapseTheme.editorShell)
                     .onTapGesture { appState.focusPane(paneIndex) }
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.pointingHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
             }
         }
         .overlay(
@@ -90,6 +97,13 @@ struct PaneView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
             .padding(.trailing, 4)
             .help("Close Pane")
         }
@@ -129,6 +143,13 @@ struct InactivePaneTabBar: View {
                     .background(isActive ? SynapseTheme.tabActive : Color.clear)
                     .onTapGesture {
                         appState.focusPane(paneIndex)
+                    }
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.pointingHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
                     }
             }
             Spacer()

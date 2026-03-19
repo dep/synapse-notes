@@ -92,6 +92,13 @@ struct TagsPaneView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .onHover { hovering in
+                                if hovering {
+                                    NSCursor.pointingHand.push()
+                                } else {
+                                    NSCursor.pop()
+                                }
+                            }
                             .contextMenu {
                                 if appState.isTagPinned(tag) {
                                     Button("Unpin") { appState.unpinTag(tag) }
@@ -237,6 +244,11 @@ struct TagPageNoteRow: View {
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
         }
         .gesture(
             DragGesture(minimumDistance: 0)

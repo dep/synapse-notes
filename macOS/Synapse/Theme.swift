@@ -79,6 +79,13 @@ struct ChromeButtonStyle: ButtonStyle {
                             .stroke(Color.white.opacity(0.06), lineWidth: 1)
                     }
             }
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
     }
 }
 
@@ -97,6 +104,13 @@ struct PrimaryChromeButtonStyle: ButtonStyle {
                             .stroke(Color.white.opacity(0.10), lineWidth: 1)
                     }
                     .opacity(configuration.isPressed ? 0.88 : 1)
+            }
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
             }
     }
 }

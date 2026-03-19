@@ -1445,6 +1445,43 @@ class LinkAwareTextView: NSTextView {
         super.mouseDown(with: event)
     }
 
+    private var trackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        
+        if let oldTrackingArea = trackingArea {
+            removeTrackingArea(oldTrackingArea)
+        }
+        
+        let newTrackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(newTrackingArea)
+        trackingArea = newTrackingArea
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        
+        // Check if hovering over an interactive element
+        if imageEmbedTarget(at: point) != nil ||
+           wikilinkTarget(at: point) != nil ||
+           tagTarget(at: point) != nil ||
+           urlTarget(at: point) != nil {
+            NSCursor.pointingHand.set()
+        } else {
+            NSCursor.arrow.set()
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        NSCursor.arrow.set()
+    }
+
     func imageEmbedTarget(at viewPoint: NSPoint) -> String? {
         guard let layout = layoutManager, let container = textContainer else { return nil }
 
@@ -1524,6 +1561,28 @@ class LinkAwareTextView: NSTextView {
         guard glyphRect.contains(containerPoint) else { return nil }
 
         return textStorage?.attribute(.tagTarget, at: charIndex, effectiveRange: nil) as? String
+    }
+
+    func urlTarget(at viewPoint: NSPoint) -> URL? {
+        guard let layout = layoutManager, let container = textContainer else { return nil }
+
+        let containerPoint = NSPoint(
+            x: viewPoint.x - textContainerOrigin.x,
+            y: viewPoint.y - textContainerOrigin.y
+        )
+        var fraction: CGFloat = 0
+        let charIndex = layout.characterIndex(
+            for: containerPoint,
+            in: container,
+            fractionOfDistanceBetweenInsertionPoints: &fraction
+        )
+        guard charIndex < (string as NSString).length else { return nil }
+
+        let glyphIndex = layout.glyphIndexForCharacter(at: charIndex)
+        let glyphRect = layout.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: container)
+        guard glyphRect.contains(containerPoint) else { return nil }
+
+        return textStorage?.attribute(.link, at: charIndex, effectiveRange: nil) as? URL
     }
 
     // MARK: - Focus support
