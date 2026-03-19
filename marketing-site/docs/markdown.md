@@ -215,11 +215,10 @@ Tag your notes for organization and filtering:
 - Can include letters, numbers, hyphens (`-`), underscores (`_`), and dots (`.`)
 - Are normalized to lowercase (`#Work` becomes `work`)
 
-**Viewing tags:**
-Open the **Tags** pane in the sidebar to see:
-- All tags used across your vault
-- Count of notes per tag
-- Click a tag to see all notes with that tag
+**Viewing and using tags:**
+- **Inline:** Tags appear colorized in the editor and are clickable — click any inline tag to open a filtered view of that tag
+- **Tags Pane:** Open the **Tags** pane in the sidebar to see all tags used across your vault, with count of notes per tag
+- **Click a tag** in the Tags pane to see all notes with that tag
 
 **Examples:**
 

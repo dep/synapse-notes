@@ -38,6 +38,7 @@ Synapse packs a robust set of features to boost your productivity.
 - **Wikilinks:** Easily link to other notes using `[[Note Name]]`, or highlight text and press `CMD + K` to turn it into a wikilink with that text as the display alias.
 - **Embedded Notes:** Include other notes directly using `![[Note Name]]`.
 - **Media Previews:** Inline support for image rendering and YouTube video previews.
+- **View History:** Access the View History button in the file editor to see previous versions of your note.
 
 ### Navigation
 - **Tabs:** Cycle through your most recently used (MRU) tabs seamlessly.
@@ -75,6 +76,8 @@ Customize left and right sidebars with panes:
 - **Terminal:** An integrated ZSH terminal inside the app.
 - **Related Links:** See what files link to the current one.
 - **Graph:** The local vault graph.
+
+Drag and drop files directly to sidebar panes to move or organize your notes.
 
 ### Gist Publishing
 Easily publish specific notes to GitHub Gists using your Personal Access Token (PAT).
