@@ -385,7 +385,7 @@ class AppState: ObservableObject {
             )
             source.setEventHandler { [weak self] in
                 guard let self else { return }
-                self.refreshAllFiles()
+                self.rebuildFileLists(reloadSettings: false)
                 guard case .pulling = self.gitSyncStatus else {
                     self.reloadSelectedFileFromDiskIfNeeded(force: true)
                     return
@@ -1160,13 +1160,23 @@ class AppState: ObservableObject {
     }
 
     func refreshAllFiles() {
+        rebuildFileLists(reloadSettings: true)
+    }
+
+    /// Rescans the vault file tree. When `reloadSettings` is true, persists any pending debounced
+    /// settings and reloads YAML first (manual refresh / after file ops). The directory watcher
+    /// uses `reloadSettings: false` so saving a note does not reload settings and undo in-memory UI prefs.
+    private func rebuildFileLists(reloadSettings: Bool) {
         guard let root = rootURL else {
             allFiles = []
             allProjectFiles = []
             return
         }
 
-        settings.reloadFromDisk()
+        if reloadSettings {
+            settings.flushDebouncedSaveBeforeReloadIfNeeded()
+            settings.reloadFromDisk()
+        }
 
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(

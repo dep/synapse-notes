@@ -888,7 +888,12 @@ class SettingsManager: ObservableObject {
         }
         pendingSave?.cancel()
         let snap = SaveSnapshot(from: self)
-        let work = DispatchWorkItem {
+        var work: DispatchWorkItem!
+        work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if self.pendingSave === work {
+                self.pendingSave = nil
+            }
             DispatchQueue.global(qos: .utility).async { snap.write() }
         }
         pendingSave = work
@@ -897,6 +902,17 @@ class SettingsManager: ObservableObject {
 
     private func flush() {
         SaveSnapshot(from: self).write()
+    }
+
+    /// If a debounced save is still queued, cancel it and persist immediately. Call before
+    /// `reloadFromDisk()` so reload does not reapply stale YAML. Skips when nothing is pending so
+    /// external edits to settings files are not overwritten by an in-memory snapshot.
+    func flushDebouncedSaveBeforeReloadIfNeeded() {
+        guard pendingSave != nil else { return }
+        pendingSave?.cancel()
+        pendingSave = nil
+        guard !isInitializing else { return }
+        flush()
     }
 
     // Value-type snapshot so background thread never touches SettingsManager.
