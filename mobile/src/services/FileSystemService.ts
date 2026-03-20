@@ -41,7 +41,7 @@ interface FileSystemEntity {
 }
 
 // Helper to normalize file:// URIs for Android
-const normalizeFileUri = (inputPath: string): string => {
+export const normalizeFileUri = (inputPath: string): string => {
   if (!inputPath) {
     return inputPath;
   }
@@ -102,6 +102,11 @@ export class FileSystemService {
   private static instance: FileSystemService | null = null;
 
   private constructor() {}
+
+  /** Normalize `file:` URIs so repo root and file paths compare equal (matches Android `file:/` vs `file:///`). */
+  static normalizeUri(inputPath: string): string {
+    return normalizeFileUri(inputPath);
+  }
 
   static getInstance(): FileSystemService {
     if (!FileSystemService.instance) {

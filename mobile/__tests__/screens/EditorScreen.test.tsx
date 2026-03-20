@@ -8,15 +8,22 @@ import { OnboardingStorage } from '../../src/services/onboardingStorage';
 
 let repositoryRefreshHandler: ((repositoryPath: string) => void | Promise<void>) | null = null;
 
-jest.mock('../../src/services/FileSystemService', () => ({
-  FileSystemService: {
-    readFile: jest.fn(),
-    writeFile: jest.fn(),
-    resolveWikilink: jest.fn(),
-    dirname: jest.fn((path: string) => path.replace(/\/[^/]*$/, '')),
-    join: jest.fn((base: string, target: string) => `${base.replace(/\/+$/, '')}/${target.replace(/^\/+/, '')}`),
-  },
-}));
+jest.mock('../../src/services/FileSystemService', () => {
+  const actual = jest.requireActual<typeof import('../../src/services/FileSystemService')>(
+    '../../src/services/FileSystemService'
+  );
+  return {
+    ...actual,
+    FileSystemService: {
+      readFile: jest.fn(),
+      writeFile: jest.fn(),
+      resolveWikilink: jest.fn(),
+      dirname: jest.fn((path: string) => path.replace(/\/[^/]*$/, '')),
+      join: jest.fn((base: string, target: string) => `${base.replace(/\/+$/, '')}/${target.replace(/^\/+/, '')}`),
+      normalizeUri: actual.FileSystemService.normalizeUri.bind(actual.FileSystemService),
+    },
+  };
+});
 
 jest.mock('../../src/services/gitService', () => ({
   GitService: {

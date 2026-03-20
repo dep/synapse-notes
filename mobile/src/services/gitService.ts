@@ -623,8 +623,8 @@ const listLocalRepositoryFiles = async (dir: string, baseDir = dir): Promise<str
 };
 
 const getRelativeRepoPath = (dir: string, filePath: string) => {
-  const normalizedDir = dir.replace(/\/+$/, '');
-  const normalizedFile = filePath.replace(/\/+$/, '');
+  const normalizedDir = toExpoUri(dir).replace(/\/+$/, '');
+  const normalizedFile = toExpoUri(filePath).replace(/\/+$/, '');
   if (!normalizedFile.startsWith(normalizedDir + '/')) {
     return normalizedFile;
   }
@@ -1432,65 +1432,162 @@ export class GitService {
     }
   }
 
+  /** Walk trees to resolve a repo-relative path to a blob oid at a commit (isomorphic-git trees use basename `path`). */
+  private async resolveBlobOidAtCommit(
+    dir: string,
+    commitSha: string,
+    relativePath: string
+  ): Promise<string | null> {
+    const parts = relativePath.split('/').filter((p) => p.length > 0);
+    if (parts.length === 0) {
+      return null;
+    }
+    const commit = await git.readCommit({ fs, dir, oid: commitSha });
+    let treeOid = commit.commit.tree;
+    for (let i = 0; i < parts.length; i++) {
+      const tree = await git.readTree({ fs, dir, oid: treeOid });
+      const name = parts[i];
+      const entry = tree.tree.find((e) => e.path === name);
+      if (!entry) {
+        return null;
+      }
+      const last = i === parts.length - 1;
+      if (last) {
+        return entry.type === 'blob' ? entry.oid : null;
+      }
+      if (entry.type !== 'tree') {
+        return null;
+      }
+      treeOid = entry.oid;
+    }
+    return null;
+  }
+
+  private async getFileContentFromGitRepo(
+    dir: string,
+    relativePath: string,
+    commitSha: string
+  ): Promise<string | null> {
+    const blobOid = await this.resolveBlobOidAtCommit(dir, commitSha, relativePath);
+    if (!blobOid) {
+      return null;
+    }
+    const { blob } = await git.readBlob({ fs, dir, oid: blobOid });
+    return Buffer.from(blob).toString('utf-8');
+  }
+
+  /** Per-file commit list via GitHub API (Synapse “GitHub API” vaults have no local .git objects for isomorphic-git log). */
+  private async getFileHistoryGitHubApi(
+    dir: string,
+    relativePath: string
+  ): Promise<Array<{ sha: string; message: string; date: Date }>> {
+    const meta = await this.loadRepoMetadata(dir);
+    if (!meta) {
+      return [];
+    }
+    const pathQuery = `?sha=${encodeURIComponent(meta.branch)}&per_page=100&path=${encodeURIComponent(relativePath)}`;
+    const commits = await this.githubRequest<
+      Array<{
+        sha: string;
+        commit: { message: string; committer?: { date?: string }; author?: { date?: string } };
+      }>
+    >(`/repos/${meta.owner}/${meta.repo}/commits${pathQuery}`, meta.repoUrl);
+    return commits.map((c) => ({
+      sha: c.sha,
+      message: c.commit.message.trim().split('\n')[0],
+      date: new Date(c.commit.committer?.date || c.commit.author?.date || 0),
+    }));
+  }
+
+  private async getFileContentAtCommitGitHubApi(
+    dir: string,
+    relativePath: string,
+    commitSha: string
+  ): Promise<string | null> {
+    try {
+      const meta = await this.loadRepoMetadata(dir);
+      if (!meta) {
+        return null;
+      }
+      const encodedPath = relativePath
+        .split('/')
+        .map((seg) => encodeURIComponent(seg))
+        .join('/');
+      const data = await this.githubRequest<
+        { content?: string; encoding?: string } | unknown[]
+      >(`/repos/${meta.owner}/${meta.repo}/contents/${encodedPath}?ref=${encodeURIComponent(commitSha)}`, meta.repoUrl);
+      if (Array.isArray(data)) {
+        return null;
+      }
+      const file = data as { content?: string; encoding?: string };
+      if (file.encoding === 'base64' && file.content) {
+        return Buffer.from(sanitizeGitHubBase64(file.content), 'base64').toString('utf-8');
+      }
+      return null;
+    } catch (e) {
+      console.error('[getFileContentAtCommitGitHubApi]', e);
+      return null;
+    }
+  }
+
   /**
-   * Get commit history for a specific file
-   * @param dir - Repository directory
-   * @param filePath - Relative path to the file
-   * @returns Array of commits for the file, with message and date
+   * Commit history for one file (same idea as macOS `git log -- path`).
+   * @param dir - Repository root URI
+   * @param filePath - Path relative to repo root
    */
   async getFileHistory(
     dir: string,
     filePath: string
   ): Promise<Array<{ sha: string; message: string; date: Date }>> {
+    const repoDir = toExpoUri(dir);
+    const pathInRepo = filePath.replace(/^\/+/, '');
+    if (!pathInRepo) {
+      return [];
+    }
     try {
+      if (await this.isGitHubApiRepository(repoDir)) {
+        return await this.getFileHistoryGitHubApi(repoDir, pathInRepo);
+      }
       const commits = await git.log({
         fs,
-        dir,
-        filepath: filePath,
+        dir: repoDir,
+        filepath: pathInRepo,
         ref: 'HEAD',
       });
 
       return commits.map((commit) => ({
         sha: commit.oid,
-        message: commit.commit.message.trim(),
+        message: commit.commit.message.trim().split('\n')[0],
         date: new Date(commit.commit.committer.timestamp * 1000),
       }));
     } catch (error) {
-      // If the file has no history or git operation fails, return empty array
       if ((error as Error).message?.includes('no such file or directory')) {
         return [];
       }
-      // For other errors, also return empty array (file may not be tracked)
       return [];
     }
   }
 
   /**
-   * Get file content at a specific commit
-   * @param dir - Repository directory
-   * @param filePath - Relative path to the file
-   * @param commitSha - Commit SHA to retrieve content from
-   * @returns File content as string
+   * File contents at a commit (macOS: `git show sha:path`).
+   * @param dir - Repository root URI
+   * @param filePath - Path relative to repo root
    */
   async getFileContentAtCommit(
     dir: string,
     filePath: string,
     commitSha: string
   ): Promise<string | null> {
+    const repoDir = toExpoUri(dir);
+    const pathInRepo = filePath.replace(/^\/+/, '');
+    if (!pathInRepo || !commitSha) {
+      return null;
+    }
     try {
-      // First, get the commit tree
-      const commit = await git.readCommit({ fs, dir, oid: commitSha });
-      const tree = await git.readTree({ fs, dir, oid: commit.commit.tree });
-
-      // Find the file in the tree
-      const fileEntry = tree.tree.find((entry) => entry.path === filePath);
-      if (!fileEntry) {
-        return null;
+      if (await this.isGitHubApiRepository(repoDir)) {
+        return await this.getFileContentAtCommitGitHubApi(repoDir, pathInRepo, commitSha);
       }
-
-      // Read the blob content
-      const { blob } = await git.readBlob({ fs, dir, oid: fileEntry.oid });
-      return Buffer.from(blob).toString('utf-8');
+      return await this.getFileContentFromGitRepo(repoDir, pathInRepo, commitSha);
     } catch (error) {
       console.error('[getFileContentAtCommit] Error:', error);
       return null;

@@ -784,6 +784,37 @@ describe('GitService', () => {
         expect(result).toBe(fileContent);
       });
 
+      it('should return file content for nested path at commit', async () => {
+        const localPath = '/repos/test-repo';
+        const filePath = 'notes/deep.md';
+        const commitSha = 'abc123';
+        const fileContent = 'nested body';
+
+        const mockCommit = {
+          oid: commitSha,
+          commit: { tree: 'root-tree' },
+        };
+
+        const mockRootTree = {
+          tree: [{ path: 'notes', oid: 'notes-tree', type: 'tree' }],
+        };
+        const mockNotesTree = {
+          tree: [{ path: 'deep.md', oid: 'blob-sha', type: 'blob' }],
+        };
+        const mockBlob = { blob: Buffer.from(fileContent) };
+
+        (git.readCommit as jest.Mock).mockResolvedValueOnce(mockCommit);
+        (git.readTree as jest.Mock)
+          .mockResolvedValueOnce(mockRootTree)
+          .mockResolvedValueOnce(mockNotesTree);
+        (git.readBlob as jest.Mock).mockResolvedValueOnce(mockBlob);
+
+        const result = await GitService.getFileContentAtCommit(localPath, filePath, commitSha);
+
+        expect(result).toBe(fileContent);
+        expect(git.readTree).toHaveBeenCalledTimes(2);
+      });
+
       it('should return null when file not found in commit', async () => {
         const localPath = '/repos/test-repo';
         const filePath = 'missing.md';
