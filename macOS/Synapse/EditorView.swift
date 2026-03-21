@@ -3195,11 +3195,26 @@ class LinkAwareTextView: NSTextView {
 struct HTMLToMarkdownConverter {
 
     static func convert(_ html: String) -> String {
-        guard !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
+        let trimmed = html.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
 
-        // NSAttributedString HTML parsing must run on the main thread.
-        // It also requires UTF-16 encoded data.
-        guard let data = html.data(using: .utf8) else { return html }
+        // Wrap in a minimal HTML document so NSAttributedString's HTML renderer
+        // uses the correct charset and a neutral sans-serif stylesheet. Without
+        // the wrapper the renderer can misdetect encoding and apply a monospace /
+        // code-block stylesheet to the entire content.
+        let wrapped: String
+        if trimmed.lowercased().hasPrefix("<!doctype") || trimmed.lowercased().hasPrefix("<html") {
+            wrapped = trimmed
+        } else {
+            wrapped = """
+            <!DOCTYPE html>
+            <html><head><meta charset="UTF-8">
+            <style>body { font-family: -apple-system, sans-serif; font-size: 13px; }</style>
+            </head><body>\(trimmed)</body></html>
+            """
+        }
+
+        guard let data = wrapped.data(using: .utf8) else { return trimmed }
 
         let opts: [NSAttributedString.DocumentReadingOptionKey: Any] = [
             .documentType: NSAttributedString.DocumentType.html,
@@ -3207,7 +3222,7 @@ struct HTMLToMarkdownConverter {
         ]
 
         guard let attrStr = try? NSAttributedString(data: data, options: opts, documentAttributes: nil) else {
-            return html
+            return trimmed
         }
 
         return markdownFromAttributedString(attrStr)
