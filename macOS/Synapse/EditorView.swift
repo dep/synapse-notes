@@ -316,22 +316,22 @@ struct EditorView: View {
     private func loadFileHistory(for file: URL) {
         print("[DEBUG] Loading file history for: \(file.path)")
         print("[DEBUG] appState.rootURL: \(String(describing: appState.rootURL))")
-        
+
         guard let rootURL = appState.rootURL else {
             print("[DEBUG] No rootURL available")
             fileHistory = []
             return
         }
-        
+
         print("[DEBUG] Attempting to create GitService with: \(rootURL.path)")
         print("[DEBUG] Is git repo: \(GitService.isGitRepo(at: rootURL))")
-        
+
         guard let gitService = try? GitService(repoURL: rootURL) else {
             print("[DEBUG] Failed to create GitService")
             fileHistory = []
             return
         }
-        
+
         let history = gitService.getFileHistory(for: file)
         print("[DEBUG] Found \(history.count) commits")
         fileHistory = history
@@ -340,7 +340,7 @@ struct EditorView: View {
     private func selectCommit(_ commit: GitService.FileCommit) {
         selectedCommit = commit
         isLoadingHistory = true
-        
+
         guard let rootURL = appState.rootURL,
               let gitService = try? GitService(repoURL: rootURL),
               let file = displayFile else {
@@ -348,14 +348,14 @@ struct EditorView: View {
             isLoadingHistory = false
             return
         }
-        
+
         historicalContent = gitService.getFileContent(at: commit.sha, for: file)
         isLoadingHistory = false
     }
 
     private func restoreHistoricalVersion() {
         guard let content = historicalContent else { return }
-        
+
         if let editableContent = editableContent {
             editableContent.wrappedValue = content
             editableIsDirty?.wrappedValue = true
@@ -363,7 +363,7 @@ struct EditorView: View {
             appState.fileContent = content
             appState.isDirty = true
         }
-        
+
         showHistoryModal = false
         selectedCommit = nil
         historicalContent = nil
@@ -380,7 +380,7 @@ struct EditorView: View {
                 .onTapGesture {
                     showHistoryModal = false
                 }
-            
+
             // Modal content
             VStack(spacing: 0) {
                 // Header
@@ -402,13 +402,13 @@ struct EditorView: View {
                         .buttonStyle(.plain)
                         .padding(.trailing, 8)
                     }
-                    
+
                     Text(selectedCommit == nil ? "Version History" : "Historical Version")
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundStyle(SynapseTheme.textPrimary)
-                    
+
                     Spacer()
-                    
+
                     Button(action: {
                         showHistoryModal = false
                         selectedCommit = nil
@@ -423,10 +423,10 @@ struct EditorView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(SynapseTheme.panel)
-                
+
                 Divider()
                     .background(SynapseTheme.border)
-                
+
                 // Content
                 if let commit = selectedCommit {
                     // Preview mode
@@ -442,7 +442,7 @@ struct EditorView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
-                        
+
                         // Historical content preview
                         if isLoadingHistory {
                             Spacer()
@@ -469,7 +469,7 @@ struct EditorView: View {
                                 .foregroundStyle(SynapseTheme.textMuted)
                             Spacer()
                         }
-                        
+
                         // Restore button
                         Button(action: restoreHistoricalVersion) {
                             HStack(spacing: 6) {
@@ -502,7 +502,7 @@ struct EditorView: View {
                                         Image(systemName: "clock")
                                             .font(.system(size: 14))
                                             .foregroundStyle(SynapseTheme.accent)
-                                        
+
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(commit.message)
                                                 .font(.system(size: 13, weight: .medium))
@@ -513,9 +513,9 @@ struct EditorView: View {
                                                 .font(.system(size: 11))
                                                 .foregroundStyle(SynapseTheme.textMuted)
                                         }
-                                        
+
                                         Spacer()
-                                        
+
                                         Image(systemName: "chevron.right")
                                             .font(.system(size: 12))
                                             .foregroundStyle(SynapseTheme.textMuted)
@@ -525,7 +525,7 @@ struct EditorView: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                
+
                                 if index < fileHistory.count - 1 {
                                     Divider()
                                         .background(SynapseTheme.border)
@@ -621,7 +621,7 @@ struct RawEditor: NSViewRepresentable {
         } else {
             textView.onCommandPaletteFallback = nil
         }
-        
+
         // Set up wiki link callbacks
         textView.onWikiLinkRequest = { [weak appState, weak textView] in
             // Store the typing range and set up completion handler
@@ -717,21 +717,21 @@ struct RawEditor: NSViewRepresentable {
             let noteMatches = textView.inlineEmbedMatches()
             let imageMatches = textView.inlineImageMatches()
             let currentFileURL = textView.currentFileURL
-            
+
             // Convert note matches to SidebarEmbedInfo
             var allEmbeds: [SidebarEmbedInfo] = noteMatches.map { match in
                 SidebarEmbedInfo.fromEmbedMatch(match)
             }
-            
+
             // Convert image matches to SidebarEmbedInfo
             let imageEmbeds = imageMatches.map { match in
                 SidebarEmbedInfo.fromImageMatch(match, relativeTo: currentFileURL)
             }
             allEmbeds.append(contentsOf: imageEmbeds)
-            
+
             // Sort by document position
             allEmbeds.sort { $0.range.location < $1.range.location }
-            
+
             if allEmbeds != embeddedNotes {
                 embeddedNotes = allEmbeds
             }
@@ -891,7 +891,7 @@ func styleMarkdownContent(_ content: String, fontSize: CGFloat = 12) -> NSAttrib
     let storage = NSTextStorage(string: content)
     let text = content as NSString
     let fullRange = NSRange(location: 0, length: text.length)
-    
+
     let baseFont = NSFont.systemFont(ofSize: fontSize)
     storage.addAttributes([
         .font: baseFont,
@@ -911,7 +911,7 @@ func styleMarkdownContent(_ content: String, fontSize: CGFloat = 12) -> NSAttrib
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: range.location, length: delimLen))
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: NSRange(location: range.location + range.length - delimLen, length: delimLen))
     }
-    
+
     // Headers
     let headerPatterns: [(String, NSFont)] = [
         ("^#{6} .+$", NSFont.systemFont(ofSize: fontSize + 2, weight: .semibold)),
@@ -930,7 +930,7 @@ func styleMarkdownContent(_ content: String, fontSize: CGFloat = 12) -> NSAttrib
             }
         }
     }
-    
+
     // Bold
     applyPattern("\\*\\*(.+?)\\*\\*") { range in
         storage.addAttribute(.font, value: NSFont.systemFont(ofSize: fontSize, weight: .bold), range: range)
@@ -987,7 +987,7 @@ func styleMarkdownContent(_ content: String, fontSize: CGFloat = 12) -> NSAttrib
     applyPattern("^---$", options: [.anchorsMatchLines]) { range in
         storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: range)
     }
-    
+
     return NSAttributedString(attributedString: storage)
 }
 
@@ -1613,7 +1613,7 @@ extension LinkAwareTextView {
             inlineVideoViews[key]?.removeFromSuperview()
             inlineVideoViews.removeValue(forKey: key)
         }
-        
+
         clearCodeBlockCopyButtons()
     }
 }
@@ -1705,19 +1705,19 @@ class LinkAwareTextView: NSTextView {
             return
         }
         let point = convert(event.locationInWindow, from: nil)
-        
+
         // Check if clicking on an image markdown
         if let embedID = imageEmbedTarget(at: point) {
             onSelectEmbed?(embedID)
             return
         }
-        
+
         if let target = wikilinkTarget(at: point) {
             let openInNewTab = event.modifierFlags.contains(.command)
             _ = handleLinkClick(target, openInNewTab: openInNewTab)
             return
         }
-        
+
         // Check if clicking on a tag
         if let tag = tagTarget(at: point) {
             let openInNewTab = event.modifierFlags.contains(.command)
@@ -1731,11 +1731,11 @@ class LinkAwareTextView: NSTextView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        
+
         if let oldTrackingArea = trackingArea {
             removeTrackingArea(oldTrackingArea)
         }
-        
+
         let newTrackingArea = NSTrackingArea(
             rect: bounds,
             options: [.mouseMoved, .activeAlways, .inVisibleRect],
@@ -1748,7 +1748,7 @@ class LinkAwareTextView: NSTextView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        
+
         // Check if hovering over an interactive element
         if imageEmbedTarget(at: point) != nil ||
            wikilinkTarget(at: point) != nil ||
@@ -1786,10 +1786,10 @@ class LinkAwareTextView: NSTextView {
         // Check if this character is part of an image markdown
         let nsText = string as NSString
         let textRange = NSRange(location: 0, length: nsText.length)
-        
+
         guard let regex = Self.inlineImageRegex else { return nil }
         let matches = regex.matches(in: string, range: textRange)
-        
+
         for match in matches {
             let matchRange = match.range(at: 0)
             if NSLocationInRange(charIndex, matchRange) {
@@ -1797,7 +1797,7 @@ class LinkAwareTextView: NSTextView {
                 return "\(matchRange.location)-\(source)"
             }
         }
-        
+
         return nil
     }
 
@@ -2913,9 +2913,15 @@ class LinkAwareTextView: NSTextView {
     }
 
     // MARK: - Image paste handling
-    
+
     /// Handles paste events for images. Saves image to .images folder and inserts markdown.
     override func paste(_ sender: Any?) {
+        // Try HTML paste first (check for HTML content on pasteboard)
+        if handleHTMLPaste(from: .general) {
+            return
+        }
+
+        // Then try image paste
         if !handlePaste(from: .general) {
             super.paste(sender)
         }
@@ -2975,20 +2981,20 @@ class LinkAwareTextView: NSTextView {
         guard let image = readImage(from: pasteboard) else { return nil }
         return PastedImageAsset(image: image, originalData: nil, fileExtension: "png")
     }
-    
+
     /// Reads an image from the pasteboard using various methods
     private func readImage(from pasteboard: NSPasteboard) -> NSImage? {
         if let images = pasteboard.readObjects(forClasses: [NSImage.self]) as? [NSImage],
            let firstImage = images.first {
             return firstImage
         }
-        
+
         if NSImage.canInit(with: pasteboard) {
             if let image = NSImage(pasteboard: pasteboard) {
                 return image
             }
         }
-        
+
         let tiffTypes: [NSPasteboard.PasteboardType] = [
             .tiff,
             NSPasteboard.PasteboardType(rawValue: "public.tiff"),
@@ -2996,7 +3002,7 @@ class LinkAwareTextView: NSTextView {
             NSPasteboard.PasteboardType(rawValue: "com.apple.tiff"),
             NSPasteboard.PasteboardType(rawValue: "NeXT TIFF v4.0 pasteboard type"),
         ]
-        
+
         for type in tiffTypes {
             if let tiffData = pasteboard.data(forType: type) {
                 if let image = NSImage(data: tiffData) {
@@ -3004,7 +3010,7 @@ class LinkAwareTextView: NSTextView {
                 }
             }
         }
-        
+
         let pngTypes: [NSPasteboard.PasteboardType] = [
             .png,
             NSPasteboard.PasteboardType(rawValue: "public.png"),
@@ -3012,7 +3018,7 @@ class LinkAwareTextView: NSTextView {
             NSPasteboard.PasteboardType(rawValue: "PNGf"),
             NSPasteboard.PasteboardType(rawValue: "Apple PNG pasteboard type"),
         ]
-        
+
         for type in pngTypes {
             if let pngData = pasteboard.data(forType: type) {
                 if let image = NSImage(data: pngData) {
@@ -3020,7 +3026,7 @@ class LinkAwareTextView: NSTextView {
                 }
             }
         }
-        
+
         let otherImageTypes: [NSPasteboard.PasteboardType] = [
             NSPasteboard.PasteboardType(rawValue: "public.jpeg"),
             NSPasteboard.PasteboardType(rawValue: "public.jpg"),
@@ -3033,17 +3039,17 @@ class LinkAwareTextView: NSTextView {
             NSPasteboard.PasteboardType(rawValue: "BMP"),
             NSPasteboard.PasteboardType(rawValue: "BMPf"),
         ]
-        
+
         for type in otherImageTypes {
             if let data = pasteboard.data(forType: type),
                let image = NSImage(data: data) {
                 return image
             }
         }
-        
+
         return nil
     }
-    
+
     /// Handles image paste: saves to .images folder and inserts markdown
     func handleImagePaste(image: NSImage) {
         handleImagePaste(asset: PastedImageAsset(image: image, originalData: nil, fileExtension: "png"))
@@ -3054,10 +3060,10 @@ class LinkAwareTextView: NSTextView {
             // No current file, fall back to regular paste (but images can't be pasted without a file context)
             return
         }
-        
+
         let fileFolder = currentFileURL.deletingLastPathComponent()
         let imagesFolder = fileFolder.appendingPathComponent(".images")
-        
+
         // Create .images folder if it doesn't exist
         let fileManager = FileManager.default
         if !fileManager.fileExists(atPath: imagesFolder.path) {
@@ -3068,7 +3074,7 @@ class LinkAwareTextView: NSTextView {
                 return
             }
         }
-        
+
         // Generate unique filename with timestamp and random component
         let timestamp = Int(Date().timeIntervalSince1970)
         let random = Int.random(in: 1000...9999)
@@ -3087,18 +3093,18 @@ class LinkAwareTextView: NSTextView {
             }
             dataToWrite = pngData
         }
-        
+
         do {
             try dataToWrite.write(to: imagePath)
         } catch {
             debugLog("Failed to save image: \(error)")
             return
         }
-        
+
         // Calculate relative path from current file to image
         let relativePath = ".images/\(filename)"
         let markdown = "![](\(relativePath))"
-        
+
         // Insert markdown at current cursor position
         let currentRange = selectedRange()
         if shouldChangeText(in: currentRange, replacementString: markdown) {
@@ -3106,13 +3112,551 @@ class LinkAwareTextView: NSTextView {
             didChangeText()
         }
     }
-    
+
     private func scaledInlineImageSize(for image: NSImage, maxWidth: CGFloat) -> NSSize {
         let originalSize = image.size.width > 0 && image.size.height > 0 ? image.size : NSSize(width: maxWidth, height: 180)
         let width = min(maxWidth, originalSize.width)
         let scale = width / max(originalSize.width, 1)
         let height = max(80, min(420, originalSize.height * scale))
         return NSSize(width: width, height: height)
+    }
+
+    // MARK: - HTML to Markdown Conversion
+
+    /// Converts HTML pasteboard content to Markdown and inserts it
+    @discardableResult
+    func handleHTMLPaste(from pasteboard: NSPasteboard) -> Bool {
+        // Check for HTML content on pasteboard
+        guard let htmlString = pasteboard.string(forType: .html) ??
+                              pasteboard.string(forType: NSPasteboard.PasteboardType("public.html")) else {
+            return false
+        }
+
+        // Check if there's also a plain text version - if so, prefer that for plain text
+        // This prevents converting already-clean text
+        if let plainText = pasteboard.string(forType: .string) {
+            // If the HTML looks like it might just be wrapped plain text (simple HTML),
+            // check if plain text is sufficient
+            let isComplexHTML = htmlString.contains("<") &&
+                               (htmlString.contains("<h") ||
+                                htmlString.contains("<ul") ||
+                                htmlString.contains("<ol") ||
+                                htmlString.contains("<blockquote") ||
+                                htmlString.contains("<strong") ||
+                                htmlString.contains("<em") ||
+                                htmlString.contains("<a ") ||
+                                htmlString.contains("<img") ||
+                                htmlString.contains("<code") ||
+                                htmlString.contains("<pre"))
+
+            if !isComplexHTML {
+                // Simple HTML, just use the plain text
+                return false
+            }
+        }
+
+        // Convert HTML to Markdown
+        let markdown = HTMLToMarkdownConverter.convert(htmlString)
+
+        // Insert at current cursor position
+        let currentRange = selectedRange()
+        if shouldChangeText(in: currentRange, replacementString: markdown) {
+            replaceCharacters(in: currentRange, with: markdown)
+            didChangeText()
+        }
+
+        return true
+    }
+}
+
+// MARK: - HTML to Markdown Converter
+
+/// Converts HTML content to Markdown format
+struct HTMLToMarkdownConverter {
+
+    /// Converts HTML string to Markdown
+    static func convert(_ html: String) -> String {
+        var result = html
+
+        // Normalize whitespace
+        result = normalizeWhitespace(result)
+
+        // Convert block elements first (order matters)
+        result = convertCodeBlocks(result)
+        result = convertHeadings(result)
+        result = convertBlockquotes(result)
+        result = convertLists(result)
+        result = convertParagraphs(result)
+
+        // Convert inline elements
+        result = convertBold(result)
+        result = convertItalic(result)
+        result = convertCode(result)
+        result = convertLinks(result)
+        result = convertImages(result)
+        result = convertLineBreaks(result)
+
+        // Clean up remaining HTML tags but preserve text
+        result = stripRemainingTags(result)
+
+        // Final cleanup
+        result = normalizeWhitespace(result)
+
+        return result
+    }
+
+    // MARK: - Block Elements
+
+    private static func convertHeadings(_ html: String) -> String {
+        var result = html
+
+        // H1-H6 conversion
+        for level in 1...6 {
+            let marker = String(repeating: "#", count: level)
+            let pattern = "<h\(level)[^>]*>(.*?)</h\(level)>"
+            let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+            result = regex?.stringByReplacingMatches(
+                in: result,
+                options: [],
+                range: NSRange(location: 0, length: result.utf16.count),
+                withTemplate: "\(marker) $1\n\n"
+            ) ?? result
+        }
+
+        return result
+    }
+
+    private static func convertParagraphs(_ html: String) -> String {
+        let pattern = "<p[^>]*>(.*?)</p>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+        return regex?.stringByReplacingMatches(
+            in: html,
+            options: [],
+            range: NSRange(location: 0, length: html.utf16.count),
+            withTemplate: "$1\n\n"
+        ) ?? html
+    }
+
+    private static func convertBlockquotes(_ html: String) -> String {
+        let pattern = "<blockquote[^>]*>(.*?)</blockquote>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+
+        guard let matches = regex?.matches(in: html, options: [], range: NSRange(location: 0, length: html.utf16.count)) else {
+            return html
+        }
+
+        var result = html
+        // Process in reverse to maintain string indices
+        for match in matches.reversed() {
+            guard match.numberOfRanges > 1,
+                  let contentRange = Range(match.range(at: 1), in: result) else { continue }
+
+            let content = String(result[contentRange])
+            // Add > to each line
+            let quotedLines = content
+                .components(separatedBy: .newlines)
+                .map { "> \($0)" }
+                .joined(separator: "\n")
+
+            if let fullRange = Range(match.range, in: result) {
+                result.replaceSubrange(fullRange, with: quotedLines + "\n\n")
+            }
+        }
+
+        return result
+    }
+
+    private static func convertLists(_ html: String) -> String {
+        var result = html
+
+        // Convert unordered lists
+        result = convertUnorderedList(result)
+
+        // Convert ordered lists
+        result = convertOrderedList(result)
+
+        return result
+    }
+
+    private static func convertUnorderedList(_ html: String) -> String {
+        let pattern = "<ul[^>]*>(.*?)</ul>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+
+        guard let matches = regex?.matches(in: html, options: [], range: NSRange(location: 0, length: html.utf16.count)) else {
+            return html
+        }
+
+        var result = html
+        for match in matches.reversed() {
+            guard match.numberOfRanges > 1,
+                  let contentRange = Range(match.range(at: 1), in: result) else { continue }
+
+            let content = String(result[contentRange])
+            let listItems = convertListItems(content, prefix: "- ")
+
+            if let fullRange = Range(match.range, in: result) {
+                result.replaceSubrange(fullRange, with: listItems + "\n")
+            }
+        }
+
+        return result
+    }
+
+    private static func convertOrderedList(_ html: String) -> String {
+        let pattern = "<ol[^>]*>(.*?)</ol>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+
+        guard let matches = regex?.matches(in: html, options: [], range: NSRange(location: 0, length: html.utf16.count)) else {
+            return html
+        }
+
+        var result = html
+        var listIndex = 1
+        for match in matches.reversed() {
+            guard match.numberOfRanges > 1,
+                  let contentRange = Range(match.range(at: 1), in: result) else { continue }
+
+            let content = String(result[contentRange])
+            let listItems = convertOrderedListItems(content, startingAt: &listIndex)
+
+            if let fullRange = Range(match.range, in: result) {
+                result.replaceSubrange(fullRange, with: listItems + "\n")
+            }
+        }
+
+        return result
+    }
+
+    private static func convertListItems(_ content: String, prefix: String, indent: String = "") -> String {
+        let itemPattern = "<li[^>]*>(.*?)</li>"
+        let regex = try? NSRegularExpression(pattern: itemPattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+
+        var result = ""
+        var lastEnd = 0
+        let nsContent = content as NSString
+
+        regex?.enumerateMatches(in: content, options: [], range: NSRange(location: 0, length: nsContent.length)) { match, _, _ in
+            guard let match = match, match.numberOfRanges > 1 else { return }
+
+            let itemRange = match.range
+            if let contentRange = Range(match.range(at: 1), in: content),
+               let fullRange = Range(itemRange, in: content) {
+
+                let itemContent = String(content[contentRange])
+
+                // Check for nested lists
+                let nestedListResult = handleNestedList(itemContent, parentPrefix: prefix, indent: indent)
+
+                result += indent + prefix + nestedListResult.mainContent + "\n"
+                if !nestedListResult.nestedContent.isEmpty {
+                    result += nestedListResult.nestedContent + "\n"
+                }
+            }
+            lastEnd = itemRange.location + itemRange.length
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func convertOrderedListItems(_ content: String, startingAt index: inout Int, indent: String = "") -> String {
+        let itemPattern = "<li[^>]*>(.*?)</li>"
+        let regex = try? NSRegularExpression(pattern: itemPattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+
+        var result = ""
+        let nsContent = content as NSString
+
+        regex?.enumerateMatches(in: content, options: [], range: NSRange(location: 0, length: nsContent.length)) { match, _, _ in
+            guard let match = match, match.numberOfRanges > 1 else { return }
+
+            if let contentRange = Range(match.range(at: 1), in: content) {
+                let itemContent = String(content[contentRange])
+                let prefix = "\(index). "
+
+                // Check for nested lists
+                let nestedListResult = handleNestedList(itemContent, parentPrefix: prefix, indent: indent)
+
+                result += indent + prefix + nestedListResult.mainContent + "\n"
+                if !nestedListResult.nestedContent.isEmpty {
+                    result += nestedListResult.nestedContent + "\n"
+                }
+
+                index += 1
+            }
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private struct NestedListResult {
+        let mainContent: String
+        let nestedContent: String
+    }
+
+    private static func handleNestedList(_ content: String, parentPrefix: String, indent: String) -> NestedListResult {
+        // Check for nested ul or ol
+        let ulPattern = "<ul[^>]*>(.*?)</ul>"
+        let olPattern = "<ol[^>]*>(.*?)</ol>"
+
+        var mainContent = content
+        var nestedContent = ""
+
+        if let ulRange = content.range(of: "<ul", options: .caseInsensitive) {
+            let beforeUL = String(content[..<ulRange.lowerBound])
+            mainContent = beforeUL.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let ulEndRange = content.range(of: "</ul>", options: .caseInsensitive, range: ulRange.lowerBound..<content.endIndex) {
+                let nestedULContent = String(content[ulRange.lowerBound..<ulEndRange.upperBound])
+                let converted = convertUnorderedList(nestedULContent)
+                // Indent the nested content
+                nestedContent = converted
+                    .components(separatedBy: .newlines)
+                    .map { "    " + $0 }
+                    .joined(separator: "\n")
+            }
+        } else if let olRange = content.range(of: "<ol", options: .caseInsensitive) {
+            let beforeOL = String(content[..<olRange.lowerBound])
+            mainContent = beforeOL.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let olEndRange = content.range(of: "</ol>", options: .caseInsensitive, range: olRange.lowerBound..<content.endIndex) {
+                let nestedOLContent = String(content[olRange.lowerBound..<olEndRange.upperBound])
+                var listIndex = 1
+                let converted = convertOrderedListItems(nestedOLContent, startingAt: &listIndex, indent: "    ")
+                nestedContent = converted
+            }
+        } else {
+            // No nested list, clean up the content
+            mainContent = stripTags(mainContent)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return NestedListResult(mainContent: mainContent, nestedContent: nestedContent)
+    }
+
+    private static func convertCodeBlocks(_ html: String) -> String {
+        // Handle <pre><code> blocks
+        let pattern = "<pre[^>]*>(?:<code[^>]*>)?(.*?)(?:</code>)?</pre>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+
+        guard let matches = regex?.matches(in: html, options: [], range: NSRange(location: 0, length: html.utf16.count)) else {
+            return html
+        }
+
+        var result = html
+        for match in matches.reversed() {
+            guard match.numberOfRanges > 1,
+                  let contentRange = Range(match.range(at: 1), in: result) else { continue }
+
+            let content = String(result[contentRange])
+            // Escape backticks in content if they exist
+            let escapedContent = content.replacingOccurrences(of: "```", with: "\\`\\`\\`")
+            let codeBlock = "```\n\(escapedContent)\n```\n\n"
+
+            if let fullRange = Range(match.range, in: result) {
+                result.replaceSubrange(fullRange, with: codeBlock)
+            }
+        }
+
+        return result
+    }
+
+    // MARK: - Inline Elements
+
+    private static func convertBold(_ html: String) -> String {
+        var result = html
+        let patterns = [
+            "<strong[^>]*>(.*?)</strong>",
+            "<b[^>]*>(.*?)</b>",
+        ]
+
+        for pattern in patterns {
+            let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+            result = regex?.stringByReplacingMatches(
+                in: result,
+                options: [],
+                range: NSRange(location: 0, length: result.utf16.count),
+                withTemplate: "**$1**"
+            ) ?? result
+        }
+
+        return result
+    }
+
+    private static func convertItalic(_ html: String) -> String {
+        var result = html
+        let patterns = [
+            "<em[^>]*>(.*?)</em>",
+            "<i[^>]*>(.*?)</i>",
+        ]
+
+        for pattern in patterns {
+            let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+            result = regex?.stringByReplacingMatches(
+                in: result,
+                options: [],
+                range: NSRange(location: 0, length: result.utf16.count),
+                withTemplate: "_$1_"
+            ) ?? result
+        }
+
+        return result
+    }
+
+    private static func convertCode(_ html: String) -> String {
+        let pattern = "<code[^>]*>(.*?)</code>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+
+        guard let matches = regex?.matches(in: html, options: [], range: NSRange(location: 0, length: html.utf16.count)) else {
+            return html
+        }
+
+        var result = html
+        for match in matches.reversed() {
+            guard match.numberOfRanges > 1,
+                  let contentRange = Range(match.range(at: 1), in: result) else { continue }
+
+            let content = String(result[contentRange])
+            // Don't convert if it's already inside a pre block (handled separately)
+            let code = "`\(content)`"
+
+            if let fullRange = Range(match.range, in: result) {
+                result.replaceSubrange(fullRange, with: code)
+            }
+        }
+
+        return result
+    }
+
+    private static func convertLinks(_ html: String) -> String {
+        let pattern = "<a[^>]+href=\"([^\"]+)\"[^>]*>(.*?)</a>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+
+        return regex?.stringByReplacingMatches(
+            in: html,
+            options: [],
+            range: NSRange(location: 0, length: html.utf16.count),
+            withTemplate: "[$2]($1)"
+        ) ?? html
+    }
+
+    private static func convertImages(_ html: String) -> String {
+        let pattern = "<img[^>]+src=\"([^\"]+)\"(?:[^>]+alt=\"([^\"]*)\")?[^>]*/?>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+
+        guard let matches = regex?.matches(in: html, options: [], range: NSRange(location: 0, length: html.utf16.count)) else {
+            return html
+        }
+
+        var result = html
+        for match in matches.reversed() {
+            let srcRange = match.range(at: 1)
+            let altRange = match.range(at: 2)
+
+            guard let srcStringRange = Range(srcRange, in: result) else { continue }
+
+            let src = String(result[srcStringRange])
+            let alt = altRange.location != NSNotFound && altRange.length > 0
+                ? String(result[Range(altRange, in: result)!])
+                : ""
+
+            let markdown = "![\(alt)](\(src))"
+
+            if let fullRange = Range(match.range, in: result) {
+                result.replaceSubrange(fullRange, with: markdown)
+            }
+        }
+
+        return result
+    }
+
+    private static func convertLineBreaks(_ html: String) -> String {
+        var result = html
+        result = result.replacingOccurrences(of: "<br[^>]*>", with: "\n", options: .regularExpression)
+        result = result.replacingOccurrences(of: "<br/>", with: "\n", options: .caseInsensitive)
+        result = result.replacingOccurrences(of: "<br />", with: "\n", options: .caseInsensitive)
+        return result
+    }
+
+    // MARK: - Cleanup
+
+    private static func stripRemainingTags(_ html: String) -> String {
+        // Remove any remaining HTML tags but preserve their content
+        let pattern = "<[^>]+>"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        return regex?.stringByReplacingMatches(
+            in: html,
+            options: [],
+            range: NSRange(location: 0, length: html.utf16.count),
+            withTemplate: ""
+        ) ?? html
+    }
+
+    private static func stripTags(_ html: String) -> String {
+        return stripRemainingTags(html)
+    }
+
+    private static func normalizeWhitespace(_ text: String) -> String {
+        var result = text
+
+        // Decode HTML entities
+        result = decodeHTMLEntities(result)
+
+        // Normalize newlines
+        result = result.replacingOccurrences(of: "\r\n", with: "\n")
+        result = result.replacingOccurrences(of: "\r", with: "\n")
+
+        // Remove excessive blank lines (more than 2)
+        while result.contains("\n\n\n\n") {
+            result = result.replacingOccurrences(of: "\n\n\n\n", with: "\n\n\n")
+        }
+
+        // Trim whitespace from each line
+        result = result
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
+
+        // Trim overall
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func decodeHTMLEntities(_ text: String) -> String {
+        var result = text
+
+        let entities: [(String, String)] = [
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("&amp;", "&"),
+            ("&quot;", "\""),
+            ("&#39;", "'"),
+            ("&apos;", "'"),
+            ("&nbsp;", " "),
+            ("&mdash;", "—"),
+            ("&ndash;", "–"),
+            ("&hellip;", "…"),
+        ]
+
+        for (entity, replacement) in entities {
+            result = result.replacingOccurrences(of: entity, with: replacement)
+        }
+
+        // Handle numeric entities (basic ones)
+        let numericPattern = "&#(\\d+);"
+        if let regex = try? NSRegularExpression(pattern: numericPattern, options: []) {
+            let matches = regex.matches(in: result, options: [], range: NSRange(location: 0, length: result.utf16.count))
+            for match in matches.reversed() {
+                if match.numberOfRanges > 1,
+                   let range = Range(match.range(at: 1), in: result),
+                   let num = Int(String(result[range])),
+                   let scalar = UnicodeScalar(num) {
+                    let fullRange = match.range
+                    if let fullStringRange = Range(fullRange, in: result) {
+                        result.replaceSubrange(fullStringRange, with: String(Character(scalar)))
+                    }
+                }
+            }
+        }
+
+        return result
     }
 }
 
@@ -3149,7 +3693,7 @@ struct EmbeddedNoteInfo: Identifiable, Equatable {
     let content: String?
     let noteURL: URL?
     let isUnresolved: Bool
-    
+
     static func == (lhs: EmbeddedNoteInfo, rhs: EmbeddedNoteInfo) -> Bool {
         lhs.id == rhs.id &&
         lhs.noteName == rhs.noteName &&
@@ -3178,7 +3722,7 @@ struct SidebarEmbedInfo: Identifiable, Equatable {
     let resolvedURL: URL?    // Resolved URL for both notes and images
     let isUnresolved: Bool
     let range: NSRange      // Position in document for sorting
-    
+
     /// Creates a SidebarEmbedInfo from an InlineEmbedMatch (note embed)
     static func fromEmbedMatch(_ match: InlineEmbedMatch) -> SidebarEmbedInfo {
         SidebarEmbedInfo(
@@ -3193,7 +3737,7 @@ struct SidebarEmbedInfo: Identifiable, Equatable {
             range: match.range
         )
     }
-    
+
     /// Creates a SidebarEmbedInfo from an InlineImageMatch (image embed)
     static func fromImageMatch(_ match: InlineImageMatch, relativeTo noteURL: URL?) -> SidebarEmbedInfo {
         let resolved = resolvedSidebarImageURL(for: match.source, relativeTo: noteURL)
@@ -3215,22 +3759,22 @@ struct SidebarEmbedInfo: Identifiable, Equatable {
 func resolvedSidebarImageURL(for source: String, relativeTo noteURL: URL?) -> URL? {
     let cleanedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !cleanedSource.isEmpty else { return nil }
-    
+
     // Handle web URLs
     if cleanedSource.hasPrefix("http://") || cleanedSource.hasPrefix("https://") {
         return URL(string: cleanedSource)
     }
-    
+
     // Handle file:// URLs
     if cleanedSource.hasPrefix("file://") {
         return URL(string: cleanedSource)
     }
-    
+
     // Handle absolute paths
     if cleanedSource.hasPrefix("/") {
         return URL(fileURLWithPath: cleanedSource)
     }
-    
+
     // Handle relative paths
     guard let noteURL = noteURL else { return nil }
     let baseURL = noteURL.deletingLastPathComponent()
@@ -3262,23 +3806,23 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let documentView = scrollView.documentView else { return }
-        
+
         let width: CGFloat = 304 // 320 - 16 padding
         let spacing: CGFloat = 12
         var currentY: CGFloat = 8
         var selectedView: NSView?
         var selectedViewY: CGFloat = 0
-        
+
         // Track which embed IDs we've processed
         var processedIDs = Set<String>()
-        
+
         for embed in notes {
             processedIDs.insert(embed.id)
             let isSelected = embed.id == selectedEmbedID
-            
+
             // Find existing view for this embed ID
             let existingView = documentView.subviews.first { $0.identifier?.rawValue == embed.id }
-            
+
             switch embed.type {
             case .note:
                 let embedView: EmbeddedNoteView
@@ -3292,27 +3836,27 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
                     }
                     documentView.addSubview(embedView)
                 }
-                
+
                 embedView.configure(
                     noteName: embed.title ?? "Note",
                     content: embed.content,
                     noteURL: embed.resolvedURL,
                     isUnresolved: embed.isUnresolved
                 )
-                
+
                 // Calculate height
                 let preferredSize = embedView.preferredSize(for: embed.content)
                 let height = min(preferredSize.height, 400)
-                
+
                 embedView.frame = NSRect(x: 0, y: currentY, width: width, height: height)
-                
+
                 if isSelected {
                     selectedView = embedView
                     selectedViewY = currentY
                 }
-                
+
                 currentY += height + spacing
-                
+
             case .image:
                 let imageView: EmbeddedImageView
                 if let existing = existingView as? EmbeddedImageView {
@@ -3328,26 +3872,26 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
                     }
                     documentView.addSubview(imageView)
                 }
-                
+
                 imageView.configure(
                     caption: embed.caption,
                     imageURL: embed.resolvedURL,
                     isUnresolved: embed.isUnresolved,
                     isSelected: isSelected
                 )
-                
+
                 let height: CGFloat = embed.caption != nil ? 246 : 228
                 imageView.frame = NSRect(x: 0, y: currentY, width: width, height: height)
-                
+
                 if isSelected {
                     selectedView = imageView
                     selectedViewY = currentY
                 }
-                
+
                 currentY += height + spacing
             }
         }
-        
+
         // Remove views that are no longer needed
         documentView.subviews.forEach { view in
             if let id = view.identifier?.rawValue, !processedIDs.contains(id) {
@@ -3358,7 +3902,7 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
         // Set document view size
         let totalHeight = max(currentY - spacing + 8, scrollView.bounds.height)
         documentView.frame = NSRect(x: 0, y: 0, width: width, height: totalHeight)
-        
+
         // Scroll selected view into view
         if let selectedView = selectedView {
             let visibleRect = NSRect(
@@ -3571,7 +4115,7 @@ final class EmbeddedImageView: NSView {
         targetURL = imageURL
         self.isSelected = isSelected
         openButton.isHidden = imageURL == nil || isUnresolved
-        
+
         if isUnresolved {
             captionField.stringValue = caption ?? "Image not found"
             imageView.image = nil
@@ -3582,17 +4126,17 @@ final class EmbeddedImageView: NSView {
                 loadImage(from: imageURL)
             }
         }
-        
+
         captionField.isHidden = (caption == nil || caption?.isEmpty == true)
-        
+
         // Update border color based on selection state
         updateBorderAppearance()
     }
-    
+
     private func updateBorderAppearance() {
         borderView.layer?.borderWidth = isSelected ? 3 : 1
-        borderView.layer?.borderColor = isSelected 
-            ? NSColor(SynapseTheme.accent).cgColor 
+        borderView.layer?.borderColor = isSelected
+            ? NSColor(SynapseTheme.accent).cgColor
             : NSColor(SynapseTheme.border).cgColor
     }
 
@@ -3609,7 +4153,7 @@ final class EmbeddedImageView: NSView {
 
     override func layout() {
         super.layout()
-        
+
         wantsLayer = true
         layer?.cornerRadius = 6
         layer?.masksToBounds = true
@@ -3682,7 +4226,7 @@ final class EmbeddedImageView: NSView {
 
     @objc private func openImage() {
         guard let targetURL = targetURL else { return }
-        
+
         let viewer = ImageViewerWindowController(imageURL: targetURL, caption: captionField.stringValue.isEmpty ? nil : captionField.stringValue)
         imageViewerController = viewer // retain strongly so it isn't deallocated before image loads
         viewer.showFullScreen()
@@ -3699,7 +4243,7 @@ final class EmbeddedImageView: NSView {
         borderView.layer?.cornerRadius = 6
         borderView.layer?.masksToBounds = true
         borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
-        
+
         addSubview(borderView)
         previewBackgroundView.wantsLayer = true
         previewBackgroundView.layer?.cornerRadius = 8
@@ -3715,11 +4259,11 @@ final class EmbeddedImageView: NSView {
         openButton.target = self
         openButton.action = #selector(openImage)
         addSubview(openButton)
-        
+
         // Click on image thumbnail scrolls editor to the markdown
         let click = NSClickGestureRecognizer(target: self, action: #selector(thumbnailClicked))
         imageView.addGestureRecognizer(click)
-        
+
         // Initial border appearance
         updateBorderAppearance()
     }
@@ -3746,7 +4290,7 @@ final class ImageViewerWindowController: NSWindowController {
     private var imageWidthConstraint: NSLayoutConstraint?
     private var imageHeightConstraint: NSLayoutConstraint?
     private var gestureStartZoom: CGFloat = 1.0
-    
+
     init(imageURL: URL, caption: String?) {
         let window = NSWindow(
             contentRect: NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600),
@@ -3759,9 +4303,9 @@ final class ImageViewerWindowController: NSWindowController {
         window.backgroundColor = .black
         window.isOpaque = true
         window.hasShadow = true
-        
+
         super.init(window: window)
-        
+
         self.imageURL = imageURL
         setupContentView()
         setupImageView()
@@ -3769,11 +4313,11 @@ final class ImageViewerWindowController: NSWindowController {
         setupEscapeHandler()
         loadImage()
     }
-    
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     deinit {
         if let monitor = localMonitor {
             NSEvent.removeMonitor(monitor)
@@ -3782,7 +4326,7 @@ final class ImageViewerWindowController: NSWindowController {
             NSEvent.removeMonitor(monitor)
         }
     }
-    
+
     private func setupContentView() {
         guard let window = window else { return }
 
@@ -3797,7 +4341,7 @@ final class ImageViewerWindowController: NSWindowController {
 
         window.contentView = scrollView
     }
-    
+
     private func setupImageView() {
         imageContainerView.wantsLayer = true
         imageContainerView.layer?.backgroundColor = NSColor.black.cgColor
@@ -3825,7 +4369,7 @@ final class ImageViewerWindowController: NSWindowController {
         setupGestureRecognizers()
         setupScrollWheelZoom()
     }
-    
+
     private func setupScrollWheelZoom() {
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             guard let self = self, let window = self.window else { return event }
@@ -3840,7 +4384,7 @@ final class ImageViewerWindowController: NSWindowController {
             return event
         }
     }
-    
+
     private func setupGestureRecognizers() {
         let doubleClickGesture = NSClickGestureRecognizer(target: self, action: #selector(handleDoubleClick))
         doubleClickGesture.numberOfClicksRequired = 2
@@ -3849,7 +4393,7 @@ final class ImageViewerWindowController: NSWindowController {
         let magnifyGesture = NSMagnificationGestureRecognizer(target: self, action: #selector(handleMagnify(_:)))
         imageView.addGestureRecognizer(magnifyGesture)
     }
-    
+
     @objc private func handleDoubleClick() {
         // Toggle between fit-to-screen and 100% zoom
         if currentZoom != 1.0 {
@@ -3858,7 +4402,7 @@ final class ImageViewerWindowController: NSWindowController {
             fitImageToScreen()
         }
     }
-    
+
     @objc private func handleMagnify(_ gesture: NSMagnificationGestureRecognizer) {
         switch gesture.state {
         case .began:
@@ -3870,7 +4414,7 @@ final class ImageViewerWindowController: NSWindowController {
             break
         }
     }
-    
+
     private func setZoom(_ zoom: CGFloat, animated: Bool) {
         let clampedZoom = max(minZoom, min(maxZoom, zoom))
         currentZoom = clampedZoom
@@ -3924,15 +4468,15 @@ final class ImageViewerWindowController: NSWindowController {
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
     }
-    
+
     private func setupCloseButton() {
         // Native window close button (traffic light) is sufficient
     }
-    
+
     private func setupEscapeHandler() {
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self, let window = self.window else { return event }
-            
+
             if NSApp.keyWindow == window && event.keyCode == 53 {
                 self.closeWindow()
                 return nil
@@ -3940,22 +4484,22 @@ final class ImageViewerWindowController: NSWindowController {
             return event
         }
     }
-    
+
     private func loadImage() {
         guard let imageURL = imageURL else { return }
-        
+
         let fileManager = FileManager.default
         if !fileManager.fileExists(atPath: imageURL.path) {
             print("Image file does not exist at: \(imageURL.path)")
             return
         }
-        
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let image = NSImage(contentsOf: imageURL) else {
                 print("Failed to load image from: \(imageURL.path)")
                 return
             }
-            
+
             DispatchQueue.main.async {
                 self?.imageSize = image.size
                 self?.imageView.image = image
@@ -3965,19 +4509,19 @@ final class ImageViewerWindowController: NSWindowController {
             }
         }
     }
-    
+
     private func updateImageViewSize() {
         layoutImage(centerViewport: true)
     }
-    
+
     @objc private func closeWindow() {
         window?.close()
     }
-    
+
     func showFullScreen() {
         window?.center()
         window?.makeKeyAndOrderFront(nil)
-        
+
         // Make it nearly full screen but keep title bar
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
@@ -4304,7 +4848,7 @@ struct CodeBlockMatch: Equatable {
     let range: NSRange
     let content: String
     let language: String?
-    
+
     static func == (lhs: CodeBlockMatch, rhs: CodeBlockMatch) -> Bool {
         lhs.id == rhs.id &&
         lhs.range == rhs.range &&
@@ -4314,10 +4858,10 @@ struct CodeBlockMatch: Equatable {
 }
 
 extension LinkAwareTextView {
-    
+
     /// Dictionary to track code block copy buttons keyed by their ID
     private var codeBlockCopyButtonsKey: String { "codeBlockCopyButtons" }
-    
+
     var codeBlockCopyButtons: [String: NSButton] {
         get {
             (objc_getAssociatedObject(self, &CodeBlockCopyButtonAssociatedKeys.buttons) as? [String: NSButton]) ?? [:]
@@ -4326,20 +4870,20 @@ extension LinkAwareTextView {
             objc_setAssociatedObject(self, &CodeBlockCopyButtonAssociatedKeys.buttons, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         }
     }
-    
+
     /// Regex pattern to detect code blocks: ```optional_language\ncode\n```
     /// Only matches opening ``` at the start of a line or string
     private static let codeBlockRegex = try? NSRegularExpression(
         pattern: "^[ \\t]{0,3}```([a-zA-Z0-9+-]*)[ \\t]*$",
         options: [.anchorsMatchLines]
     )
-    
+
     /// Find all code blocks in the current text
     func codeBlockMatches() -> [CodeBlockMatch] {
         guard let regex = Self.codeBlockRegex else { return [] }
         let nsText = string as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)
-        
+
         let fenceMatches = regex.matches(in: string, options: [], range: fullRange)
         var matches: [CodeBlockMatch] = []
         var index = 0
@@ -4387,23 +4931,23 @@ extension LinkAwareTextView {
 
         return matches
     }
-    
+
     /// Create and position copy buttons for all code blocks
     func refreshCodeBlockCopyButtons() {
         guard let layoutManager = layoutManager,
               let textContainer = textContainer else { return }
-        
+
         layoutManager.ensureLayout(for: textContainer)
-        
+
         let matches = codeBlockMatches()
         let activeKeys = Set(matches.map(\.id))
-        
+
         // Remove stale buttons
         for key in Array(codeBlockCopyButtons.keys) where !activeKeys.contains(key) {
             codeBlockCopyButtons[key]?.removeFromSuperview()
             codeBlockCopyButtons.removeValue(forKey: key)
         }
-        
+
         let buttonSize: CGFloat = 24
         let buttonMargin: CGFloat = 8
         let minBlockHeight = buttonSize + buttonMargin * 2
@@ -4422,7 +4966,7 @@ extension LinkAwareTextView {
             // Position button at top-right corner
             let buttonX = codeBlockRect.maxX - buttonSize - buttonMargin
             let buttonY = codeBlockRect.minY + buttonMargin
-            
+
             let button: CodeBlockCopyButton
             if let existing = codeBlockCopyButtons[match.id] {
                 guard let existingButton = existing as? CodeBlockCopyButton else {
@@ -4444,7 +4988,7 @@ extension LinkAwareTextView {
             button.frame = NSRect(x: buttonX, y: buttonY, width: buttonSize, height: buttonSize)
         }
     }
-    
+
     /// Create a copy button for a specific code block
     private func createCopyButton(for match: CodeBlockMatch) -> CodeBlockCopyButton {
         let button = CodeBlockCopyButton(frame: .zero)
@@ -4452,7 +4996,7 @@ extension LinkAwareTextView {
         button.codeContent = match.content
         return button
     }
-    
+
     /// Remove all code block copy buttons
     func clearCodeBlockCopyButtons() {
         for (_, button) in codeBlockCopyButtons {

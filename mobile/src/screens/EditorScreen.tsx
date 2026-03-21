@@ -230,14 +230,14 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
-  
+
   // File history state
   const [fileHistory, setFileHistory] = useState<Array<{ sha: string; message: string; date: Date }>>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedCommit, setSelectedCommit] = useState<{ sha: string; message: string; date: Date } | null>(null);
   const [historicalContent, setHistoricalContent] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  
+
   // Wikilink picker state
   const [showWikilinkPicker, setShowWikilinkPicker] = useState(false);
   const [wikilinkSearch, setWikilinkSearch] = useState('');
@@ -250,10 +250,10 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   const hasChangesRef = React.useRef(false);
   const previousContentRef = React.useRef<string>('');
   const isProcessingPasteRef = React.useRef(false);
-  
+
   // Navigation history for back button support
   const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
-  
+
   // In-file search state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -406,10 +406,10 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       // Don't check if user has unsaved changes - they're already editing
       return;
     }
-    
+
     try {
       const fileContent = await FileSystemService.readFile(filePath);
-      
+
       // If the content on disk is different from what we loaded originally
       if (fileContent !== originalContent && fileContent !== content) {
         Alert.alert(
@@ -452,7 +452,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
 
     // Detect potential paste: large content increase that doesn't look like typing
     const previousContent = previousContentRef.current;
-    const isPotentialPaste = 
+    const isPotentialPaste =
       newContent.length > previousContent.length + 10 && // Significant increase
       !newContent.startsWith(previousContent); // Not just appending at the end
 
@@ -460,15 +460,15 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       try {
         // Check if clipboard contains HTML
         const clipboardContent = await Clipboard.getString();
-        
+
         if (clipboardContent && clipboardContent.length > 0) {
           // Check if clipboard content looks like HTML
           const hasHtmlTags = /<[a-z][\s\S]*>/i.test(clipboardContent);
-          
+
           if (hasHtmlTags) {
             // Convert HTML to Markdown
             const markdownContent = convertHtmlToMarkdown(clipboardContent);
-            
+
             // Find where the clipboard content was inserted
             // by finding the common prefix and suffix
             let commonPrefixLength = 0;
@@ -498,7 +498,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
             setContent(finalContent);
             setHasChanges(finalContent !== originalContent);
             previousContentRef.current = finalContent;
-            
+
             // Clear the processing flag after a short delay
             setTimeout(() => {
               isProcessingPasteRef.current = false;
@@ -514,7 +514,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     setContent(newContent);
     setHasChanges(newContent !== originalContent);
     previousContentRef.current = newContent;
-    
+
     // Detect "[[" pattern for wikilink picker
     if (!showWikilinkPicker) {
       const lastTwoChars = newContent.slice(-2);
@@ -523,7 +523,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
         setShowWikilinkPicker(true);
         setWikilinkStartPos(newContent.length - 2);
         setWikilinkSearch('');
-        
+
         // Load available notes
         try {
           const repositoryPath = await OnboardingStorage.getActiveRepositoryPath();
@@ -544,9 +544,9 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       if (wikilinkStartPos !== null) {
         const searchText = newContent.slice(wikilinkStartPos + 2);
         setWikilinkSearch(searchText);
-        
+
         // Filter notes
-        const filtered = availableNotes.filter(note => 
+        const filtered = availableNotes.filter(note =>
           note.name.toLowerCase().replace(/\.md$/, '').includes(searchText.toLowerCase())
         );
         setFilteredNotes(filtered);
@@ -588,10 +588,10 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       const beforeWikilink = content.slice(0, wikilinkStartPos);
       const afterWikilink = content.slice(wikilinkStartPos + 2 + wikilinkSearch.length);
       const newContent = `${beforeWikilink}[[${noteName.replace(/\.md$/, '')}]]${afterWikilink}`;
-      
+
       setContent(newContent);
       setHasChanges(newContent !== originalContent);
-      
+
       // Close picker
       setShowWikilinkPicker(false);
       setWikilinkStartPos(null);
@@ -629,7 +629,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     setSearchQuery('');
     setSearchMatches([]);
     setCurrentMatchIndex(0);
-    
+
     // Focus the text input and set cursor position
     setTimeout(() => {
       if (textInputRef.current) {
@@ -694,11 +694,11 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
 
   const scrollToMatch = (matchIndex: number) => {
     if (matchIndex < 0 || matchIndex >= searchMatches.length || !editorScrollRef.current) return;
-    
+
     const match = searchMatches[matchIndex];
     const lineHeight = 26; // Approximate line height
     const scrollPosition = match.line * lineHeight;
-    
+
     editorScrollRef.current.scrollTo({ y: scrollPosition, animated: true });
   };
 
@@ -747,7 +747,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           handleBackPress();
           return true;
         }
-        
+
         // Check if we have navigation history
         if (navigationHistory.length > 0) {
           // Get the last file from history
@@ -758,7 +758,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           navigation.navigate('Editor', { filePath: previousFile });
           return true;
         }
-        
+
         // No history, go to home
         navigation.navigate('Home', { openDrawer: true });
         return true;
@@ -984,7 +984,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     },
     link: (node: any, children: any, parent: any, styles: any) => {
       const { href } = node.attributes;
-      
+
       // Check if it's a wiki link
       if (href && href.startsWith('synapse://wikilink/')) {
         return (
@@ -1001,7 +1001,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           </Text>
         );
       }
-      
+
       // Regular link
       return (
         <Text
@@ -1125,7 +1125,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   return (
     <SafeAreaView testID="editor-container" style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}> 
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         {/* Hamburger Menu Button */}
         <TouchableOpacity
           style={styles.menuButton}
@@ -1134,11 +1134,11 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
         >
           <MaterialIcons name="menu" size={28} color={theme.colors.text} />
         </TouchableOpacity>
-        
+
         <Text style={[styles.fileName, { color: theme.colors.text }]} numberOfLines={1}>
           {getFileName()}
         </Text>
-        
+
         {hasChanges && (
           <MaterialIcons name="circle" size={12} color={theme.colors.primary} style={styles.unsavedIndicator} />
         )}
@@ -1168,7 +1168,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
             color={theme.colors.text}
           />
         </TouchableOpacity>
-        
+
         {/* Search Button */}
         <TouchableOpacity
           style={styles.searchButton}
@@ -1225,18 +1225,18 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       )}
 
       {/* Editor or Preview */}
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {isPreviewMode ? (
           // Preview Mode
-          <ScrollView 
-            testID="markdown-preview" 
+          <ScrollView
+            testID="markdown-preview"
             style={[styles.content, { backgroundColor: theme.colors.card }]}
             contentContainerStyle={styles.previewContent}
           >
-            <Markdown 
+            <Markdown
               style={markdownStyles}
               rules={renderRules}
               onLinkPress={handleLinkPress}
@@ -1247,8 +1247,8 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           </ScrollView>
         ) : (
           // Edit Mode
-          <ScrollView 
-            style={styles.content} 
+          <ScrollView
+            style={styles.content}
             keyboardShouldPersistTaps="handled"
             ref={editorScrollRef}
           >
@@ -1258,14 +1258,14 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                 {content.split('\n').map((line, lineIndex) => {
                   // Find matches on this line
                   const lineMatches = searchMatches.filter(m => m.line === lineIndex);
-                  
+
                   // Calculate cursor position for this line
                   const lineStartPos = content.split('\n').slice(0, lineIndex).join('\n').length + (lineIndex > 0 ? 1 : 0);
-                  
+
                   if (lineMatches.length === 0) {
                     return (
-                      <TouchableOpacity 
-                        key={lineIndex} 
+                      <TouchableOpacity
+                        key={lineIndex}
                         onPress={() => exitSearchAndEdit(lineStartPos + line.length)}
                         activeOpacity={0.7}
                       >
@@ -1275,11 +1275,11 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                       </TouchableOpacity>
                     );
                   }
-                  
+
                   // Build highlighted line
                   const parts: JSX.Element[] = [];
                   let lastEnd = 0;
-                  
+
                   lineMatches.forEach((match, idx) => {
                     // Text before match
                     if (match.start > lastEnd) {
@@ -1289,13 +1289,13 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                         </Text>
                       );
                     }
-                    
+
                     // Highlighted match text
-                    const isActiveMatch = lineIndex === searchMatches[currentMatchIndex]?.line && 
+                    const isActiveMatch = lineIndex === searchMatches[currentMatchIndex]?.line &&
                                          match.start === searchMatches[currentMatchIndex]?.start;
                     parts.push(
-                      <Text 
-                        key={`match-${idx}`} 
+                      <Text
+                        key={`match-${idx}`}
                         style={{
                           backgroundColor: isActiveMatch ? theme.colors.primary : theme.colors.primary + '60',
                           color: theme.colors.background,
@@ -1306,10 +1306,10 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                         {line.substring(match.start, match.end)}
                       </Text>
                     );
-                    
+
                     lastEnd = match.end;
                   });
-                  
+
                   // Text after last match
                   if (lastEnd < line.length) {
                     parts.push(
@@ -1318,10 +1318,10 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                       </Text>
                     );
                   }
-                  
+
                   return (
-                    <TouchableOpacity 
-                      key={lineIndex} 
+                    <TouchableOpacity
+                      key={lineIndex}
                       onPress={() => exitSearchAndEdit(lineStartPos + line.length)}
                       activeOpacity={0.7}
                     >
@@ -1425,9 +1425,9 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
                 <MaterialIcons name="close" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </View>
-            
+
             <TextInput
-              style={[styles.wikilinkSearchInput, { 
+              style={[styles.wikilinkSearchInput, {
                 color: theme.colors.text,
                 backgroundColor: isDark ? '#2d2d2d' : '#f0f0f0',
                 borderColor: theme.colors.border,
@@ -1435,7 +1435,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
               value={wikilinkSearch}
               onChangeText={(text) => {
                 setWikilinkSearch(text);
-                const filtered = availableNotes.filter(note => 
+                const filtered = availableNotes.filter(note =>
                   note.name.toLowerCase().replace(/\.md$/, '').includes(text.toLowerCase())
                 );
                 setFilteredNotes(filtered);
@@ -1444,7 +1444,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
               placeholderTextColor={theme.colors.text + '60'}
               autoFocus
             />
-            
+
             <ScrollView style={styles.wikilinkList} keyboardShouldPersistTaps="handled">
               {filteredNotes.length === 0 ? (
                 <Text style={[styles.wikilinkEmptyText, { color: theme.colors.text + '80' }]}>

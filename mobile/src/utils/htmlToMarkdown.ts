@@ -31,7 +31,7 @@ export function convertHtmlToMarkdown(html: string): string {
 
   // Check if the content actually contains HTML tags
   const hasHtmlTags = /<[a-z][\s\S]*>/i.test(html);
-  
+
   if (!hasHtmlTags) {
     // No HTML tags found, return as-is
     return html.trim();
