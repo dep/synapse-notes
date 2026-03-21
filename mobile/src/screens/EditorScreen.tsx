@@ -25,6 +25,8 @@ import { subscribeToRepositoryRefresh } from '../services/repositoryEvents';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useFocusEffect } from '@react-navigation/native';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { convertHtmlToMarkdown } from '../utils/htmlToMarkdown';
 
 const getRelativePath = (root: string, filePath: string) => {
   const normalizedRoot = FileSystemService.normalizeUri(root).replace(/\/+$/, '');
@@ -246,6 +248,8 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   const editorScrollRef = React.useRef<ScrollView>(null);
   const shouldRestoreEditorFocusRef = React.useRef(false);
   const hasChangesRef = React.useRef(false);
+  const previousContentRef = React.useRef<string>('');
+  const isProcessingPasteRef = React.useRef(false);
   
   // Navigation history for back button support
   const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
@@ -330,10 +334,11 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
       }
 
       try {
-        const fileContent = await FileSystemService.readFile(filePath);
-        setContent(fileContent);
-        setOriginalContent(fileContent);
-        setHasChanges(false);
+      const fileContent = await FileSystemService.readFile(filePath);
+      setContent(fileContent);
+      setOriginalContent(fileContent);
+      setHasChanges(false);
+      previousContentRef.current = fileContent;
         setRefreshStatus('Updated from remote');
         setTimeout(() => setRefreshStatus(null), 4000);
       } catch (err) {
@@ -437,8 +442,78 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   };
 
   const handleContentChange = async (newContent: string) => {
+    // Skip processing if we're currently handling a paste to avoid loops
+    if (isProcessingPasteRef.current) {
+      setContent(newContent);
+      setHasChanges(newContent !== originalContent);
+      previousContentRef.current = newContent;
+      return;
+    }
+
+    // Detect potential paste: large content increase that doesn't look like typing
+    const previousContent = previousContentRef.current;
+    const isPotentialPaste = 
+      newContent.length > previousContent.length + 10 && // Significant increase
+      !newContent.startsWith(previousContent); // Not just appending at the end
+
+    if (isPotentialPaste && previousContent.length > 0) {
+      try {
+        // Check if clipboard contains HTML
+        const clipboardContent = await Clipboard.getString();
+        
+        if (clipboardContent && clipboardContent.length > 0) {
+          // Check if clipboard content looks like HTML
+          const hasHtmlTags = /<[a-z][\s\S]*>/i.test(clipboardContent);
+          
+          if (hasHtmlTags) {
+            // Convert HTML to Markdown
+            const markdownContent = convertHtmlToMarkdown(clipboardContent);
+            
+            // Find where the clipboard content was inserted
+            // by finding the common prefix and suffix
+            let commonPrefixLength = 0;
+            for (let i = 0; i < Math.min(previousContent.length, newContent.length); i++) {
+              if (previousContent[i] === newContent[i]) {
+                commonPrefixLength = i + 1;
+              } else {
+                break;
+              }
+            }
+
+            let commonSuffixLength = 0;
+            for (let i = 0; i < Math.min(previousContent.length - commonPrefixLength, newContent.length - commonPrefixLength - clipboardContent.length + markdownContent.length); i++) {
+              if (previousContent[previousContent.length - 1 - i] === newContent[newContent.length - 1 - i]) {
+                commonSuffixLength = i + 1;
+              } else {
+                break;
+              }
+            }
+
+            // Reconstruct content with converted markdown
+            const prefix = newContent.substring(0, commonPrefixLength);
+            const suffix = newContent.substring(newContent.length - commonSuffixLength);
+            const finalContent = prefix + markdownContent + suffix;
+
+            isProcessingPasteRef.current = true;
+            setContent(finalContent);
+            setHasChanges(finalContent !== originalContent);
+            previousContentRef.current = finalContent;
+            
+            // Clear the processing flag after a short delay
+            setTimeout(() => {
+              isProcessingPasteRef.current = false;
+            }, 100);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to process HTML paste:', err);
+      }
+    }
+
     setContent(newContent);
     setHasChanges(newContent !== originalContent);
+    previousContentRef.current = newContent;
     
     // Detect "[[" pattern for wikilink picker
     if (!showWikilinkPicker) {

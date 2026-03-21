@@ -93,6 +93,14 @@ mobile/
   - Tappable results to open the file
   - Matches light/dark theme automatically
 
+### Editor
+- **Rich Text Paste**: Automatically convert pasted HTML to Markdown
+  - Paste content from web pages, email clients, or rich text editors
+  - HTML headings, lists, links, images, and formatting are converted inline
+  - No prompts or confirmation needed - conversion is seamless and automatic
+  - Plain text pastes remain unchanged
+  - Handles complex HTML while preserving readable content
+
 ### Version History
 - **View History**: Browse and restore previous versions of your notes
   - History button appears in editor header when file has git commits
