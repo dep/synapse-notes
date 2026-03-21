@@ -153,6 +153,7 @@ Artifacts:
 - **Wiki Links** - Link to other notes using `[[Note Name]]` syntax, or select text and press `⌘K` to wrap it as `[[Note Name|selected text]]`
 - **Embeddable Notes** - Include other notes inline using `![[Note Name]]` syntax
 - **Inline Image Previews** - View images directly in the editor
+- **Paste HTML as Markdown** - Copy from any website and paste directly; content is automatically converted to clean Markdown
 - **Hashtag Support** - Tag notes with `#hashtag` syntax for organization
 - **Split Panes** - Work with vertical or horizontal editor splits
 - **Tab Management** - Multiple tabs with MRU (Most Recently Used) switching

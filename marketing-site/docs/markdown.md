@@ -145,6 +145,12 @@ Type a slash command at the start of a line or after a space — it expands auto
 | `/todo` | `- [ ] ` |
 | `/note` | `> **Note:** ` |
 
+### Paste HTML as Markdown
+
+Copy content from any website, document, or rich-text source and paste it directly into Synapse. The HTML is automatically converted to clean Markdown — headings, lists, links, bold/italic, code blocks, and blockquotes all come through correctly.
+
+Content pasted inside a fenced code block is always kept as-is, so code samples are never mangled.
+
 ### Wiki Links
 
 Wiki links are the foundation of connected notes in Synapse. They create bidirectional links between notes.

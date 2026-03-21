@@ -38,6 +38,7 @@ Synapse packs a robust set of features to boost your productivity.
 - **Wikilinks:** Easily link to other notes using `[[Note Name]]`, or highlight text and press `CMD + K` to turn it into a wikilink with that text as the display alias.
 - **Embedded Notes:** Include other notes directly using `![[Note Name]]`.
 - **Media Previews:** Inline support for image rendering and YouTube video previews.
+- **Paste HTML as Markdown:** Copy content from any website and paste it directly into Synapse — it's automatically converted to clean Markdown.
 - **View History:** Access the View History button in the file editor to see previous versions of your note.
 
 ### Navigation
