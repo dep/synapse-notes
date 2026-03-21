@@ -12,6 +12,9 @@ class AutoUpdater: ObservableObject {
     private let repoOwner = "dep"
     private let repoName = "synapse"
     private let currentVersion: String
+
+    /// Injected for testing; defaults to the shared session in production.
+    var urlSession: URLSession = .shared
     
     /// URL to the GitHub releases page for manual download
     var releasesURL: URL {
@@ -69,7 +72,7 @@ class AutoUpdater: ObservableObject {
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 10.0
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {

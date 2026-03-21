@@ -326,7 +326,7 @@ final class GitService {
     /// Wraps a string in single quotes with internal single quotes escaped,
     /// producing a token that is safe to embed in any POSIX shell command string.
     /// Example: `it's fine` → `'it'\''s fine'`
-    private static func shellQuote(_ s: String) -> String {
+    static func shellQuote(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 

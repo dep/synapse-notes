@@ -24,6 +24,9 @@ class GistPublisher: ObservableObject {
 
     @Published var state: PublishState = .idle
 
+    /// Injected for testing; defaults to the shared session in production.
+    var urlSession: URLSession = .shared
+
     private var cancellables = Set<AnyCancellable>()
 
     /// Publishes a note to a new GitHub public gist
@@ -72,7 +75,7 @@ class GistPublisher: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = jsonData
 
-        URLSession.shared.dataTaskPublisher(for: request)
+        urlSession.dataTaskPublisher(for: request)
             .tryMap { data, response -> String in
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)
