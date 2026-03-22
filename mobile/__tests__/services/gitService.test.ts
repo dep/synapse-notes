@@ -483,6 +483,98 @@ describe('GitService', () => {
       expect(result).toEqual({ pulled: true, committed: 'commit-created-sha', pushed: true });
     });
 
+    it('should rebase local changes onto latest remote commit when push is rejected as non-fast-forward', async () => {
+      const localPath = 'file:///mock/documents/vault/repo';
+      const metadata = {
+        version: 1,
+        transport: 'github-api',
+        repoUrl: 'https://github.com/test/repo',
+        owner: 'test',
+        repo: 'repo',
+        branch: 'main',
+        commitSha: 'base-commit-sha',
+        treeSha: 'base-tree-sha',
+        files: {
+          'README.md': { sha: 'old-readme-sha', mode: '100644', type: 'blob' },
+        },
+      };
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+        JSON.stringify({ ['https://github.com/test/repo']: { username: 'token', token: 'ghp_testtoken123' } })
+      );
+      (FileSystem.getInfoAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return { exists: true, isDirectory: false, size: 0 };
+        if (path === 'file:///mock/documents/vault/repo/README.md') return { exists: true, isDirectory: false, size: 0 };
+        return { exists: false, isDirectory: false, size: 0 };
+      });
+      (FileSystem.readDirectoryAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo') return ['README.md', '.synapse'];
+        if (path === 'file:///mock/documents/vault/repo/.synapse') return ['repo.json'];
+        return [];
+      });
+      (FileSystem.readAsStringAsync as jest.Mock).mockImplementation(async (path: string, options?: any) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return JSON.stringify(metadata);
+        if (path === 'file:///mock/documents/vault/repo/README.md' && options?.encoding === 'base64') return 'bG9jYWwgY2hhbmdlcw==';
+        return '';
+      });
+      (git.hashBlob as jest.Mock).mockResolvedValueOnce({ oid: 'new-readme-sha' });
+
+      mockFetch
+        // 1. Fetch remote branch info → base commit
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'base-commit-sha' } }) })
+        // 2. Create blob for local changes
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'local-blob-sha' }) })
+        // 3. Create tree (based on old base — this is the initial attempt)
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'initial-tree-sha' }) })
+        // 4. Create commit
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'initial-commit-sha' }) })
+        // 5. PATCH branch ref → fails with non-fast-forward
+        .mockResolvedValueOnce({ ok: false, status: 422, statusText: 'Unprocessable Entity', text: async () => 'Update is not a fast forward' })
+        // 6. Fetch latest ref → remote has advanced
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ object: { sha: 'latest-remote-sha' } }) })
+        // 7. Fetch latest remote commit to get its tree SHA
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ tree: { sha: 'latest-remote-tree-sha' } }) })
+        // 8. Create rebased tree (based on latest remote tree)
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'rebased-tree-sha' }) })
+        // 9. Create rebased commit
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ sha: 'rebased-commit-sha' }) })
+        // 10. PATCH branch ref → succeeds (fast-forward from latestRemoteSha)
+        .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      const result = await GitService.sync(localPath);
+
+      expect(result).toEqual({ pulled: true, committed: 'rebased-commit-sha', pushed: true });
+
+      // The rebased tree must be built on top of the latest remote tree, not the old base.
+      const treeCreateCalls = mockFetch.mock.calls.filter((call: any[]) =>
+        call[0].includes('/git/trees') && call[1]?.method === 'POST'
+      );
+      expect(treeCreateCalls).toHaveLength(2);
+      const rebasedTreeBody = JSON.parse(treeCreateCalls[1][1].body);
+      expect(rebasedTreeBody.base_tree).toBe('latest-remote-tree-sha');
+
+      // The rebased commit must have only latestRemoteSha as its parent, not a fake merge.
+      const commitCreateCalls = mockFetch.mock.calls.filter((call: any[]) =>
+        call[0].includes('/git/commits') && call[1]?.method === 'POST'
+      );
+      expect(commitCreateCalls).toHaveLength(2);
+      const rebasedCommitBody = JSON.parse(commitCreateCalls[1][1].body);
+      expect(rebasedCommitBody.parents).toEqual(['latest-remote-sha']);
+      expect(rebasedCommitBody.tree).toBe('rebased-tree-sha');
+
+      // Metadata must be saved with the rebased commit and tree.
+      expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+        'file:///mock/documents/vault/repo/.synapse/repo.json',
+        expect.stringContaining('rebased-commit-sha'),
+        { encoding: 'utf8' }
+      );
+      expect(FileSystem.writeAsStringAsync).toHaveBeenCalledWith(
+        'file:///mock/documents/vault/repo/.synapse/repo.json',
+        expect.stringContaining('rebased-tree-sha'),
+        { encoding: 'utf8' }
+      );
+    });
+
     it('should pull then push', async () => {
       const localPath = '/repos/test-repo';
       
