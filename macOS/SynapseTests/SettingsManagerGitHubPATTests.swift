@@ -116,4 +116,48 @@ final class SettingsManagerGitHubPATTests: XCTestCase {
         sut.githubPAT = "   "
         XCTAssertFalse(sut.hasGitHubPAT, "hasGitHubPAT should return false when token is whitespace only")
     }
+
+    func test_hasGitHubPAT_returnsFalseWhenNewlineOnly() {
+        sut.githubPAT = "\n"
+        XCTAssertFalse(sut.hasGitHubPAT, "hasGitHubPAT should return false when token is a newline character only")
+    }
+
+    func test_hasGitHubPAT_returnsFalseWhenMixedWhitespaceAndNewlines() {
+        sut.githubPAT = "  \n  \t"
+        XCTAssertFalse(sut.hasGitHubPAT, "hasGitHubPAT should return false when token contains only whitespace and newlines")
+    }
+
+    // MARK: - flushDebouncedSaveBeforeReloadIfNeeded
+
+    func test_flushDebouncedSaveBeforeReloadIfNeeded_whenNoPendingSave_doesNotCrash() {
+        // In the test environment, save() always calls flush() synchronously, so
+        // pendingSave is never set. Calling this should be a safe no-op.
+        sut.flushDebouncedSaveBeforeReloadIfNeeded()
+    }
+
+    func test_flushDebouncedSaveBeforeReloadIfNeeded_settingsSurviveSubsequentReload() {
+        // Change a setting (which in tests flushes synchronously to disk),
+        // call flushDebouncedSaveBeforeReloadIfNeeded (no-op since save was immediate),
+        // then reload from disk. The new value must survive because it was persisted.
+        sut.githubPAT = "ghp_survivetest"
+
+        sut.flushDebouncedSaveBeforeReloadIfNeeded()
+        sut.reloadFromDisk()
+
+        XCTAssertEqual(sut.githubPAT, "ghp_survivetest",
+                       "githubPAT should survive a reload when it was already flushed to disk")
+    }
+
+    func test_flushDebouncedSaveBeforeReloadIfNeeded_multipleCallsAreIdempotent() {
+        sut.githubPAT = "ghp_idempotent"
+
+        sut.flushDebouncedSaveBeforeReloadIfNeeded()
+        sut.flushDebouncedSaveBeforeReloadIfNeeded()
+        sut.flushDebouncedSaveBeforeReloadIfNeeded()
+
+        sut.reloadFromDisk()
+
+        XCTAssertEqual(sut.githubPAT, "ghp_idempotent",
+                       "Multiple flushDebouncedSaveBeforeReloadIfNeeded calls should be safe and idempotent")
+    }
 }

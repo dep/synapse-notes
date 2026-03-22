@@ -77,4 +77,77 @@ final class SettingsManagerExternalReloadTests: XCTestCase {
         XCTAssertTrue(appState.settings.dailyNotesEnabled)
         XCTAssertEqual(appState.settings.fileExtensionFilter, "*.md, *.txt, *.json")
     }
+
+    // MARK: - reloadFromDisk — global-only path (vaultRoot == nil)
+
+    func test_reloadFromDisk_globalOnlyMode_loadsUpdatedGithubPAT() throws {
+        let globalConfigURL = tempDir.appendingPathComponent("global-settings.yml")
+        let manager = SettingsManager(vaultRoot: nil, globalConfigPath: globalConfigURL.path)
+        XCTAssertEqual(manager.githubPAT, "")
+
+        let yaml = "githubPAT: ghp_reloadtest\n"
+        try yaml.write(to: globalConfigURL, atomically: true, encoding: .utf8)
+
+        manager.reloadFromDisk()
+
+        XCTAssertEqual(manager.githubPAT, "ghp_reloadtest",
+                       "reloadFromDisk in global-only mode should load the updated githubPAT from disk")
+    }
+
+    func test_reloadFromDisk_globalOnlyMode_resetsVaultSpecificFieldsToDefaults() throws {
+        let globalConfigURL = tempDir.appendingPathComponent("global-settings.yml")
+        let manager = SettingsManager(vaultRoot: nil, globalConfigPath: globalConfigURL.path)
+
+        // Mutate a vault-specific field in-memory.
+        manager.dailyNotesEnabled = true
+        XCTAssertTrue(manager.dailyNotesEnabled)
+
+        // Write a global config that does NOT include vault-specific fields.
+        let yaml = "githubPAT: ghp_test\n"
+        try yaml.write(to: globalConfigURL, atomically: true, encoding: .utf8)
+
+        manager.reloadFromDisk()
+
+        // applyNoVaultDefaults() resets dailyNotesEnabled to false before the global
+        // config is applied, so the in-memory mutation should not survive.
+        XCTAssertFalse(manager.dailyNotesEnabled,
+                       "reloadFromDisk in global-only mode should reset vault-specific fields to their defaults")
+    }
+
+    func test_reloadFromDisk_globalOnlyMode_updatedValueOverridesPreviousGlobalConfig() throws {
+        let globalConfigURL = tempDir.appendingPathComponent("global-settings.yml")
+
+        let initialYaml = "githubPAT: ghp_initial\n"
+        try initialYaml.write(to: globalConfigURL, atomically: true, encoding: .utf8)
+
+        let manager = SettingsManager(vaultRoot: nil, globalConfigPath: globalConfigURL.path)
+        XCTAssertEqual(manager.githubPAT, "ghp_initial")
+
+        let updatedYaml = "githubPAT: ghp_updated\n"
+        try updatedYaml.write(to: globalConfigURL, atomically: true, encoding: .utf8)
+
+        manager.reloadFromDisk()
+
+        XCTAssertEqual(manager.githubPAT, "ghp_updated",
+                       "reloadFromDisk in global-only mode should pick up the latest value from disk")
+    }
+
+    func test_reloadFromDisk_globalOnlyMode_missingConfigFile_keepsDefaults() throws {
+        // Use a path inside a non-existent subdirectory so no file is ever created there.
+        let globalConfigURL = tempDir
+            .appendingPathComponent("no-such-dir", isDirectory: true)
+            .appendingPathComponent("settings.yml")
+
+        let manager = SettingsManager(vaultRoot: nil, globalConfigPath: globalConfigURL.path)
+
+        // The file does not exist; defaults should apply.
+        XCTAssertEqual(manager.githubPAT, "",
+                       "Initial githubPAT should default to empty when config file is absent")
+
+        // Reloading from the still-missing path should keep the default.
+        manager.reloadFromDisk()
+
+        XCTAssertEqual(manager.githubPAT, "",
+                       "reloadFromDisk with a missing global config should leave githubPAT at its default")
+    }
 }

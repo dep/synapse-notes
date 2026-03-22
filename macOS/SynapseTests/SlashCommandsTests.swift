@@ -126,4 +126,66 @@ final class SlashCommandsTests: XCTestCase {
 
         XCTAssertEqual(textView.string, "First line\n2026-03-14")
     }
+
+    // MARK: - slashCommandContext input guard edge cases
+
+    func test_slashCommandContext_cursorAtZero_returnsNil() {
+        XCTAssertNil(slashCommandContext(in: "/time", cursor: 0),
+                     "cursor == 0 should satisfy the clampedCursor > 0 guard and return nil")
+    }
+
+    func test_slashCommandContext_soloSlash_returnsNil() {
+        // "/" alone does not match ^/[A-Za-z]+$
+        XCTAssertNil(slashCommandContext(in: "/", cursor: 1),
+                     "A bare '/' with no letters after it should not be recognised as a command")
+    }
+
+    func test_slashCommandContext_tokenWithTrailingDigit_returnsNil() {
+        // "/time2" does not match ^/[A-Za-z]+$ because of the trailing digit.
+        XCTAssertNil(slashCommandContext(in: "/time2", cursor: 6),
+                     "A token ending in a digit (/time2) should not match the command regex")
+    }
+
+    func test_slashCommandContext_tokenWithEmbeddedDigit_returnsNil() {
+        XCTAssertNil(slashCommandContext(in: "/d4te", cursor: 5),
+                     "A token containing a digit (/d4te) should not match the command regex")
+    }
+
+    func test_slashCommandContext_cursorBeyondEnd_clampsAndDetectsCommand() {
+        // A cursor value larger than the string length should be clamped to the length.
+        let text = "/date"
+        let result = slashCommandContext(in: text, cursor: 999)
+        XCTAssertNotNil(result, "An out-of-bounds cursor should be clamped and still detect the command")
+        XCTAssertEqual(result?.query, "date")
+    }
+
+    func test_slashCommandContext_negativeCursor_returnsNil() {
+        // A negative cursor is clamped to 0, which then fails the clampedCursor > 0 guard.
+        XCTAssertNil(slashCommandContext(in: "/time", cursor: -5),
+                     "A negative cursor should be clamped to 0 and return nil")
+    }
+
+    func test_slashCommand_allCasesHasExactlyFourEntries() {
+        // Guards against accidentally adding a case without a corresponding resolver branch.
+        XCTAssertEqual(SlashCommand.allCases.count, 4)
+        XCTAssertTrue(SlashCommand.allCases.contains(.time))
+        XCTAssertTrue(SlashCommand.allCases.contains(.date))
+        XCTAssertTrue(SlashCommand.allCases.contains(.todo))
+        XCTAssertTrue(SlashCommand.allCases.contains(.note))
+    }
+
+    func test_slashCommandContext_urlPath_doesNotMatch() {
+        // The "/time" in a URL is preceded by a non-whitespace char ('m' from ".com"),
+        // so the preceding-char guard should reject it.
+        let text = "https://example.com/time"
+        XCTAssertNil(slashCommandContext(in: text, cursor: (text as NSString).length),
+                     "A slash that appears inside a URL should not be treated as a command trigger")
+    }
+
+    func test_slashCommandContext_slashWithLeadingAlphanumeric_returnsNil() {
+        // "path/date" — the slash follows a non-whitespace character.
+        let text = "path/date"
+        XCTAssertNil(slashCommandContext(in: text, cursor: (text as NSString).length),
+                     "A slash immediately after a non-whitespace character should not trigger a command")
+    }
 }
