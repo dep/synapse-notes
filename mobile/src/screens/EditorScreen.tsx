@@ -324,13 +324,22 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
         return;
       }
 
-      if (hasChanges) {
+      // Use the ref instead of the state variable so this callback always sees
+      // the latest value, even mid-async-await when the closure would otherwise
+      // be stale.
+      if (hasChangesRef.current) {
         setRefreshStatus('Remote updates available; save or discard local edits to reload');
         return;
       }
 
       try {
         const fileContent = await FileSystemService.readFile(filePath);
+        // Re-check after the async read in case the user started editing while
+        // the file was being fetched.
+        if (hasChangesRef.current) {
+          setRefreshStatus('Remote updates available; save or discard local edits to reload');
+          return;
+        }
         setContent(fileContent);
         setOriginalContent(fileContent);
         setHasChanges(false);
@@ -342,7 +351,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     });
 
     return unsubscribe;
-  }, [filePath, hasChanges]);
+  }, [filePath]);
 
   const handleViewHistory = () => {
     void loadFileHistory();

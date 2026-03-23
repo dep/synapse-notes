@@ -1115,46 +1115,66 @@ export class GitService {
         const latestRemoteSha = latestRef.object.sha;
         
         if (latestRemoteSha !== remoteCommitSha) {
-          console.log('[sync-github] Creating merge commit with latest remote...');
-          
-          // Create a merge commit with both parents
-          const mergeCommit = await this.githubRequest<{ sha: string }>(
+          console.log('[sync-github] Rebasing local changes onto latest remote commit...');
+
+          // Fetch the latest remote commit to get its tree SHA so we can build
+          // a correct tree that includes all remote changes (not just our old base).
+          const latestRemoteCommit = await this.githubRequest<{ tree: { sha: string } }>(
+            `/repos/${metadata.owner}/${metadata.repo}/git/commits/${latestRemoteSha}`,
+            metadata.repoUrl,
+            { method: 'GET' }
+          );
+
+          // Rebuild the tree on top of the latest remote state so no remote
+          // changes are silently discarded.
+          const rebasedTree = await this.githubRequest<{ sha: string }>(
+            `/repos/${metadata.owner}/${metadata.repo}/git/trees`,
+            metadata.repoUrl,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ base_tree: latestRemoteCommit.tree.sha, tree: newTreeEntries }),
+            }
+          );
+
+          // Create a commit whose only parent is the latest remote commit
+          // (a clean rebase — no fake merge that would hide missing file content).
+          const rebasedCommit = await this.githubRequest<{ sha: string }>(
             `/repos/${metadata.owner}/${metadata.repo}/git/commits`,
             metadata.repoUrl,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                message: `${message} (merged with remote changes)`, 
-                tree: createdTree.sha, 
-                parents: [remoteCommitSha, latestRemoteSha] 
+              body: JSON.stringify({
+                message: `${message} (rebased on remote changes)`,
+                tree: rebasedTree.sha,
+                parents: [latestRemoteSha],
               }),
             }
           );
-          
-          // Try updating again
+
+          // This is now a fast-forward from latestRemoteSha, so force:false is safe.
           await this.githubRequest(
             `/repos/${metadata.owner}/${metadata.repo}/git/refs/heads/${encodeURIComponent(metadata.branch)}`,
             metadata.repoUrl,
             {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sha: mergeCommit.sha, force: false }),
+              body: JSON.stringify({ sha: rebasedCommit.sha, force: false }),
             }
           );
-          
-          console.log('[sync-github] Successfully pushed with merge commit:', mergeCommit.sha);
-          
-          // Update metadata with merge commit
+
+          console.log('[sync-github] Successfully pushed rebased commit:', rebasedCommit.sha);
+
           const nextMetadata: RepoMetadataFile = {
             ...metadata,
-            commitSha: mergeCommit.sha,
-            treeSha: createdTree.sha,
+            commitSha: rebasedCommit.sha,
+            treeSha: rebasedTree.sha,
             files: updatedFiles,
           };
           await this.saveRepoMetadata(dir, nextMetadata);
-          
-          return { pulled: true, committed: mergeCommit.sha, pushed: true };
+
+          return { pulled: true, committed: rebasedCommit.sha, pushed: true };
         }
       }
       
