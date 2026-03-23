@@ -476,7 +476,7 @@ struct ContentView: View {
                         .environmentObject(appState)
                 }
 
-                if appState.selectedFile != nil && !appState.settings.hideMarkdownWhileEditing {
+                if appState.selectedFile != nil {
                     headerToggleButton(
                         systemName: "eye",
                         isActive: !appState.isEditMode,

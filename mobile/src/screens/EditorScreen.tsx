@@ -896,6 +896,25 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
     paragraph: {
       marginVertical: 8,
     },
+    table: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      marginVertical: 12,
+    },
+    tr: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    th: {
+      padding: 8,
+      fontWeight: '600' as const,
+      color: theme.colors.text,
+      backgroundColor: isDark ? '#2d2d2d' : '#f5f5f5',
+    },
+    td: {
+      padding: 8,
+      color: theme.colors.text,
+    },
   };
 
   // Custom render rules for wiki links and local images

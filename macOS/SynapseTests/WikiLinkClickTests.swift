@@ -21,6 +21,11 @@ final class WikiLinkClickTests: XCTestCase {
         textView.onOpenFile = { [weak self] url, openInNewTab in
             self?.openedFiles.append((url, openInNewTab))
         }
+        
+        // Mock onOpenExternalURL to prevent actual browser opening during tests
+        textView.onOpenExternalURL = { _ in
+            // Do nothing - external URLs should not open during tests
+        }
     }
 
     override func tearDown() {

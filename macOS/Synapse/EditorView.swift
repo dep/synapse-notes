@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import ImageIO
+import WebKit
 
 func consumePendingSearchQuery(from appState: AppState) -> String? {
     guard let q = appState.pendingSearchQuery else { return nil }
@@ -93,6 +94,7 @@ struct EditorView: View {
     private var activeTextBinding: Binding<String> { editableContent ?? $appState.fileContent }
     private var participatesInGlobalEditorCommands: Bool { !usesExternalEditableState }
     private var isInViewMode: Bool { isReadOnly || (participatesInGlobalEditorCommands && !appState.isEditMode) }
+    private var isDark: Bool { NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -112,14 +114,9 @@ struct EditorView: View {
                     HStack(spacing: 0) {
                         // Editor takes available space
                         if isInViewMode {
-                            RawEditor(
-                                text: .constant(displayContent),
-                                currentFileURL: displayFile,
-                                isEditable: false,
-                                paneIndex: paneIndex,
-                                embeddedNotes: .constant([]),
-                                selectedEmbedID: .constant(nil),
-                                scrollToRange: .constant(nil)
+                            MarkdownPreviewView(
+                                markdownContent: displayContent,
+                                isDarkMode: isDark
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
@@ -4759,5 +4756,354 @@ extension LinkAwareTextView {
             button.removeFromSuperview()
         }
         codeBlockCopyButtons.removeAll()
+    }
+}
+
+// MARK: - Markdown Preview with WKWebView
+
+struct MarkdownPreviewView: NSViewRepresentable {
+    let markdownContent: String
+    let isDarkMode: Bool
+
+    class Coordinator {
+        var lastMarkdown: String?
+        var lastIsDarkMode: Bool?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.preferences.javaScriptEnabled = false
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.setValue(false, forKey: "drawsBackground")
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        guard markdownContent != context.coordinator.lastMarkdown ||
+              isDarkMode != context.coordinator.lastIsDarkMode else { return }
+        context.coordinator.lastMarkdown = markdownContent
+        context.coordinator.lastIsDarkMode = isDarkMode
+        let html = generateHTML(from: markdownContent, isDarkMode: isDarkMode)
+        webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    private func generateHTML(from markdown: String, isDarkMode: Bool) -> String {
+        let lines = markdown.components(separatedBy: "\n")
+        var result: [String] = []
+        var i = 0
+
+        while i < lines.count {
+            let line = lines[i]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") {
+                var tableLines: [String] = []
+                var j = i
+                while j < lines.count {
+                    let tableLine = lines[j].trimmingCharacters(in: .whitespaces)
+                    if tableLine.hasPrefix("|") && tableLine.hasSuffix("|") {
+                        tableLines.append(lines[j])
+                        j += 1
+                    } else {
+                        break
+                    }
+                }
+
+                if tableLines.count >= 2 {
+                    result.append(convertTableBlockToHTML(tableLines))
+                    i = j
+                    continue
+                }
+            }
+
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                var listItems: [String] = []
+                var j = i
+                while j < lines.count {
+                    let listLine = lines[j].trimmingCharacters(in: .whitespaces)
+                    if listLine.hasPrefix("- ") || listLine.hasPrefix("* ") {
+                        listItems.append("<li>\(escapeHTML(String(listLine.dropFirst(2))))</li>")
+                        j += 1
+                    } else {
+                        break
+                    }
+                }
+
+                if !listItems.isEmpty {
+                    result.append("<ul>\(listItems.joined(separator: ""))</ul>")
+                    i = j
+                    continue
+                }
+            }
+
+            if let _ = trimmed.range(of: "^\\d+\\. ", options: .regularExpression) {
+                var listItems: [String] = []
+                var j = i
+                while j < lines.count {
+                    let listLine = lines[j].trimmingCharacters(in: .whitespaces)
+                    if let match = listLine.range(of: "^\\d+\\. ", options: .regularExpression) {
+                        listItems.append("<li>\(escapeHTML(String(listLine[match.upperBound...])))</li>")
+                        j += 1
+                    } else {
+                        break
+                    }
+                }
+
+                if !listItems.isEmpty {
+                    result.append("<ol>\(listItems.joined(separator: ""))</ol>")
+                    i = j
+                    continue
+                }
+            }
+
+            if trimmed.hasPrefix("```") {
+                var codeLines: [String] = []
+                var j = i
+                while j < lines.count {
+                    codeLines.append(lines[j])
+                    if j > i && lines[j].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                        j += 1
+                        break
+                    }
+                    j += 1
+                }
+                result.append(convertCodeBlockToHTML(codeLines))
+                i = j
+                continue
+            }
+
+            result.append(convertLineToHTML(line))
+            i += 1
+        }
+        
+        let html = result.joined(separator: "\n")
+        
+        let textColor = isDarkMode ? "#E0E0E0" : "#333333"
+        let backgroundColor = isDarkMode ? "#1E1E1E" : "#FFFFFF"
+        let borderColor = isDarkMode ? "#444444" : "#CCCCCC"
+        let headerBgColor = isDarkMode ? "#2D2D2D" : "#F5F5F5"
+        
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    font-size: 14px;
+                    line-height: 1.6;
+                    color: \(textColor);
+                    background-color: \(backgroundColor);
+                    margin: 0;
+                    padding: 20px;
+                }
+                table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 16px 0;
+                    font-size: 13px;
+                }
+                th, td {
+                    border: 1px solid \(borderColor);
+                    padding: 8px 12px;
+                    text-align: left;
+                }
+                th {
+                    background-color: \(headerBgColor);
+                    font-weight: 600;
+                }
+                tr:nth-child(even) {
+                    background-color: \(isDarkMode ? "#252525" : "#FAFAFA");
+                }
+                h1 { font-size: 28px; margin: 24px 0 16px 0; font-weight: 600; }
+                h2 { font-size: 24px; margin: 24px 0 16px 0; font-weight: 600; }
+                h3 { font-size: 20px; margin: 20px 0 14px 0; font-weight: 600; }
+                h4 { font-size: 18px; margin: 18px 0 12px 0; font-weight: 600; }
+                h5 { font-size: 16px; margin: 16px 0 10px 0; font-weight: 600; }
+                h6 { font-size: 14px; margin: 14px 0 8px 0; font-weight: 600; }
+                p { margin: 12px 0; }
+                p:empty { margin: 0; }
+                ul, ol {
+                    margin: 12px 0;
+                    padding-left: 0;
+                    list-style-position: inside;
+                }
+                li {
+                    margin: 4px 0;
+                }
+                code {
+                    background-color: \(isDarkMode ? "#2D2D2D" : "#F0F0F0");
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+                    font-size: 12px;
+                }
+                pre {
+                    background-color: \(isDarkMode ? "#2D2D2D" : "#F5F5F5");
+                    padding: 16px;
+                    border-radius: 6px;
+                    overflow-x: auto;
+                    margin: 16px 0;
+                }
+                pre code {
+                    background-color: transparent;
+                    padding: 0;
+                }
+                blockquote {
+                    border-left: 4px solid \(borderColor);
+                    margin: 12px 0;
+                    padding-left: 16px;
+                    color: \(isDarkMode ? "#AAAAAA" : "#666666");
+                }
+                a {
+                    color: \(isDarkMode ? "#6B9BFF" : "#0066CC");
+                    text-decoration: none;
+                }
+                a:hover {
+                    text-decoration: underline;
+                }
+                hr {
+                    border: none;
+                    border-top: 1px solid \(borderColor);
+                    margin: 24px 0;
+                }
+                strong { font-weight: 600; }
+                em { font-style: italic; }
+                del { text-decoration: line-through; }
+            </style>
+        </head>
+        <body>
+            \(html)
+        </body>
+        </html>
+        """
+    }
+    
+    private func convertTableBlockToHTML(_ lines: [String]) -> String {
+        guard lines.count >= 2 else { return lines.joined(separator: "\n") }
+
+        var html = "<table>"
+        let headerCells = parseTableRow(lines[0])
+        html += "<thead><tr>"
+        for cell in headerCells { html += "<th>\(cell)</th>" }
+        html += "</tr></thead>"
+
+        if lines.count > 2 {
+            html += "<tbody>"
+            for i in 2..<lines.count {
+                let cells = parseTableRow(lines[i])
+                html += "<tr>"
+                for cell in cells { html += "<td>\(cell)</td>" }
+                html += "</tr>"
+            }
+            html += "</tbody>"
+        }
+
+        html += "</table>"
+        return html
+    }
+
+    private func parseTableRow(_ line: String) -> [String] {
+        var trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("|") { trimmed = String(trimmed.dropFirst()) }
+        if trimmed.hasSuffix("|") { trimmed = String(trimmed.dropLast()) }
+        return trimmed.components(separatedBy: "|").map { inline($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    private func convertCodeBlockToHTML(_ lines: [String]) -> String {
+        guard lines.count >= 2 else { return lines.joined(separator: "\n") }
+        let escaped = escapeHTML(lines[1..<(lines.count - 1)].joined(separator: "\n"))
+        return "<pre><code>\(escaped)</code></pre>"
+    }
+
+    private func convertLineToHTML(_ line: String) -> String {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+        if trimmed.isEmpty { return "<p></p>" }
+        if trimmed.hasPrefix("# ") { return "<h1>\(inline(String(trimmed.dropFirst(2))))</h1>" }
+        if trimmed.hasPrefix("## ") { return "<h2>\(inline(String(trimmed.dropFirst(3))))</h2>" }
+        if trimmed.hasPrefix("### ") { return "<h3>\(inline(String(trimmed.dropFirst(4))))</h3>" }
+        if trimmed.hasPrefix("#### ") { return "<h4>\(inline(String(trimmed.dropFirst(5))))</h4>" }
+        if trimmed.hasPrefix("##### ") { return "<h5>\(inline(String(trimmed.dropFirst(6))))</h5>" }
+        if trimmed.hasPrefix("###### ") { return "<h6>\(inline(String(trimmed.dropFirst(7))))</h6>" }
+        if trimmed == "---" || trimmed == "***" || trimmed == "___" { return "<hr>" }
+        if trimmed.hasPrefix("> ") { return "<blockquote>\(inline(String(trimmed.dropFirst(2))))</blockquote>" }
+        return "<p>\(inline(line))</p>"
+    }
+
+    // Applies inline markdown (bold, italic, code, strikethrough) after HTML-escaping plain text segments.
+    private func inline(_ text: String) -> String {
+        var result = ""
+        var i = text.startIndex
+
+        while i < text.endIndex {
+            // Inline code — escape content, no further formatting inside
+            if text[i] == "`" {
+                let after = text.index(after: i)
+                if let end = text[after...].firstIndex(of: "`") {
+                    result += "<code>\(escapeHTML(String(text[after..<end])))</code>"
+                    i = text.index(after: end)
+                    continue
+                }
+            }
+            // Bold+italic ***
+            if text[i...].hasPrefix("***"), let end = text[text.index(i, offsetBy: 3)...].range(of: "***") {
+                let content = String(text[text.index(i, offsetBy: 3)..<end.lowerBound])
+                result += "<strong><em>\(escapeHTML(content))</em></strong>"
+                i = end.upperBound
+                continue
+            }
+            // Bold ** or __
+            if text[i...].hasPrefix("**"), let end = text[text.index(i, offsetBy: 2)...].range(of: "**") {
+                let content = String(text[text.index(i, offsetBy: 2)..<end.lowerBound])
+                result += "<strong>\(escapeHTML(content))</strong>"
+                i = end.upperBound
+                continue
+            }
+            if text[i...].hasPrefix("__"), let end = text[text.index(i, offsetBy: 2)...].range(of: "__") {
+                let content = String(text[text.index(i, offsetBy: 2)..<end.lowerBound])
+                result += "<strong>\(escapeHTML(content))</strong>"
+                i = end.upperBound
+                continue
+            }
+            // Strikethrough ~~
+            if text[i...].hasPrefix("~~"), let end = text[text.index(i, offsetBy: 2)...].range(of: "~~") {
+                let content = String(text[text.index(i, offsetBy: 2)..<end.lowerBound])
+                result += "<del>\(escapeHTML(content))</del>"
+                i = end.upperBound
+                continue
+            }
+            // Italic * or _
+            if text[i] == "*" || text[i] == "_" {
+                let marker = String(text[i])
+                let after = text.index(after: i)
+                if let end = text[after...].range(of: marker) {
+                    let content = String(text[after..<end.lowerBound])
+                    result += "<em>\(escapeHTML(content))</em>"
+                    i = end.upperBound
+                    continue
+                }
+            }
+            // Plain character
+            switch text[i] {
+            case "&": result += "&amp;"
+            case "<": result += "&lt;"
+            case ">": result += "&gt;"
+            default: result.append(text[i])
+            }
+            i = text.index(after: i)
+        }
+        return result
+    }
+    
+    private func escapeHTML(_ text: String) -> String {
+        return text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 }

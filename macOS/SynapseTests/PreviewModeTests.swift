@@ -170,6 +170,105 @@ final class PreviewModeTests: XCTestCase {
         XCTAssertFalse(storageIsHidden(in: redrawTrackingTextView, at: 0), "Toggling hide-markdown off should restore markdown immediately")
         XCTAssertGreaterThan(redrawTrackingTextView.setNeedsDisplayCallCount, 0, "Refreshing after Cmd-E should request a redraw")
     }
+
+    // MARK: - Table Rendering Tests
+    // Note: Tables now show raw markdown in all modes - this is intentional behavior
+    // The preview mode uses a WebView which renders tables as HTML with proper formatting
+    // In edit/hide-markdown mode, tables show raw markdown so users can edit them
+
+    func test_tablePipes_areVisibleInEditMode() {
+        let tableText = "| Time | Event |\n|------|-------|\n| 9:00 | Meeting |"
+        textView.setPlainText(tableText)
+        textView.isEditable = true
+        textView.applyPreviewStyling()
+
+        let ns = tableText as NSString
+        // First pipe at index 0 - should be VISIBLE in edit mode (not hidden)
+        XCTAssertFalse(allHidden(in: NSRange(location: 0, length: 1)), "Opening pipe should be visible in edit mode")
+        // Cell content "Time" should also be visible
+        let timeRange = ns.range(of: "Time")
+        XCTAssertTrue(anyVisible(in: timeRange), "Cell content 'Time' should remain visible")
+    }
+
+    func test_tableSeparatorRow_isVisibleInEditMode() {
+        let tableText = "| Time | Event |\n|------|-------|\n| 9:00 | Meeting |"
+        textView.setPlainText(tableText)
+        textView.isEditable = true
+        textView.applyPreviewStyling()
+
+        let ns = tableText as NSString
+        // Separator row should be VISIBLE in edit mode (not hidden)
+        let separatorRange = ns.range(of: "|------|-------|")
+        XCTAssertFalse(allHidden(in: separatorRange), "Table separator row should be visible in edit mode")
+    }
+
+    func test_tableCellContent_isVisibleInEditMode() {
+        let tableText = "| Time | Event |\n|------|-------|\n| 9:00 | Meeting |"
+        textView.setPlainText(tableText)
+        textView.isEditable = true
+        textView.applyPreviewStyling()
+
+        let ns = tableText as NSString
+        // Cell content should be visible
+        let meetingRange = ns.range(of: "Meeting")
+        XCTAssertTrue(anyVisible(in: meetingRange), "Cell content 'Meeting' should be visible")
+    }
+
+    func test_tableRawMarkdown_revealedWhenCursorInside() {
+        let tableText = "| Time | Event |\n|------|-------|\n| 9:00 | Meeting |"
+        textView.setPlainText(tableText)
+        textView.isEditable = true
+
+        // Position cursor inside the table (after "Time")
+        let ns = tableText as NSString
+        let timeRange = ns.range(of: "Time")
+        let cursorPosition = timeRange.location + 2 // In middle of "Time"
+        textView.setSelectedRange(NSRange(location: cursorPosition, length: 0))
+
+        // Apply preview styling (simulating hide-markdown mode)
+        textView.applyPreviewStyling()
+
+        // The pipe near the cursor should be visible (tables show raw markdown in edit mode)
+        let pipeBeforeTime = timeRange.location - 2
+        if pipeBeforeTime >= 0 {
+            XCTAssertFalse(allHidden(in: NSRange(location: pipeBeforeTime, length: 1)), "Table syntax should be visible when cursor is inside")
+        }
+    }
+
+    func test_tableRawMarkdown_visibleWhenCursorOutside() {
+        let tableText = "Some text before\n\n| Time | Event |\n|------|-------|\n| 9:00 | Meeting |\n\nSome text after"
+        textView.setPlainText(tableText)
+        textView.isEditable = true
+
+        // Position cursor outside the table (in "Some text before")
+        let ns = tableText as NSString
+        let beforeRange = ns.range(of: "Some text before")
+        let cursorPosition = beforeRange.location + 5
+        textView.setSelectedRange(NSRange(location: cursorPosition, length: 0))
+
+        // Apply preview styling
+        textView.applyPreviewStyling()
+
+        // The table pipes should be VISIBLE (tables show raw markdown in edit mode)
+        let firstPipeInTable = ns.range(of: "| Time").location
+        XCTAssertFalse(isHidden(at: firstPipeInTable), "Table syntax should be visible in edit mode")
+    }
+
+    func test_table_rendersWithRawMarkdownInEditMode() {
+        let tableText = "| Time | Event |\n|------|-------|\n| 9:00 | Meeting |"
+        textView.setPlainText(tableText)
+        textView.isEditable = true
+
+        // Simulate hide-markdown-while-editing mode
+        textView.applyPreviewStyling()
+
+        // Tables should show raw markdown (pipes visible)
+        XCTAssertFalse(isHidden(at: 0), "Opening pipe should be visible in editable preview mode")
+
+        let ns = tableText as NSString
+        let meetingRange = ns.range(of: "Meeting")
+        XCTAssertTrue(anyVisible(in: meetingRange), "Cell content should be visible")
+    }
 }
 
 private final class RedrawTrackingTextView: LinkAwareTextView {
