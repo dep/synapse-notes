@@ -44,4 +44,24 @@ final class AppStateSettingsPropagationTests: XCTestCase {
 
         wait(for: [changeExpectation], timeout: 1.0)
     }
+
+    func test_editorFontChange_republishesThroughAppState() {
+        let settings = SettingsManager(configPath: configFilePath)
+        let appState = AppState(settings: settings)
+
+        let changeExpectation = expectation(description: "AppState republishes nested editor font changes")
+        var observedUpdatedValue = false
+        appState.objectWillChange
+            .sink { _ in
+                if appState.settings.editorBodyFontFamily == "Chalkboard SE" && !observedUpdatedValue {
+                    observedUpdatedValue = true
+                    changeExpectation.fulfill()
+                }
+            }
+            .store(in: &cancellables)
+
+        settings.editorBodyFontFamily = "Chalkboard SE"
+
+        wait(for: [changeExpectation], timeout: 1.0)
+    }
 }

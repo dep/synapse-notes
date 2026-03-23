@@ -33,19 +33,19 @@ final class SplitPaneKeyboardAndCursorTests: XCTestCase {
     }
 
     func test_configuredTextView_readOnlyModeDisablesEditing() {
-        let textView = RawEditor.configuredTextView(isEditable: false)
+        let textView = RawEditor.configuredTextView(isEditable: false, settings: nil)
 
         XCTAssertFalse(textView.isEditable)
     }
 
     func test_saveCursorObserver_ignoresReadOnlyTextViews() {
         let appState = AppState()
-        let editableView = RawEditor.configuredTextView(isEditable: true)
+        let editableView = RawEditor.configuredTextView(isEditable: true, settings: nil)
         editableView.string = "Editable"
         editableView.setSelectedRange(NSRange(location: 4, length: 0))
         editableView.installSaveCursorObserver(appState: appState)
 
-        let readOnlyView = RawEditor.configuredTextView(isEditable: false)
+        let readOnlyView = RawEditor.configuredTextView(isEditable: false, settings: nil)
         readOnlyView.string = "Read only"
         readOnlyView.setSelectedRange(NSRange(location: 0, length: 0))
         readOnlyView.installSaveCursorObserver(appState: appState)
@@ -60,7 +60,7 @@ final class SplitPaneKeyboardAndCursorTests: XCTestCase {
         appState.pendingCursorRange = NSRange(location: 3, length: 0)
         appState.pendingCursorTargetPaneIndex = 0
 
-        let readOnlyView = RawEditor.configuredTextView(isEditable: false)
+        let readOnlyView = RawEditor.configuredTextView(isEditable: false, settings: nil)
 
         let consumedRange = consumePendingCursorRange(from: appState, for: readOnlyView, paneIndex: 1)
 
@@ -73,7 +73,7 @@ final class SplitPaneKeyboardAndCursorTests: XCTestCase {
         appState.pendingCursorRange = NSRange(location: 6, length: 0)
         appState.pendingCursorTargetPaneIndex = 0
 
-        let editableView = RawEditor.configuredTextView(isEditable: true)
+        let editableView = RawEditor.configuredTextView(isEditable: true, settings: nil)
 
         let consumedRange = consumePendingCursorRange(from: appState, for: editableView, paneIndex: 1)
 
@@ -84,7 +84,7 @@ final class SplitPaneKeyboardAndCursorTests: XCTestCase {
 
     func test_saveCursorObserver_tracksEditableScrollOffset() {
         let appState = AppState()
-        let editableView = RawEditor.configuredTextView(isEditable: true)
+        let editableView = RawEditor.configuredTextView(isEditable: true, settings: nil)
         let scrollView = NSScrollView()
         scrollView.documentView = editableView
         scrollView.contentView.scroll(to: NSPoint(x: 0, y: 42))
@@ -97,7 +97,7 @@ final class SplitPaneKeyboardAndCursorTests: XCTestCase {
     }
 
     func test_preserveScrollOffset_restoresPreviousOffsetAfterAction() {
-        let textView = RawEditor.configuredTextView(isEditable: true)
+        let textView = RawEditor.configuredTextView(isEditable: true, settings: nil)
         let scrollView = NSScrollView()
         scrollView.documentView = textView
         scrollView.contentView.scroll(to: NSPoint(x: 0, y: 42))

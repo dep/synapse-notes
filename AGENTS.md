@@ -72,7 +72,7 @@ Read these optional files if present:
 ---
 
 ## Task Management
-1. **Plan First**: Write plan to `.agents/TASKS.md` with checkable items
+1. **Plan First**: Replace the contents of `.agents/TASKS.md` with a detailed plan of the task at hand.
 2. **Verify Plan**: Check in before starting implementation
 3. **Track Progress**: Mark items complete as you go
 4. **Explain Changes**: High-level summary at each step

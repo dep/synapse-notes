@@ -40,6 +40,7 @@
 		3D8E450676D3E902377E71F5 /* SidebarPaneTitleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79CCB6B287F3565EC8CEF2AF /* SidebarPaneTitleTests.swift */; };
 		3DF79EAA61F88614FB9F2F89 /* AppStateEditModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0B00871B184157E21F3C346 /* AppStateEditModeTests.swift */; };
 		3EADA0B30B1480ADE43DCC65 /* AppStateTemplatesDirNormalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC1886EC1E29B04F46A977BF /* AppStateTemplatesDirNormalizationTests.swift */; };
+		42C97646E3C58BA2899B2ECD /* MarkdownPreviewCSSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B5F3DD5C65C970478B2840 /* MarkdownPreviewCSSTests.swift */; };
 		45EBBE248217B2FE2005E428 /* AppStateDailyNotesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F7186E8801E8BC8BAA0678D /* AppStateDailyNotesTests.swift */; };
 		49CFC13D35F5F772C572BA0F /* AppStateTemplateRenameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3EB97BB362AAC57D3AF9F8E /* AppStateTemplateRenameTests.swift */; };
 		4DCEA0C615CA64683100C661 /* TemplatesDirectoryUIBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47250559CE52FF1D2C46C549 /* TemplatesDirectoryUIBehaviorTests.swift */; };
@@ -53,12 +54,14 @@
 		589CC9B2EF571DD4C8E39414 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF7018244BB6E635327C670 /* EditorView.swift */; };
 		597D8B7E230D39D912DF4CFF /* GitErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413A5866D2A2397710DDFDE5 /* GitErrorTests.swift */; };
 		59A6F7BB258D1FF977C53B25 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CA9E8A87139F33100BCC83 /* CommandPaletteView.swift */; };
+		5A17B54B9E5169462B921F4B /* FontEnumerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8349DC1AB30D81F11E1404 /* FontEnumerator.swift */; };
 		5FDEADDD3F6DC4FE1AB1466D /* AppStateGraphTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E187A6A841FAE77D9C9440A /* AppStateGraphTabTests.swift */; };
 		6044649992300375F1BDB874 /* AppStateGraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF1B8B03D6E5299A4700177 /* AppStateGraphTests.swift */; };
 		61F38C954D4BD659595F04D8 /* AppStateFileOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2819956191CAC51CF76DAFA /* AppStateFileOperationsTests.swift */; };
 		63ED7B40721FC00C49571D34 /* SplitPaneEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7603E5241D305A3BAE781451 /* SplitPaneEditorView.swift */; };
 		6460A69C604E78BA3A371AE9 /* CodeBlockLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71DDA03EE1F69F7782A6C13A /* CodeBlockLayoutTests.swift */; };
 		65D5879869033697040B2E0A /* DailyNoteStartupBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07462473C99EA91E27849EEA /* DailyNoteStartupBehaviorTests.swift */; };
+		6ADC57B102F867338E463842 /* SettingsManagerFontSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F7229E12831164A430591D /* SettingsManagerFontSettingsTests.swift */; };
 		6C4F37B062382BC0D458C214 /* SidebarPaneItemCodableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB3B1F42FA2D44B23BE869BF /* SidebarPaneItemCodableTests.swift */; };
 		704BB277680C34EAA6F2AFB5 /* GitHubReleaseDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCAA32F8A7A186722E6D13D /* GitHubReleaseDecodingTests.swift */; };
 		70792E277639E834624DC380 /* SplitPaneKeyboardAndCursorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */; };
@@ -87,6 +90,7 @@
 		95894C3787EAA8AF0D094716 /* TagsPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928B9D0E079FF89907F205E4 /* TagsPaneView.swift */; };
 		95F5195578D814DC00240BDA /* SettingsManagerApplyPaneAssignmentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC46BFFEED9FA35C09827E99 /* SettingsManagerApplyPaneAssignmentsTests.swift */; };
 		967AA2B1562D2EC1150730A2 /* AppStateRefreshFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D688EED08E44E1A4DAD82C72 /* AppStateRefreshFilesTests.swift */; };
+		969A4DA612491FF31111534B /* EditorFontStylingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2746489D8B13D73D6CB39B /* EditorFontStylingTests.swift */; };
 		96BDF77916E506566EEE7C2D /* AppStateRecentFilesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0312C2E6073380D08BDA58 /* AppStateRecentFilesTests.swift */; };
 		97059684F4D6FB15BE399547 /* AppStateUntitledNoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED347CEFEE6A6F742F99580B /* AppStateUntitledNoteTests.swift */; };
 		975FD9263E548BFDD18FBB91 /* HTMLToMarkdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B50760FD39FD68DA4D9877E /* HTMLToMarkdownTests.swift */; };
@@ -139,6 +143,7 @@
 		F0CC31A93376DEA4A2F12A95 /* SynapseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E13069F2D634A684FAE713 /* SynapseApp.swift */; };
 		F130A3AE3317CD34B8419BAA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CB8BA24E7E55C8EF0A3530F0 /* Assets.xcassets */; };
 		F4AE6BB73560EDBD541B5187 /* ImageSidebarEmbedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A03956EC9D388F74A50F6F3 /* ImageSidebarEmbedTests.swift */; };
+		F8CE6A091363039D10951B3F /* MarkdownPreviewCSS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575EBDEB0FCDE2BC05FFF26C /* MarkdownPreviewCSS.swift */; };
 		FA748D708DD0F029A45CA494 /* GraphPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ADBC72A6A85DB161568424D /* GraphPaneView.swift */; };
 		FB69E60D92275DD48F59979D /* SettingsManagerRemovePaneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8385D1262EFC1C89910D50A1 /* SettingsManagerRemovePaneTests.swift */; };
 		FD54F8F02EEBBF560E956885 /* SettingsManagerBrowserStartupURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26693477A455D0812BEF659A /* SettingsManagerBrowserStartupURLTests.swift */; };
@@ -176,6 +181,7 @@
 		144B3EA17E9D478AD62ED9A5 /* InlineTagStylingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineTagStylingTests.swift; sourceTree = "<group>"; };
 		147AFC9C373247489F744397 /* AppStateCommandPaletteGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateCommandPaletteGuardTests.swift; sourceTree = "<group>"; };
 		1609E933DF539DAC00406023 /* AppStateRelativePathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateRelativePathTests.swift; sourceTree = "<group>"; };
+		1B8349DC1AB30D81F11E1404 /* FontEnumerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontEnumerator.swift; sourceTree = "<group>"; };
 		1E187A6A841FAE77D9C9440A /* AppStateGraphTabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateGraphTabTests.swift; sourceTree = "<group>"; };
 		1F6B970F5933269DFCBB921C /* AutoUpdaterFetchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoUpdaterFetchTests.swift; sourceTree = "<group>"; };
 		24898CF86DAC494714686ED0 /* EmbeddableNotesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddableNotesTests.swift; sourceTree = "<group>"; };
@@ -205,6 +211,7 @@
 		4B50760FD39FD68DA4D9877E /* HTMLToMarkdownTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLToMarkdownTests.swift; sourceTree = "<group>"; };
 		4CC853F6E8FEBD07D8F6509D /* AppStateSyncToRemoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSyncToRemoteTests.swift; sourceTree = "<group>"; };
 		56691DF2CDDFA2DF5F263CF3 /* AppStateCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateCoreTests.swift; sourceTree = "<group>"; };
+		575EBDEB0FCDE2BC05FFF26C /* MarkdownPreviewCSS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewCSS.swift; sourceTree = "<group>"; };
 		581F07CA2599C2ED63315D92 /* AppStateFolderOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateFolderOperationsTests.swift; sourceTree = "<group>"; };
 		58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitPaneKeyboardAndCursorTests.swift; sourceTree = "<group>"; };
 		5A96D01FE3D3F9C3438D9E4A /* AppStateTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTabsTests.swift; sourceTree = "<group>"; };
@@ -219,6 +226,7 @@
 		6BD983D6D3F278E0AD47E0D1 /* FileTreeSortingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeSortingTests.swift; sourceTree = "<group>"; };
 		6C665A271CAB4E35735B89A9 /* GitServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitServiceTests.swift; sourceTree = "<group>"; };
 		6DF7018244BB6E635327C670 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		6E2746489D8B13D73D6CB39B /* EditorFontStylingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFontStylingTests.swift; sourceTree = "<group>"; };
 		6F7DD11836187C1CE8BCD2CF /* NoteReferenceResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteReferenceResolutionTests.swift; sourceTree = "<group>"; };
 		716125BBC502DD8F555057F7 /* KeyCodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCodeTests.swift; sourceTree = "<group>"; };
 		71DDA03EE1F69F7782A6C13A /* CodeBlockLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeBlockLayoutTests.swift; sourceTree = "<group>"; };
@@ -251,10 +259,12 @@
 		9D4F955DD37FCF31EA4E20E7 /* AppStateSplitPaneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSplitPaneTests.swift; sourceTree = "<group>"; };
 		9D6A78049408A64B9D89D287 /* SettingsManagerSidebarCollapseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerSidebarCollapseTests.swift; sourceTree = "<group>"; };
 		9D9C3A2B05AAC380C1B9F486 /* GistPublisherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GistPublisherTests.swift; sourceTree = "<group>"; };
+		A0F7229E12831164A430591D /* SettingsManagerFontSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerFontSettingsTests.swift; sourceTree = "<group>"; };
 		A2378A288D2FE5AEAA19A8EA /* CollapsibleSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollapsibleSection.swift; sourceTree = "<group>"; };
 		A307C880E354FA57E8BFEB62 /* CollapsibleSectionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollapsibleSectionsTests.swift; sourceTree = "<group>"; };
 		A4CC0773A494F79664F79AD7 /* SettingsManagerFileTreeModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerFileTreeModeTests.swift; sourceTree = "<group>"; };
 		A5652CD83D79D9861456325B /* TabItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabItemTests.swift; sourceTree = "<group>"; };
+		A6B5F3DD5C65C970478B2840 /* MarkdownPreviewCSSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewCSSTests.swift; sourceTree = "<group>"; };
 		A798505F66B8166624E3427B /* AppStateTagTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTagTabsTests.swift; sourceTree = "<group>"; };
 		AC200C902B321AE32F2F634C /* SettingsManagerPaneHeightsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerPaneHeightsTests.swift; sourceTree = "<group>"; };
 		AC8CA87990A19BCF411A9424 /* ImagePasteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePasteTests.swift; sourceTree = "<group>"; };
@@ -331,11 +341,13 @@
 				6DF7018244BB6E635327C670 /* EditorView.swift */,
 				9573DDE37ACEA626605DC7AF /* FileTreeView.swift */,
 				2C258F5BE9BBC6264833097E /* FolderPickerView.swift */,
+				1B8349DC1AB30D81F11E1404 /* FontEnumerator.swift */,
 				F88EA4153C25D088562FAC1C /* GistPublisher.swift */,
 				FF3182DCA96C9518DC154E22 /* GitService.swift */,
 				C3CE451A43640282F817405D /* GlobalGraphView.swift */,
 				2ADBC72A6A85DB161568424D /* GraphPaneView.swift */,
 				0E15235537B931DCAA752074 /* Info.plist */,
+				575EBDEB0FCDE2BC05FFF26C /* MarkdownPreviewCSS.swift */,
 				9CEB7D2020A789C4C8007B9F /* MiniBrowserPaneView.swift */,
 				69131C0C1C0EAB9BC5CADE83 /* PinnedItem.swift */,
 				62C26BB5AD5C76352C46111E /* RelatedLinksPaneView.swift */,
@@ -415,6 +427,7 @@
 				2C6CE68315BD0E501C83B675 /* CommandPaletteWikiLinkTests.swift */,
 				D989BB1299DADE947BAB87AA /* DailyNotesOpenOnStartupTests.swift */,
 				07462473C99EA91E27849EEA /* DailyNoteStartupBehaviorTests.swift */,
+				6E2746489D8B13D73D6CB39B /* EditorFontStylingTests.swift */,
 				24898CF86DAC494714686ED0 /* EmbeddableNotesTests.swift */,
 				72208A96C6AB803EA25A56D8 /* FileBrowserErrorTests.swift */,
 				78E1B729A125740F1A8C3AAE /* FileTreeHiddenItemsTests.swift */,
@@ -440,6 +453,7 @@
 				144B3EA17E9D478AD62ED9A5 /* InlineTagStylingTests.swift */,
 				716125BBC502DD8F555057F7 /* KeyCodeTests.swift */,
 				625B7F4419FE877A036D3664 /* ListContinuationTests.swift */,
+				A6B5F3DD5C65C970478B2840 /* MarkdownPreviewCSSTests.swift */,
 				9D419E073C2917DEE1A85E20 /* NoteGraphModelTests.swift */,
 				6F7DD11836187C1CE8BCD2CF /* NoteReferenceResolutionTests.swift */,
 				670E10F779C6DB84F830893C /* PinnedItemStructTests.swift */,
@@ -453,6 +467,7 @@
 				0BCDAA7EF51BC5642E126414 /* SettingsManagerCollapsedPanesTests.swift */,
 				5DE7FCFD3435A1C3998E1299 /* SettingsManagerExternalReloadTests.swift */,
 				A4CC0773A494F79664F79AD7 /* SettingsManagerFileTreeModeTests.swift */,
+				A0F7229E12831164A430591D /* SettingsManagerFontSettingsTests.swift */,
 				12936BAA078D86D1DC91F861 /* SettingsManagerGitHubPATTests.swift */,
 				3B3634CCE5B1774C3C102A98 /* SettingsManagerMovePaneItemTests.swift */,
 				EFD958AFEB9C0730DDEB54AD /* SettingsManagerNotePaneTests.swift */,
@@ -630,6 +645,7 @@
 				97F1AC38016EBF6D20DA80F5 /* CommandPaletteWikiLinkTests.swift in Sources */,
 				65D5879869033697040B2E0A /* DailyNoteStartupBehaviorTests.swift in Sources */,
 				29F4C4E87BAAD286C2712EE9 /* DailyNotesOpenOnStartupTests.swift in Sources */,
+				969A4DA612491FF31111534B /* EditorFontStylingTests.swift in Sources */,
 				AB321E7C9F6DEF1D8296BBD2 /* EmbeddableNotesTests.swift in Sources */,
 				D3B93EE1AE6B5B34F88C47B9 /* FileBrowserErrorTests.swift in Sources */,
 				9826D148FDB25BE367FE775A /* FileTreeHiddenItemsTests.swift in Sources */,
@@ -655,6 +671,7 @@
 				72B187CC92232606DB011D92 /* InlineTagStylingTests.swift in Sources */,
 				9E080881DF7B54EB62019205 /* KeyCodeTests.swift in Sources */,
 				98ECF354C8B6A66507E3C7FE /* ListContinuationTests.swift in Sources */,
+				42C97646E3C58BA2899B2ECD /* MarkdownPreviewCSSTests.swift in Sources */,
 				9C491E4C25AF389520BC1BD1 /* NoteGraphModelTests.swift in Sources */,
 				2BC48E2C0D37A10970E02BCB /* NoteReferenceResolutionTests.swift in Sources */,
 				03ECED0F956DB0D5C6067DEE /* PinnedItemStructTests.swift in Sources */,
@@ -668,6 +685,7 @@
 				B350FF53B5BEBCBDD6C35B00 /* SettingsManagerCollapsedPanesTests.swift in Sources */,
 				A705156086FB98B0A5CF55A0 /* SettingsManagerExternalReloadTests.swift in Sources */,
 				0384CE53BF62B97AAFF7D4EC /* SettingsManagerFileTreeModeTests.swift in Sources */,
+				6ADC57B102F867338E463842 /* SettingsManagerFontSettingsTests.swift in Sources */,
 				27A417FEB8C3977F970C53BD /* SettingsManagerGitHubPATTests.swift in Sources */,
 				2AFDB8D000CDBF4CFAA8DD4D /* SettingsManagerMovePaneItemTests.swift in Sources */,
 				A4D708D3B7584CFD4A9C4ADD /* SettingsManagerNotePaneTests.swift in Sources */,
@@ -707,10 +725,12 @@
 				589CC9B2EF571DD4C8E39414 /* EditorView.swift in Sources */,
 				5027113BDFD3F4EFCBB359A4 /* FileTreeView.swift in Sources */,
 				0F5E75F1929BB107A3E4F9E6 /* FolderPickerView.swift in Sources */,
+				5A17B54B9E5169462B921F4B /* FontEnumerator.swift in Sources */,
 				149B715AD9DF9829286F386F /* GistPublisher.swift in Sources */,
 				F03FCDD03015035E226FE7CD /* GitService.swift in Sources */,
 				399BAD4F8D874258D0F43EBB /* GlobalGraphView.swift in Sources */,
 				FA748D708DD0F029A45CA494 /* GraphPaneView.swift in Sources */,
+				F8CE6A091363039D10951B3F /* MarkdownPreviewCSS.swift in Sources */,
 				E7F2A859E55A23EA28421B0B /* MiniBrowserPaneView.swift in Sources */,
 				EA0BACF7C14159B75533C9F5 /* PinnedItem.swift in Sources */,
 				299185049C56A7F7C6A8EB93 /* RelatedLinksPaneView.swift in Sources */,

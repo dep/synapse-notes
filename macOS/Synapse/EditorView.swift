@@ -57,6 +57,42 @@ func preserveScrollOffset(for textView: NSTextView, perform action: () -> Void) 
     }
 }
 
+private func collectLinkAwareTextViews(in view: NSView) -> [LinkAwareTextView] {
+    var result: [LinkAwareTextView] = []
+    if let textView = view as? LinkAwareTextView {
+        result.append(textView)
+    }
+    for subview in view.subviews {
+        result.append(contentsOf: collectLinkAwareTextViews(in: subview))
+    }
+    return result
+}
+
+func refreshEditorForFontChange(_ textView: LinkAwareTextView) {
+    preserveScrollOffset(for: textView) {
+        if let settings = textView.settings {
+            textView.typingAttributes = [
+                .font: MarkdownTheme.bodyFont(for: settings),
+                .foregroundColor: SynapseTheme.editorForeground,
+            ]
+        }
+        let shouldApplyPreview = textView.lastAppliedEditorDisplayMode == .preview || !textView.isEditable
+        textView.applyMarkdownStyling()
+        if shouldApplyPreview {
+            textView.applyPreviewStyling()
+        }
+    }
+}
+
+func refreshAllEditorsForFontChange() {
+    for window in NSApp.windows {
+        guard let contentView = window.contentView else { continue }
+        for textView in collectLinkAwareTextViews(in: contentView) {
+            refreshEditorForFontChange(textView)
+        }
+    }
+}
+
 @discardableResult
 func activatePaneOnReadOnlyInteraction(isEditable: Bool, onActivatePane: (() -> Void)?) -> Bool {
     guard !isEditable else { return false }
@@ -116,7 +152,11 @@ struct EditorView: View {
                         if isInViewMode {
                             MarkdownPreviewView(
                                 markdownContent: displayContent,
-                                isDarkMode: isDark
+                                isDarkMode: isDark,
+                                bodyFontFamily: appState.settings.editorBodyFontFamily,
+                                monoFontFamily: appState.settings.editorMonospaceFontFamily,
+                                fontSize: appState.settings.editorFontSize,
+                                lineHeight: appState.settings.editorLineHeight
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
@@ -132,6 +172,7 @@ struct EditorView: View {
                                 participatesInGlobalEditorCommands: participatesInGlobalEditorCommands,
                                 onDidEdit: markEditorDirty
                             )
+                            .id("editor-font-\(appState.settings.editorBodyFontFamily)-\(appState.settings.editorMonospaceFontFamily)-\(appState.settings.editorFontSize)")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
 
@@ -459,6 +500,7 @@ struct EditorView: View {
                                 participatesInGlobalEditorCommands: false
                             )
                             .environmentObject(appState)
+                            .id("history-font-\(appState.settings.editorBodyFontFamily)-\(appState.settings.editorMonospaceFontFamily)-\(appState.settings.editorFontSize)")
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
                             Spacer()
@@ -565,7 +607,7 @@ struct RawEditor: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    static func configuredTextView(isEditable: Bool) -> LinkAwareTextView {
+    static func configuredTextView(isEditable: Bool, settings: SettingsManager?) -> LinkAwareTextView {
         let textView = LinkAwareTextView()
         textView.isRichText = true
         textView.isEditable = isEditable
@@ -586,8 +628,9 @@ struct RawEditor: NSViewRepresentable {
         ]
         textView.usesFontPanel = false
         textView.usesRuler = false
+        textView.settings = settings
         textView.typingAttributes = [
-            .font: MarkdownTheme.body,
+            .font: settings != nil ? MarkdownTheme.bodyFont(for: settings!) : MarkdownTheme.body,
             .foregroundColor: SynapseTheme.editorForeground,
         ]
         // Disable automatic substitutions to preserve markdown syntax
@@ -599,7 +642,7 @@ struct RawEditor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let textView = Self.configuredTextView(isEditable: isEditable)
+        let textView = Self.configuredTextView(isEditable: isEditable, settings: appState.settings)
         textView.delegate = context.coordinator
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
 
@@ -661,20 +704,41 @@ struct RawEditor: NSViewRepresentable {
         // looks up state for the correct file when the note changes.
         textView.currentFileURL = currentFileURL ?? appState.selectedFile
         textView.allFiles = appState.allFiles
+        
+        // Check if font settings have changed and need restyling
+        let currentSettings = appState.settings
+        let currentFontSignature = EditorFontSignature(settings: currentSettings)
+        let settingsChanged = textView.lastAppliedEditorFontSignature != currentFontSignature
+        textView.settings = currentSettings
+
+        if settingsChanged {
+            // Update typing attributes with new font
+            textView.typingAttributes = [
+                .font: MarkdownTheme.bodyFont(for: currentSettings),
+                .foregroundColor: SynapseTheme.editorForeground,
+            ]
+        }
+        
         if textView.string != text {
             context.coordinator.suppressSync = true
             let selected = textView.selectedRanges
             textView.setPlainText(text)
+            // If in hideMarkdown mode, apply preview styling after loading new text
+            // (setPlainText only auto-applies it for non-editable views)
+            if hideMarkdown {
+                textView.applyPreviewStyling()
+            }
             textView.selectedRanges = selected
             context.coordinator.suppressSync = false
         } else if !isEditable || hideMarkdown {
             // Re-apply preview styling when mode switches without a text change,
             // or when live-hide-markdown mode is active and the view re-renders.
-            if textView.lastAppliedEditorDisplayMode != .preview {
+            if textView.lastAppliedEditorDisplayMode != .preview || settingsChanged {
                 textView.applyPreviewStyling()
             }
-        } else if textView.lastAppliedEditorDisplayMode != .markdown {
-            // hideMarkdownWhileEditing was just toggled off — restore full styling.
+        } else if textView.lastAppliedEditorDisplayMode != .markdown || settingsChanged {
+            // hideMarkdownWhileEditing was just toggled off — restore full styling,
+            // or settings changed and we need to re-apply with new fonts
             textView.applyMarkdownStyling()
         }
         textView.onOpenFile = { url, openInNewTab in
@@ -852,7 +916,89 @@ func refreshActiveEditorForHideMarkdownToggle(hideMarkdown: Bool) {
 
 // MARK: - Markdown styling theme
 
-private enum MarkdownTheme {
+struct MarkdownTheme {
+    // MARK: - Font functions based on SettingsManager
+    
+    static func bodyFont(for settings: SettingsManager) -> NSFont {
+        let size = CGFloat(settings.editorFontSize)
+        if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
+            return NSFont.systemFont(ofSize: size)
+        }
+        return NSFont(name: settings.editorBodyFontFamily, size: size) ?? NSFont.systemFont(ofSize: size)
+    }
+    
+    static func monoFont(for settings: SettingsManager) -> NSFont {
+        let baseSize = CGFloat(settings.editorFontSize)
+        let size = max(10, baseSize - 2) // Monospace is 2 points smaller, minimum 10
+        if settings.editorMonospaceFontFamily.isEmpty || settings.editorMonospaceFontFamily == "System Monospace" {
+            return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        }
+        return NSFont(name: settings.editorMonospaceFontFamily, size: size) 
+            ?? NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+    
+    static func h1Font(for settings: SettingsManager) -> NSFont {
+        let size = round(CGFloat(settings.editorFontSize) * 1.87) // 28/15 ≈ 1.87
+        if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
+            return NSFont.systemFont(ofSize: size, weight: .bold)
+        }
+        return NSFont(name: settings.editorBodyFontFamily, size: size)?.withWeight(.bold) 
+            ?? NSFont.systemFont(ofSize: size, weight: .bold)
+    }
+    
+    static func h2Font(for settings: SettingsManager) -> NSFont {
+        let size = round(CGFloat(settings.editorFontSize) * 1.47) // 22/15 ≈ 1.47
+        if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
+            return NSFont.systemFont(ofSize: size, weight: .bold)
+        }
+        return NSFont(name: settings.editorBodyFontFamily, size: size)?.withWeight(.bold)
+            ?? NSFont.systemFont(ofSize: size, weight: .bold)
+    }
+    
+    static func h3Font(for settings: SettingsManager) -> NSFont {
+        let size = round(CGFloat(settings.editorFontSize) * 1.2) // 18/15 = 1.2
+        if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
+            return NSFont.systemFont(ofSize: size, weight: .semibold)
+        }
+        return NSFont(name: settings.editorBodyFontFamily, size: size)?.withWeight(.semibold)
+            ?? NSFont.systemFont(ofSize: size, weight: .semibold)
+    }
+    
+    static func h4Font(for settings: SettingsManager) -> NSFont {
+        let size = round(CGFloat(settings.editorFontSize) * 1.07) // 16/15 ≈ 1.07
+        if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
+            return NSFont.systemFont(ofSize: size, weight: .semibold)
+        }
+        return NSFont(name: settings.editorBodyFontFamily, size: size)?.withWeight(.semibold)
+            ?? NSFont.systemFont(ofSize: size, weight: .semibold)
+    }
+    
+    static func boldFont(for settings: SettingsManager) -> NSFont {
+        let size = CGFloat(settings.editorFontSize)
+        if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
+            return NSFont.systemFont(ofSize: size, weight: .bold)
+        }
+        return NSFont(name: settings.editorBodyFontFamily, size: size)?.withWeight(.bold)
+            ?? NSFont.systemFont(ofSize: size, weight: .bold)
+    }
+    
+    static func italicFont(for settings: SettingsManager) -> NSFont {
+        let size = CGFloat(settings.editorFontSize)
+        if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
+            let descriptor = NSFont.systemFont(ofSize: size).fontDescriptor.withSymbolicTraits(.italic)
+            return NSFont(descriptor: descriptor, size: size) ?? NSFont.systemFont(ofSize: size)
+        }
+        let baseFont = NSFont(name: settings.editorBodyFontFamily, size: size) ?? NSFont.systemFont(ofSize: size)
+        let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.italic)
+        return NSFont(descriptor: descriptor, size: size) ?? baseFont
+    }
+
+    static func lineHeightMultiple(for settings: SettingsManager) -> CGFloat {
+        max(0.8, min(3.0, CGFloat(settings.editorLineHeight)))
+    }
+    
+    // MARK: - Legacy static constants (for backward compatibility)
+    
     static let body = NSFont.systemFont(ofSize: 15)
     static let mono = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
     static let h1   = NSFont.systemFont(ofSize: 28, weight: .bold)
@@ -864,6 +1010,34 @@ private enum MarkdownTheme {
     static let linkColor           = SynapseTheme.editorLink
     static let unresolvedLinkColor = SynapseTheme.editorUnresolvedLink
     static let codeBackground      = SynapseTheme.editorCodeBackground
+}
+
+// Helper extension to apply font weight
+private extension NSFont {
+    func withWeight(_ weight: NSFont.Weight) -> NSFont {
+        // Create a new font descriptor with the desired weight trait
+        var traits = fontDescriptor.symbolicTraits
+        // Map NSFont.Weight to NSFontDescriptor.SymbolicTraits
+        if weight == .bold || weight.rawValue >= NSFont.Weight.bold.rawValue {
+            traits.insert(.bold)
+        } else if weight == .semibold || weight.rawValue >= NSFont.Weight.semibold.rawValue {
+            traits.insert(.bold)
+        }
+        let descriptor = fontDescriptor.withSymbolicTraits(traits)
+        return NSFont(descriptor: descriptor, size: pointSize) ?? self
+    }
+}
+
+private struct EditorFontSignature: Equatable {
+    let bodyFontFamily: String
+    let monospaceFontFamily: String
+    let fontSize: Int
+
+    init(settings: SettingsManager?) {
+        bodyFontFamily = settings?.editorBodyFontFamily ?? "System"
+        monospaceFontFamily = settings?.editorMonospaceFontFamily ?? "System Monospace"
+        fontSize = settings?.editorFontSize ?? 15
+    }
 }
 
 /// Custom attribute key for wiki links — avoids NSTextView overriding our foreground color via linkTextAttributes.
@@ -1044,6 +1218,10 @@ extension LinkAwareTextView {
                 storage.addAttributes(hiddenAttrs, range: r)
             }
         }
+
+        // applyMarkdownStyling() already ran before this and applied all fonts.
+        // We only need to hide the markdown syntax tokens here.
+        // Do NOT re-apply base fonts — that would undo the heading sizes set by applyMarkdownStyling.
 
         storage.beginEditing()
 
@@ -1236,6 +1414,7 @@ extension LinkAwareTextView {
         guard let storage = textStorage else { return }
         let fullRange = NSRange(location: 0, length: storage.length)
         guard fullRange.length > 0 else {
+            lastAppliedEditorFontSignature = EditorFontSignature(settings: settings)
             lastAppliedEditorDisplayMode = .markdown
             clearInlineImagePreviews()
             for key in Array(collapsibleToggleButtons.keys) {
@@ -1249,18 +1428,35 @@ extension LinkAwareTextView {
 
         storage.beginEditing()
 
+        // Use settings-based fonts if available, otherwise fall back to defaults
+        let bodyFont = settings != nil ? MarkdownTheme.bodyFont(for: settings!) : MarkdownTheme.body
+        let monoFont = settings != nil ? MarkdownTheme.monoFont(for: settings!) : MarkdownTheme.mono
+        let h1Font = settings != nil ? MarkdownTheme.h1Font(for: settings!) : MarkdownTheme.h1
+        let h2Font = settings != nil ? MarkdownTheme.h2Font(for: settings!) : MarkdownTheme.h2
+        let h3Font = settings != nil ? MarkdownTheme.h3Font(for: settings!) : MarkdownTheme.h3
+        let h4Font = settings != nil ? MarkdownTheme.h4Font(for: settings!) : MarkdownTheme.h4
+        let boldFont = settings != nil ? MarkdownTheme.boldFont(for: settings!) : NSFont.systemFont(ofSize: 15, weight: .bold)
+        let italicFont = settings != nil ? MarkdownTheme.italicFont(for: settings!) : {
+            let desc = MarkdownTheme.body.fontDescriptor.withSymbolicTraits(.italic)
+            return NSFont(descriptor: desc, size: 15) ?? MarkdownTheme.body
+        }()
+        let lineHeightMultiple = settings != nil ? MarkdownTheme.lineHeightMultiple(for: settings!) : 1.6
+        let baseParagraphStyle = NSMutableParagraphStyle()
+        baseParagraphStyle.lineHeightMultiple = lineHeightMultiple
+
         storage.setAttributes([
-            .font: MarkdownTheme.body,
+            .font: bodyFont,
             .foregroundColor: SynapseTheme.editorForeground,
+            .paragraphStyle: baseParagraphStyle,
         ], range: fullRange)
 
         let headerPatterns: [(String, NSFont)] = [
-            ("^#{6} .+$", MarkdownTheme.h4),
-            ("^#{5} .+$", MarkdownTheme.h4),
-            ("^#{4} .+$", MarkdownTheme.h4),
-            ("^### .+$",  MarkdownTheme.h3),
-            ("^## .+$",   MarkdownTheme.h2),
-            ("^# .+$",    MarkdownTheme.h1),
+            ("^#{6} .+$", h4Font),
+            ("^#{5} .+$", h4Font),
+            ("^#{4} .+$", h4Font),
+            ("^### .+$",  h3Font),
+            ("^## .+$",   h2Font),
+            ("^# .+$",    h1Font),
         ]
         for (pattern, font) in headerPatterns {
             applyRegex(pattern, to: text, storage: storage, options: [.anchorsMatchLines]) { range in
@@ -1275,37 +1471,34 @@ extension LinkAwareTextView {
         }
 
         applyRegex("\\*\\*(.+?)\\*\\*", to: text, storage: storage) { range in
-            storage.addAttribute(.font, value: NSFont.systemFont(ofSize: 15, weight: .bold), range: range)
+            storage.addAttribute(.font, value: boldFont, range: range)
             dimDelimiters(storage: storage, outerRange: range, delimLen: 2)
         }
         applyRegex("__(.+?)__", to: text, storage: storage) { range in
-            storage.addAttribute(.font, value: NSFont.systemFont(ofSize: 15, weight: .bold), range: range)
+            storage.addAttribute(.font, value: boldFont, range: range)
             dimDelimiters(storage: storage, outerRange: range, delimLen: 2)
         }
         applyRegex("\\*(?!\\*)(.+?)(?<!\\*)\\*", to: text, storage: storage) { range in
-            let desc = MarkdownTheme.body.fontDescriptor.withSymbolicTraits(.italic)
-            if let f = NSFont(descriptor: desc, size: 15) {
-                storage.addAttribute(.font, value: f, range: range)
-            }
+            storage.addAttribute(.font, value: italicFont, range: range)
             dimDelimiters(storage: storage, outerRange: range, delimLen: 1)
         }
         applyRegex("`([^`\\n]+)`", to: text, storage: storage) { range in
-            storage.addAttributes([.font: MarkdownTheme.mono, .backgroundColor: MarkdownTheme.codeBackground], range: range)
+            storage.addAttributes([.font: monoFont, .backgroundColor: MarkdownTheme.codeBackground], range: range)
         }
         let codePad: CGFloat = 10
         applyRegex("```[\\s\\S]*?```", to: text, storage: storage) { range in
-            storage.addAttributes([.font: MarkdownTheme.mono, .backgroundColor: MarkdownTheme.codeBackground, .foregroundColor: SynapseTheme.editorForeground], range: range)
+            storage.addAttributes([.font: monoFont, .backgroundColor: MarkdownTheme.codeBackground, .foregroundColor: SynapseTheme.editorForeground], range: range)
             // Add top padding to the opening fence line and bottom padding to the closing fence line
             // so the code block has breathing room and the copy button has space to sit in.
             let nsStr = text as NSString
             // First line of block → paragraphSpacingBefore
             let firstLineRange = nsStr.lineRange(for: NSRange(location: range.location, length: 0))
-            let firstParaStyle = NSMutableParagraphStyle()
+            let firstParaStyle = (storage.attribute(.paragraphStyle, at: firstLineRange.location, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
             firstParaStyle.paragraphSpacingBefore = codePad
             storage.addAttribute(.paragraphStyle, value: firstParaStyle, range: firstLineRange)
             // Last line of block → paragraphSpacing (after)
             let lastLineRange = nsStr.lineRange(for: NSRange(location: range.location + range.length - 1, length: 0))
-            let lastParaStyle = NSMutableParagraphStyle()
+            let lastParaStyle = (storage.attribute(.paragraphStyle, at: lastLineRange.location, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
             lastParaStyle.paragraphSpacing = codePad
             storage.addAttribute(.paragraphStyle, value: lastParaStyle, range: lastLineRange)
         }
@@ -1425,6 +1618,7 @@ extension LinkAwareTextView {
 
         applyCollapsibleStyling(storage: storage)
         storage.endEditing()
+        lastAppliedEditorFontSignature = EditorFontSignature(settings: settings)
         requestImmediateRedraw(for: fullRange)
         reapplySearchHighlights()
         DispatchQueue.main.async { [weak self] in
@@ -1658,6 +1852,10 @@ class LinkAwareTextView: NSTextView {
     var slashCommandTimeZone: TimeZone = .current
     /// Called when CMD-K fires but the editor has no selection, so the normal command palette should open.
     var onCommandPaletteFallback: (() -> Void)?
+    
+    // Settings manager for font configuration
+    var settings: SettingsManager?
+    fileprivate var lastAppliedEditorFontSignature: EditorFontSignature? = nil
 
     private var completionPopover: NSPopover?
     private var completionVC: CompletionViewController?
@@ -4764,10 +4962,18 @@ extension LinkAwareTextView {
 struct MarkdownPreviewView: NSViewRepresentable {
     let markdownContent: String
     let isDarkMode: Bool
+    let bodyFontFamily: String
+    let monoFontFamily: String
+    let fontSize: Int
+    let lineHeight: Double
 
     class Coordinator {
         var lastMarkdown: String?
         var lastIsDarkMode: Bool?
+        var lastBodyFontFamily: String?
+        var lastMonoFontFamily: String?
+        var lastFontSize: Int?
+        var lastLineHeight: Double?
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -4782,9 +4988,17 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         guard markdownContent != context.coordinator.lastMarkdown ||
-              isDarkMode != context.coordinator.lastIsDarkMode else { return }
+              isDarkMode != context.coordinator.lastIsDarkMode ||
+              bodyFontFamily != context.coordinator.lastBodyFontFamily ||
+              monoFontFamily != context.coordinator.lastMonoFontFamily ||
+              fontSize != context.coordinator.lastFontSize ||
+              lineHeight != context.coordinator.lastLineHeight else { return }
         context.coordinator.lastMarkdown = markdownContent
         context.coordinator.lastIsDarkMode = isDarkMode
+        context.coordinator.lastBodyFontFamily = bodyFontFamily
+        context.coordinator.lastMonoFontFamily = monoFontFamily
+        context.coordinator.lastFontSize = fontSize
+        context.coordinator.lastLineHeight = lineHeight
         let html = generateHTML(from: markdownContent, isDarkMode: isDarkMode)
         webView.loadHTMLString(html, baseURL: nil)
     }
@@ -4884,6 +5098,18 @@ struct MarkdownPreviewView: NSViewRepresentable {
         let backgroundColor = isDarkMode ? "#1E1E1E" : "#FFFFFF"
         let borderColor = isDarkMode ? "#444444" : "#CCCCCC"
         let headerBgColor = isDarkMode ? "#2D2D2D" : "#F5F5F5"
+        let bodyFontStack = MarkdownPreviewCSS.bodyFontStack(for: bodyFontFamily)
+        let monoFontStack = MarkdownPreviewCSS.monoFontStack(for: monoFontFamily)
+        let bodyFontSize = MarkdownPreviewCSS.bodyFontSize(for: fontSize)
+        let tableFontSize = MarkdownPreviewCSS.tableFontSize(for: fontSize)
+        let codeFontSize = MarkdownPreviewCSS.codeFontSize(for: fontSize)
+        let bodyLineHeight = MarkdownPreviewCSS.lineHeight(for: lineHeight)
+        let h1Size = MarkdownPreviewCSS.headingFontSize(level: 1, baseSize: fontSize)
+        let h2Size = MarkdownPreviewCSS.headingFontSize(level: 2, baseSize: fontSize)
+        let h3Size = MarkdownPreviewCSS.headingFontSize(level: 3, baseSize: fontSize)
+        let h4Size = MarkdownPreviewCSS.headingFontSize(level: 4, baseSize: fontSize)
+        let h5Size = MarkdownPreviewCSS.headingFontSize(level: 5, baseSize: fontSize)
+        let h6Size = MarkdownPreviewCSS.headingFontSize(level: 6, baseSize: fontSize)
         
         return """
         <!DOCTYPE html>
@@ -4893,9 +5119,9 @@ struct MarkdownPreviewView: NSViewRepresentable {
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    font-size: 14px;
-                    line-height: 1.6;
+                    font-family: \(bodyFontStack);
+                    font-size: \(bodyFontSize)px;
+                    line-height: \(bodyLineHeight);
                     color: \(textColor);
                     background-color: \(backgroundColor);
                     margin: 0;
@@ -4905,7 +5131,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
                     border-collapse: collapse;
                     width: 100%;
                     margin: 16px 0;
-                    font-size: 13px;
+                    font-size: \(tableFontSize)px;
                 }
                 th, td {
                     border: 1px solid \(borderColor);
@@ -4919,12 +5145,12 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 tr:nth-child(even) {
                     background-color: \(isDarkMode ? "#252525" : "#FAFAFA");
                 }
-                h1 { font-size: 28px; margin: 24px 0 16px 0; font-weight: 600; }
-                h2 { font-size: 24px; margin: 24px 0 16px 0; font-weight: 600; }
-                h3 { font-size: 20px; margin: 20px 0 14px 0; font-weight: 600; }
-                h4 { font-size: 18px; margin: 18px 0 12px 0; font-weight: 600; }
-                h5 { font-size: 16px; margin: 16px 0 10px 0; font-weight: 600; }
-                h6 { font-size: 14px; margin: 14px 0 8px 0; font-weight: 600; }
+                h1 { font-size: \(h1Size)px; margin: 24px 0 16px 0; font-weight: 600; }
+                h2 { font-size: \(h2Size)px; margin: 24px 0 16px 0; font-weight: 600; }
+                h3 { font-size: \(h3Size)px; margin: 20px 0 14px 0; font-weight: 600; }
+                h4 { font-size: \(h4Size)px; margin: 18px 0 12px 0; font-weight: 600; }
+                h5 { font-size: \(h5Size)px; margin: 16px 0 10px 0; font-weight: 600; }
+                h6 { font-size: \(h6Size)px; margin: 14px 0 8px 0; font-weight: 600; }
                 p { margin: 12px 0; }
                 p:empty { margin: 0; }
                 ul, ol {
@@ -4939,8 +5165,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
                     background-color: \(isDarkMode ? "#2D2D2D" : "#F0F0F0");
                     padding: 2px 6px;
                     border-radius: 3px;
-                    font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
-                    font-size: 12px;
+                    font-family: \(monoFontStack);
+                    font-size: \(codeFontSize)px;
                 }
                 pre {
                     background-color: \(isDarkMode ? "#2D2D2D" : "#F5F5F5");

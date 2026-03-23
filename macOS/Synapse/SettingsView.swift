@@ -22,15 +22,95 @@ struct SettingsView: View {
 
     private let settingsFieldWidth: CGFloat = 440
 
+    private func refreshEditorsForFontChange() {
+        DispatchQueue.main.async {
+            refreshAllEditorsForFontChange()
+        }
+    }
+
     var body: some View {
         Form {
             // MARK: - Editor Section
             Section {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Hide markdown toggle
                     Toggle("Hide markdown while editing", isOn: $settings.hideMarkdownWhileEditing)
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
-
+                    
                     Text("When enabled, markdown syntax is hidden as you type and content renders in real-time.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    Divider()
+                        .padding(.vertical, 4)
+                    
+                    // Body Font Picker
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Body Font")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        
+                        FontPicker(
+                            selection: $settings.editorBodyFontFamily,
+                            fonts: FontEnumerator.bodyFonts(),
+                            defaultLabel: "System"
+                        )
+                        .frame(width: settingsFieldWidth, alignment: .leading)
+                    }
+                    
+                    // Monospace Font Picker
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Monospace Font")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        
+                        FontPicker(
+                            selection: $settings.editorMonospaceFontFamily,
+                            fonts: FontEnumerator.monospaceFonts(),
+                            defaultLabel: "System Monospace"
+                        )
+                        .frame(width: settingsFieldWidth, alignment: .leading)
+                    }
+                    
+                    // Font Size Field
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Font Size")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        
+                        HStack(spacing: 8) {
+                            TextField("", value: $settings.editorFontSize, format: .number)
+                                .font(.system(.body, design: .monospaced))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 60)
+                                .multilineTextAlignment(.trailing)
+                            
+                            Text("pt")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Line Height")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 8) {
+                            TextField("", value: $settings.editorLineHeight, format: .number.precision(.fractionLength(1)))
+                                .font(.system(.body, design: .monospaced))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 60)
+                                .multilineTextAlignment(.trailing)
+
+                            Text("x")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Text("Font settings apply immediately and are saved with your vault.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -436,6 +516,18 @@ struct SettingsView: View {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
             }
         }
+        .onChange(of: settings.editorBodyFontFamily) { _ in
+            refreshEditorsForFontChange()
+        }
+        .onChange(of: settings.editorMonospaceFontFamily) { _ in
+            refreshEditorsForFontChange()
+        }
+        .onChange(of: settings.editorFontSize) { _ in
+            refreshEditorsForFontChange()
+        }
+        .onChange(of: settings.editorLineHeight) { _ in
+            refreshEditorsForFontChange()
+        }
         .formStyle(.grouped)
         .frame(width: 560)
         .padding()
@@ -522,6 +614,50 @@ struct SettingsView: View {
                 self.isDetecting = false
             }
         }
+    }
+}
+
+// MARK: - Font Picker Component
+
+struct FontPicker: View {
+    @Binding var selection: String
+    let fonts: [String]
+    let defaultLabel: String
+    
+    var body: some View {
+        Menu {
+            // Default option at top
+            Button(defaultLabel) {
+                selection = defaultLabel == "System" ? "System" : "System Monospace"
+            }
+            
+            Divider()
+            
+            // All fonts
+            ForEach(fonts, id: \.self) { font in
+                Button(font) {
+                    selection = font
+                }
+            }
+        } label: {
+            HStack {
+                Text(selection.isEmpty || selection == "System" || selection == "System Monospace" ? defaultLabel : selection)
+                    .font(.system(.body, design: .default))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .frame(width: 200)
     }
 }
 
