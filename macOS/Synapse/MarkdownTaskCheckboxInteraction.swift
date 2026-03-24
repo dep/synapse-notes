@@ -57,6 +57,8 @@ extension LinkAwareTextView {
     fileprivate func characterIndex(at viewPoint: NSPoint) -> Int? {
         guard let layout = layoutManager, let container = textContainer else { return nil }
 
+        layout.ensureLayout(for: container)
+
         let containerPoint = NSPoint(
             x: viewPoint.x - textContainerOrigin.x,
             y: viewPoint.y - textContainerOrigin.y
@@ -69,9 +71,6 @@ extension LinkAwareTextView {
         )
         guard charIndex < (string as NSString).length else { return nil }
 
-        let glyphIndex = layout.glyphIndexForCharacter(at: charIndex)
-        let glyphRect = layout.boundingRect(forGlyphRange: NSRange(location: glyphIndex, length: 1), in: container)
-        guard glyphRect.contains(containerPoint) else { return nil }
         return charIndex
     }
 }
