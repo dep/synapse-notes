@@ -156,7 +156,26 @@ struct EditorView: View {
                                 bodyFontFamily: appState.settings.editorBodyFontFamily,
                                 monoFontFamily: appState.settings.editorMonospaceFontFamily,
                                 fontSize: appState.settings.editorFontSize,
-                                lineHeight: appState.settings.editorLineHeight
+                                lineHeight: appState.settings.editorLineHeight,
+                                currentFileURL: displayFile,
+                                onOpenFile: { url in appState.openFile(url) },
+                                onResolveWikilink: { destination in
+                                    let match = appState.allFiles.first { url in
+                                        url.deletingPathExtension().lastPathComponent.lowercased() == destination
+                                    }
+                                    if let match { appState.openFile(match) }
+                                },
+                                onToggleCheckbox: { offset in
+                                    var content = displayContent
+                                    let ns = content as NSString
+                                    guard offset + 3 <= ns.length else { return }
+                                    let marker = ns.substring(with: NSRange(location: offset, length: 3))
+                                    let replacement = marker == "[ ]" ? "[x]" : "[ ]"
+                                    let range = Range(NSRange(location: offset, length: 3), in: content)!
+                                    content.replaceSubrange(range, with: replacement)
+                                    activeTextBinding.wrappedValue = content
+                                    appState.isDirty = true
+                                }
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
@@ -5107,23 +5126,65 @@ struct MarkdownPreviewView: NSViewRepresentable {
     let monoFontFamily: String
     let fontSize: Int
     let lineHeight: Double
+    var currentFileURL: URL? = nil
+    var onOpenFile: ((URL) -> Void)? = nil
+    var onResolveWikilink: ((String) -> Void)? = nil
+    var onToggleCheckbox: ((Int) -> Void)? = nil
 
-    class Coordinator {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        var parent: MarkdownPreviewView
         var lastMarkdown: String?
         var lastIsDarkMode: Bool?
         var lastBodyFontFamily: String?
         var lastMonoFontFamily: String?
         var lastFontSize: Int?
         var lastLineHeight: Double?
+        var lastFileURL: URL?
+        var pendingScrollY: CGFloat = 0
+
+        init(_ parent: MarkdownPreviewView) { self.parent = parent }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard pendingScrollY > 0 else { return }
+            let y = pendingScrollY
+            pendingScrollY = 0
+            webView.evaluateJavaScript("window.scrollTo(0, \(y))") { _, _ in }
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else { decisionHandler(.allow); return }
+            if url.scheme == "wikilink" {
+                let destination = (url.host ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).lowercased()
+                parent.onResolveWikilink?(destination)
+                decisionHandler(.cancel)
+                return
+            }
+            if url.scheme == "http" || url.scheme == "https" {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+            // Allow file:// and about: (initial HTML load)
+            decisionHandler(.allow)
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "toggleCheckbox", let offset = message.body as? Int {
+                parent.onToggleCheckbox?(offset)
+            }
+        }
+
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        config.preferences.javaScriptEnabled = false
+        config.preferences.javaScriptEnabled = true
+        config.userContentController.add(context.coordinator, name: "toggleCheckbox")
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = context.coordinator
         return webView
     }
 
@@ -5133,19 +5194,60 @@ struct MarkdownPreviewView: NSViewRepresentable {
               bodyFontFamily != context.coordinator.lastBodyFontFamily ||
               monoFontFamily != context.coordinator.lastMonoFontFamily ||
               fontSize != context.coordinator.lastFontSize ||
-              lineHeight != context.coordinator.lastLineHeight else { return }
+              lineHeight != context.coordinator.lastLineHeight ||
+              currentFileURL != context.coordinator.lastFileURL else { return }
+        context.coordinator.parent = self
         context.coordinator.lastMarkdown = markdownContent
         context.coordinator.lastIsDarkMode = isDarkMode
         context.coordinator.lastBodyFontFamily = bodyFontFamily
         context.coordinator.lastMonoFontFamily = monoFontFamily
         context.coordinator.lastFontSize = fontSize
         context.coordinator.lastLineHeight = lineHeight
-        let html = generateHTML(from: markdownContent, isDarkMode: isDarkMode)
-        webView.loadHTMLString(html, baseURL: nil)
+        context.coordinator.lastFileURL = currentFileURL
+        let baseDir = currentFileURL?.deletingLastPathComponent()
+        let html = generateHTML(from: markdownContent, isDarkMode: isDarkMode, baseDir: baseDir)
+        // Save scroll position before reload, restore after load finishes
+        webView.evaluateJavaScript("window.scrollY") { scrollY, _ in
+            if let y = scrollY as? CGFloat, y > 0 {
+                context.coordinator.pendingScrollY = y
+            }
+        }
+        webView.loadHTMLString(html, baseURL: baseDir)
     }
 
-    private func generateHTML(from markdown: String, isDarkMode: Bool) -> String {
-        let html = MarkdownPreviewRenderer().renderBody(from: markdown)
+    private func generateHTML(from markdown: String, isDarkMode: Bool, baseDir: URL? = nil) -> String {
+        var html = MarkdownPreviewRenderer().renderBody(from: markdown)
+        // Inline local images as data URIs so they render without file:// access
+        if let baseDir {
+            let imgRegex = try? NSRegularExpression(pattern: #"<img\s+src="([^"]+)""#)
+            let nsHTML = html as NSString
+            var replacements: [(NSRange, String)] = []
+            imgRegex?.enumerateMatches(in: html, range: NSRange(location: 0, length: nsHTML.length)) { match, _, _ in
+                guard let match, match.numberOfRanges > 1 else { return }
+                let srcRange = match.range(at: 1)
+                let src = nsHTML.substring(with: srcRange)
+                // Skip already-inlined or remote URLs
+                guard !src.hasPrefix("data:"), !src.hasPrefix("http://"), !src.hasPrefix("https://") else { return }
+                let imageURL = baseDir.appendingPathComponent(src)
+                guard let data = try? Data(contentsOf: imageURL) else { return }
+                let ext = imageURL.pathExtension.lowercased()
+                let mime: String
+                switch ext {
+                case "png": mime = "image/png"
+                case "jpg", "jpeg": mime = "image/jpeg"
+                case "gif": mime = "image/gif"
+                case "svg": mime = "image/svg+xml"
+                case "webp": mime = "image/webp"
+                default: mime = "application/octet-stream"
+                }
+                let dataURI = "data:\(mime);base64,\(data.base64EncodedString())"
+                replacements.append((srcRange, dataURI))
+            }
+            // Apply replacements in reverse order to preserve ranges
+            for (range, replacement) in replacements.reversed() {
+                html = (html as NSString).replacingCharacters(in: range, with: replacement)
+            }
+        }
         
         let textColor = isDarkMode ? "#E0E0E0" : "#333333"
         let backgroundColor = isDarkMode ? "#1E1E1E" : "#FFFFFF"
@@ -5208,8 +5310,10 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 p:empty { margin: 0; }
                 ul, ol {
                     margin: 12px 0;
-                    padding-left: 0;
-                    list-style-position: inside;
+                    padding-left: 1.5em;
+                }
+                ul ul, ul ol, ol ul, ol ol {
+                    margin: 2px 0;
                 }
                 li {
                     margin: 4px 0;
@@ -5275,16 +5379,28 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 }
                 .task-item {
                     display: flex;
-                    align-items: center;
+                    align-items: baseline;
                     gap: 8px;
                 }
-                .task-item input {
+                .task-item input[type="checkbox"] {
                     accent-color: \(isDarkMode ? "#6B9BFF" : "#0066CC");
+                    cursor: pointer;
+                    width: 14px;
+                    height: 14px;
+                    flex-shrink: 0;
+                    margin-top: 2px;
                 }
                 hr {
                     border: none;
                     border-top: 1px solid \(borderColor);
                     margin: 24px 0;
+                }
+                img {
+                    max-width: 100%;
+                    height: auto;
+                    border-radius: 4px;
+                    display: block;
+                    margin: 8px 0;
                 }
                 strong { font-weight: 600; }
                 em { font-style: italic; }

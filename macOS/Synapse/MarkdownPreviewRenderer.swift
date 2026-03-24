@@ -155,8 +155,15 @@ struct MarkdownPreviewRenderer {
         return html
     }
 
+    private struct ListItem {
+        let indent: Int
+        let html: String
+        let isTask: Bool
+        let charOffset: Int
+    }
+
     private func renderList(startingAt start: Int, in document: MarkdownDocument, kind: ListRenderKind) -> (String, Int) {
-        var items: [String] = []
+        var rawItems: [ListItem] = []
         var index = start
 
         while index < document.blocks.count {
@@ -164,33 +171,71 @@ struct MarkdownPreviewRenderer {
             switch (kind, block.kind) {
             case let (.unordered, .unorderedListItem(indent)):
                 let content = renderInlineText(in: document.source, range: block.contentRange, tokens: block.inlineTokens)
-                items.append("<li data-indent=\"\(indent)\">\(content)</li>")
+                rawItems.append(ListItem(indent: indent, html: "<li>\(content)</li>", isTask: false, charOffset: block.range.location))
             case let (.ordered, .orderedListItem(indent, _)):
                 let content = renderInlineText(in: document.source, range: block.contentRange, tokens: block.inlineTokens)
-                items.append("<li data-indent=\"\(indent)\">\(content)</li>")
+                rawItems.append(ListItem(indent: indent, html: "<li>\(content)</li>", isTask: false, charOffset: block.range.location))
             case let (.task, .taskListItem(indent, isChecked)):
                 let content = renderInlineText(in: document.source, range: block.contentRange, tokens: block.inlineTokens)
                 let checked = isChecked ? " checked" : ""
-                items.append("<li class=\"task-item\" data-indent=\"\(indent)\"><input type=\"checkbox\" disabled\(checked)> <span>\(content)</span></li>")
+                // The [ ] / [x] marker starts at indent + 2 within the block (after "- ")
+                let markerOffset = block.range.location + indent + 2
+                let checkboxHTML = "<input type=\"checkbox\"\(checked) data-offset=\"\(markerOffset)\" onclick=\"window.webkit.messageHandlers.toggleCheckbox.postMessage(\(markerOffset))\">"
+                rawItems.append(ListItem(indent: indent, html: "<li class=\"task-item\">\(checkboxHTML) <span>\(content)</span></li>", isTask: true, charOffset: markerOffset))
             default:
-                let container: String
-                switch kind {
-                case .unordered: container = "<ul>\(items.joined())</ul>"
-                case .ordered: container = "<ol>\(items.joined())</ol>"
-                case .task: container = "<ul class=\"task-list\">\(items.joined())</ul>"
-                }
-                return (container, index)
+                return (buildNestedList(items: rawItems, kind: kind), index)
             }
             index += 1
         }
 
-        let container: String
+        return (buildNestedList(items: rawItems, kind: kind), index)
+    }
+
+    private func buildNestedList(items: [ListItem], kind: ListRenderKind) -> String {
+        guard !items.isEmpty else { return "" }
+        let tag: String
+        let cls: String
         switch kind {
-        case .unordered: container = "<ul>\(items.joined())</ul>"
-        case .ordered: container = "<ol>\(items.joined())</ol>"
-        case .task: container = "<ul class=\"task-list\">\(items.joined())</ul>"
+        case .unordered: tag = "ul"; cls = ""
+        case .ordered: tag = "ol"; cls = ""
+        case .task: tag = "ul"; cls = " class=\"task-list\""
         }
-        return (container, index)
+
+        var result = ""
+        var stack: [(tag: String, indent: Int)] = []
+
+        func openList(indent: Int) {
+            result += "<\(tag)\(cls)>"
+            stack.append((tag, indent))
+        }
+        func closeList() {
+            if let top = stack.popLast() {
+                result += "</\(top.tag)>"
+            }
+        }
+
+        for item in items {
+            if stack.isEmpty {
+                openList(indent: item.indent)
+            } else if item.indent > stack.last!.indent {
+                // Nest deeper — wrap in new list inside last <li> by stripping its closing tag
+                if result.hasSuffix("</li>") {
+                    result = String(result.dropLast(5))
+                }
+                openList(indent: item.indent)
+            } else if item.indent < stack.last!.indent {
+                // Pop back up
+                while stack.count > 1 && item.indent <= stack.last!.indent {
+                    closeList()
+                    // Also close the li we left open when we nested
+                    result += "</li>"
+                }
+            }
+            result += item.html
+        }
+
+        while !stack.isEmpty { closeList() }
+        return result
     }
 
     private func renderInlineText(in source: String, range: NSRange, tokens: [MarkdownInlineToken]) -> String {
