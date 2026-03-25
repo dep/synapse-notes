@@ -37,6 +37,7 @@ enum MarkdownInlineTokenKind: Equatable {
     case markdownImage(destination: String, caption: String)
     case wikiLink(destination: String, alias: String?)
     case embed(destination: String)
+    case highlight
 }
 
 final class MarkdownDocumentParser {
@@ -68,6 +69,7 @@ final class MarkdownDocumentParser {
     private static let markdownLinkRegex = try? NSRegularExpression(pattern: "(?<!!)\\[([^\\]]+)\\]\\(([^)]+)\\)")
     private static let wikiLinkRegex = try? NSRegularExpression(pattern: "(?<!!)\\[\\[([^\\]|]+)(?:\\|([^\\]]+))?\\]\\]")
     private static let embedRegex = try? NSRegularExpression(pattern: "!\\[\\[([^\\]]+)\\]\\]")
+    private static let highlightRegex = try? NSRegularExpression(pattern: "==([^=]+)==")
 
     func parse(_ source: String) -> MarkdownDocument {
         let lines = makeLines(for: source)
@@ -480,6 +482,18 @@ final class MarkdownDocumentParser {
                 kind: .markdownLink(destination: destination),
                 range: offset(match.range(at: 0), by: baseOffset),
                 contentRange: offset(match.range(at: 1), by: baseOffset),
+                rawText: nsText.substring(with: match.range(at: 0))
+            ))
+        }
+
+        Self.highlightRegex?.enumerateMatches(in: text, options: [], range: fullRange) { match, _, _ in
+            guard let match, match.numberOfRanges >= 2 else { return }
+            let contentRange = match.range(at: 1)
+            guard contentRange.length > 0 else { return }
+            tokens.append(MarkdownInlineToken(
+                kind: .highlight,
+                range: offset(match.range(at: 0), by: baseOffset),
+                contentRange: offset(contentRange, by: baseOffset),
                 rawText: nsText.substring(with: match.range(at: 0))
             ))
         }

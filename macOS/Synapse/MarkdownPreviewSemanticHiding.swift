@@ -85,6 +85,9 @@ struct MarkdownPreviewSemanticHiding {
                 case .embed:
                     hiddenRanges.append(NSRange(location: token.range.location, length: 3))
                     hiddenRanges.append(NSRange(location: token.range.location + token.range.length - 2, length: 2))
+                case .highlight:
+                    hiddenRanges.append(NSRange(location: token.range.location, length: 2))
+                    hiddenRanges.append(NSRange(location: token.range.location + token.range.length - 2, length: 2))
                 }
             }
         }

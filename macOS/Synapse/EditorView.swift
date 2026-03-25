@@ -1681,6 +1681,8 @@ extension LinkAwareTextView {
                 if let url = URL(string: destination), url.scheme != nil {
                     storage.addAttribute(.link, value: url, range: entry.range)
                 }
+            case .highlight:
+                storage.addAttribute(.backgroundColor, value: NSColor.systemYellow.withAlphaComponent(0.3), range: entry.contentRange)
             }
         }
 

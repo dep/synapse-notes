@@ -11,6 +11,7 @@ struct MarkdownEditorInlineSemanticStyles {
         case markdownLink(destination: String)
         case wikiLink(rawTarget: String, destination: String, alias: String?)
         case embed(rawTarget: String)
+        case highlight
     }
 
     let entries: [Entry]
@@ -33,6 +34,8 @@ struct MarkdownEditorInlineSemanticStyles {
                 case .embed:
                     let rawTarget = rawInnerText(from: token.rawText, prefixLength: 3, suffixLength: 2)
                     return Entry(kind: .embed(rawTarget: rawTarget), range: token.range, contentRange: token.contentRange)
+                case .highlight:
+                    return Entry(kind: .highlight, range: token.range, contentRange: token.contentRange)
                 }
             }
         }

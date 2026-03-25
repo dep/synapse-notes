@@ -12,7 +12,7 @@ struct MarkdownPreviewCursorReveal {
         let revealedRanges = document.blocks.flatMap { block in
             block.inlineTokens.compactMap { token -> NSRange? in
                 switch token.kind {
-                case .markdownLink, .markdownImage, .wikiLink, .embed:
+                case .markdownLink, .markdownImage, .wikiLink, .embed, .highlight:
                     let tokenStart = token.range.location
                     let tokenEnd = token.range.location + token.range.length
                     guard cursorLocation >= tokenStart, cursorLocation <= tokenEnd else { return nil }

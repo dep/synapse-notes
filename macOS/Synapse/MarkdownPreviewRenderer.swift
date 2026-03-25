@@ -125,7 +125,18 @@ struct MarkdownPreviewRenderer {
             raw.removeLast()
         }
         let code = escapeHTML(raw)
-        return "<pre><code>\(code)</code></pre>"
+        
+        // Check if this is a fenced code block with language info
+        let languageClass: String
+        if case let .fencedCodeBlock(_, infoString) = block.kind,
+           let lang = infoString,
+           !lang.isEmpty {
+            languageClass = "hljs language-\(escapeAttribute(lang.lowercased()))"
+        } else {
+            languageClass = "hljs"
+        }
+        
+        return "<pre><code class=\"\(languageClass)\">\(code)</code></pre>"
     }
 
     private func renderTable(block: MarkdownBlock, source: String, columnCount: Int) -> String {
@@ -276,6 +287,8 @@ struct MarkdownPreviewRenderer {
             return "<a href=\"wikilink://\(escapeAttribute(destination))\" class=\"wikilink\">\(label)</a>"
         case .embed:
             return "<span class=\"embed\">\(label)</span>"
+        case .highlight:
+            return "<mark>\(label)</mark>"
         }
     }
 

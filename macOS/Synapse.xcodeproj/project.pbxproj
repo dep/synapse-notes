@@ -152,6 +152,7 @@
 		D5787BB6EF12171216FBBEB4 /* AppStateNewNoteFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4632EB6F4E70945C784CC180 /* AppStateNewNoteFlowTests.swift */; };
 		D640E62885695B1FA87F6417 /* PinningFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84754D16BCE7669177FF151A /* PinningFeatureTests.swift */; };
 		DB7BB560268ADEDB34E2A56B /* AppStateRelatedLinksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 272B2D760A5DF243524A2DF1 /* AppStateRelatedLinksTests.swift */; };
+		DBA2C58B64AA4C690BD3A4F3 /* SyntaxHighlightingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 318FE7CEE90A23A1237EF0F1 /* SyntaxHighlightingTests.swift */; };
 		DC6C566BCC20D6F619A926CB /* FileTreeSortingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BD983D6D3F278E0AD47E0D1 /* FileTreeSortingTests.swift */; };
 		E0730BEEF94695E2F06AFE72 /* GraphNodeColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55EAAB85AA800B037CDF588 /* GraphNodeColorTests.swift */; };
 		E08D238D2FCB17F5749FD3C1 /* AppStateCloneRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6A63BB6A6141AA83800A2E /* AppStateCloneRepositoryTests.swift */; };
@@ -213,6 +214,7 @@
 		2C258F5BE9BBC6264833097E /* FolderPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPickerView.swift; sourceTree = "<group>"; };
 		2C6CE68315BD0E501C83B675 /* CommandPaletteWikiLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteWikiLinkTests.swift; sourceTree = "<group>"; };
 		2DAD8FE980268DD35D6D28F6 /* SynapseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SynapseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		318FE7CEE90A23A1237EF0F1 /* SyntaxHighlightingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlightingTests.swift; sourceTree = "<group>"; };
 		35A600692EB7955AD6BF962D /* AppStateSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSearchTests.swift; sourceTree = "<group>"; };
 		37535D804D7598740D99FEDD /* SettingsPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPersistenceTests.swift; sourceTree = "<group>"; };
 		380760DBBA1A62E71C1C9D15 /* SettingsManagerBareExtensionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerBareExtensionsTests.swift; sourceTree = "<group>"; };
@@ -538,6 +540,7 @@
 				79CCB6B287F3565EC8CEF2AF /* SidebarPaneTitleTests.swift */,
 				0584EC822EFEC9CD5AA1241C /* SlashCommandsTests.swift */,
 				58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */,
+				318FE7CEE90A23A1237EF0F1 /* SyntaxHighlightingTests.swift */,
 				A5652CD83D79D9861456325B /* TabItemTests.swift */,
 				C5928863F052D71F95DEA4C4 /* TaskListCheckboxInteractionTests.swift */,
 				FEFD465FCA255C7225417AB1 /* TemplatesDirectoryHiddenFolderTests.swift */,
@@ -608,9 +611,10 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = F9E134B30A5BBF25B9343AD5 /* Build configuration list for PBXProject "Synapse" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -625,6 +629,7 @@
 				14519BB0FD8BF9DAF35FBD70 /* XCRemoteSwiftPackageReference "Yams" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = 8B9CF596FCB07B1002F10E36 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -762,6 +767,7 @@
 				3D8E450676D3E902377E71F5 /* SidebarPaneTitleTests.swift in Sources */,
 				AA87DDE9D7A227F45AFF75F0 /* SlashCommandsTests.swift in Sources */,
 				70792E277639E834624DC380 /* SplitPaneKeyboardAndCursorTests.swift in Sources */,
+				DBA2C58B64AA4C690BD3A4F3 /* SyntaxHighlightingTests.swift in Sources */,
 				56B9F87560AB403FFFE5784F /* TabItemTests.swift in Sources */,
 				E2E8123275C188D9FD5C8204 /* TaskListCheckboxInteractionTests.swift in Sources */,
 				0BAD97ABBAA364DB85827080 /* TemplatesDirectoryHiddenFolderTests.swift in Sources */,
