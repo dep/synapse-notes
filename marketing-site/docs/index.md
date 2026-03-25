@@ -166,3 +166,42 @@ Synapse relies heavily on keyboard shortcuts to help you navigate and edit quick
 | Open Today's Note | `CTRL + CMD + H` |
 | Toggle Preview Mode | `CMD + SHIFT + P` |
 | Toggle Hide Markdown While Editing | `CMD + E` |
+
+## Context-Aware Assistance
+
+Synapse provides context-aware assistance by creating a `.synapse/state.json` file at the start of relevant interactions. This file contains information about the current note the user is viewing, including the vault-relative path to the note, the list of open tabs, and the last updated timestamp.
+
+This enables context-aware assistance where "this note" refers to the active file.  So if you are using an AI Agent inside of your Notes vault, it's recommended that you add the following instructions to your agent configuration (into your root `AGENTS.md` file):
+
+````
+### Current Note Context
+
+<critical_info>
+This allows the user to reference the current note or notes they are viewing in the Notes vault.
+
+eg., "What is the current note?"
+</critical_info>
+
+When operating in a Synapse vault directory, read `.synapse/state.json` at the start of relevant interactions to understand which note the user is currently viewing. This enables context-aware assistance where "this note" refers to the active file.
+
+**State file format:**
+```json
+{
+  "currentFile": "notes/my-note.md",
+  "openTabs": [
+    "notes/my-note.md",
+    "journal/2026-03-25.md"
+  ],
+  "lastUpdated": "2026-03-25T14:30:00Z"
+}
+```
+
+- `currentFile` — Vault-relative path to the currently focused markdown file (null if graph/tag view is active)
+- `openTabs` — Array of vault-relative paths for all open note tabs
+- `lastUpdated` — ISO 8601 timestamp of when the state was last written
+
+**Guidelines:**
+- Check this file when the user refers to "this note" or when context about the active file would be helpful
+- Use vault-relative paths from this file when working with notes
+- The file is transient runtime state and may not exist if Synapse is not running
+````

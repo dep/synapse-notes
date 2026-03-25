@@ -156,6 +156,8 @@ class AppState: ObservableObject {
             guard oldValue != activePaneIndex else { return }
             snapshotCurrentPane(index: oldValue)
             restorePane(index: activePaneIndex)
+            // Write runtime state file when pane focus changes
+            scheduleStateFileWrite()
         }
     }
     private var paneStates: [PaneState] = [PaneState(), PaneState()]
@@ -248,6 +250,10 @@ class AppState: ObservableObject {
     private var autoSaveTimer: Timer?
     private let gitQueue = DispatchQueue(label: "com.Synapse.git", qos: .background)
     private let machineName: String = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+
+    // MARK: - Runtime State File
+    private var stateFileWriteTimer: Timer?
+    private var pendingStateFileWrite: DispatchWorkItem?
 
     init(now: @escaping () -> Date = Date.init, settings: SettingsManager? = nil) {
         self.now = now
@@ -365,6 +371,8 @@ class AppState: ObservableObject {
 
     @objc private func handleAppTermination() {
         persistDirtyFileIfNeeded()
+        // Remove runtime state file on quit
+        removeStateFile()
         // Try auto-push if enabled (includes pulling, squashing, and pushing)
         autoPushIfEnabled()
     }
@@ -481,7 +489,9 @@ class AppState: ObservableObject {
             isDirty = false
             stopWatching()
         }
-
+        
+        // Write runtime state file
+        scheduleStateFileWrite()
     }
 
     private func refreshedHistoryIndex() -> Int {
@@ -950,6 +960,9 @@ class AppState: ObservableObject {
         }
         
         setupGit(for: url)
+        
+        // Write runtime state file on vault open
+        scheduleStateFileWrite()
     }
     
     /// Reload settings for the specified vault root
@@ -969,6 +982,9 @@ class AppState: ObservableObject {
 
         // Try auto-push if enabled before exiting
         autoPushIfEnabled()
+
+        // Remove runtime state file when exiting vault
+        removeStateFile()
 
         // Clean up git service and timers
         gitService = nil
@@ -1574,6 +1590,9 @@ class AppState: ObservableObject {
         if inNewTab {
             recordTabRecency(for: .file(url))
         }
+        
+        // Write runtime state file
+        scheduleStateFileWrite()
     }
 
     func openGraphTab() {
@@ -1651,6 +1670,9 @@ class AppState: ObservableObject {
         if let newIndex = activeTabIndex {
             activateTab(at: newIndex)
         }
+        
+        // Write runtime state file
+        scheduleStateFileWrite()
     }
 
     func switchTab(to index: Int) {
@@ -2028,5 +2050,99 @@ class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Runtime State File Management
+
+    /// Returns the URL for the runtime state file (.synapse/state.json)
+    private var stateFileURL: URL? {
+        guard let rootURL = rootURL else { return nil }
+        return rootURL.appendingPathComponent(".synapse/state.json")
+    }
+
+    /// Schedules a debounced write to the runtime state file
+    func scheduleStateFileWrite() {
+        // Skip state file writes during tests to avoid polluting git working trees
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return
+        }
+        
+        // Cancel any pending write
+        stateFileWriteTimer?.invalidate()
+        stateFileWriteTimer = nil
+        pendingStateFileWrite?.cancel()
+
+        // Create new work item
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.writeStateFile()
+            self?.pendingStateFileWrite = nil
+        }
+        pendingStateFileWrite = workItem
+
+        // Schedule after 0.5 second debounce
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+    }
+
+    /// Writes the current runtime state to .synapse/state.json
+    private func writeStateFile() {
+        guard let stateURL = stateFileURL else { return }
+
+        // Build the state data structure
+        var stateData: [String: Any] = [
+            "lastUpdated": ISO8601DateFormatter().string(from: Date())
+        ]
+
+        // Get current file (vault-relative path)
+        if let selectedFile = selectedFile, let rootURL = rootURL {
+            let relativePath = relativePath(for: selectedFile)
+            stateData["currentFile"] = relativePath
+        } else {
+            stateData["currentFile"] = NSNull()
+        }
+
+        // Get open tabs (vault-relative paths for file tabs only)
+        var openTabs: [String] = []
+        for tab in tabs {
+            if case .file(let url) = tab, let rootURL = rootURL {
+                let relativePath = relativePath(for: url)
+                openTabs.append(relativePath)
+            }
+        }
+        stateData["openTabs"] = openTabs
+        
+        // Skip writing if there are no meaningful file tabs open
+        // This prevents creating .synapse/ directory unnecessarily during tests
+        if openTabs.isEmpty && selectedFile == nil {
+            // Remove state file if it exists (clean up on last tab close)
+            if FileManager.default.fileExists(atPath: stateURL.path) {
+                try? FileManager.default.removeItem(at: stateURL)
+            }
+            return
+        }
+
+        // Write to JSON file
+        do {
+            // Ensure .synapse directory exists
+            let synapseDir = stateURL.deletingLastPathComponent()
+            if !FileManager.default.fileExists(atPath: synapseDir.path) {
+                try FileManager.default.createDirectory(at: synapseDir, withIntermediateDirectories: true)
+            }
+
+            let jsonData = try JSONSerialization.data(withJSONObject: stateData, options: [.prettyPrinted, .sortedKeys])
+            try jsonData.write(to: stateURL)
+        } catch {
+            // Silently fail - this is transient runtime state
+            print("Failed to write state file: \(error)")
+        }
+    }
+
+    /// Removes the runtime state file (called on app quit or vault close)
+    func removeStateFile() {
+        // Skip in tests
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return
+        }
+        guard let stateURL = stateFileURL else { return }
+        try? FileManager.default.removeItem(at: stateURL)
     }
 }
