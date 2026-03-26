@@ -76,7 +76,10 @@ struct RelatedLinksPaneView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { refresh() }
         .onChange(of: appState.selectedFile) { _ in refresh() }
-        .onChange(of: appState.allFiles) { _ in refresh() }
+        // 4B: Use targeted notifications so only actual graph/file changes trigger refresh.
+        // Editing a note that adds no wiki-link changes does NOT recompute related links.
+        .onReceive(NotificationCenter.default.publisher(for: .graphDidChange)) { _ in refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: .filesDidChange)) { _ in refresh() }
     }
 
     private func refresh() {

@@ -136,8 +136,10 @@ struct GlobalGraphView: View {
             refresh()
             installScrollMonitor()
         }
-        .onChange(of: appState.allFiles) { _ in refresh() }
-        .onChange(of: appState.lastContentChange) { _ in refresh() }
+        // 4B: Use targeted notifications so only actual graph/file changes trigger rebuild.
+        // Editing a note that adds no wiki-link changes does NOT recompute the graph.
+        .onReceive(NotificationCenter.default.publisher(for: .graphDidChange)) { _ in refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: .filesDidChange)) { _ in refresh() }
         .onDisappear { removeScrollMonitor() }
     }
 

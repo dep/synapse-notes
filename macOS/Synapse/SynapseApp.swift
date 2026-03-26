@@ -119,12 +119,18 @@ struct SynapseApp: App {
             if appState.rootURL == nil {
                 FolderPickerView()
                     .environmentObject(appState)
+                    .environmentObject(appState.vaultIndex)
+                    .environmentObject(appState.editorState)
+                    .environmentObject(appState.navigationState)
                     .tint(SynapseTheme.accent)
                     .preferredColorScheme(.dark)
                     .frame(minWidth: 560, minHeight: 420)
             } else {
                 ContentView()
                     .environmentObject(appState)
+                    .environmentObject(appState.vaultIndex)
+                    .environmentObject(appState.editorState)
+                    .environmentObject(appState.navigationState)
                     .environmentObject(autoUpdater)
                     .tint(SynapseTheme.accent)
                     .preferredColorScheme(.dark)
@@ -210,6 +216,9 @@ struct SynapseApp: App {
         Settings {
             SettingsView(settings: appState.settings)
                 .environmentObject(appState)
+                .environmentObject(appState.vaultIndex)
+                .environmentObject(appState.editorState)
+                .environmentObject(appState.navigationState)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: 920, minHeight: 760)
         }

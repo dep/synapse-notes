@@ -114,8 +114,14 @@ struct TagsPaneView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { cachedTags = appState.allTags() }
-        .onChange(of: appState.allFiles) { _ in cachedTags = appState.allTags() }
-        .onChange(of: appState.lastContentChange) { _ in cachedTags = appState.allTags() }
+        // 4B: Use targeted notifications so only actual tag changes trigger recompute.
+        // Editing a note with no tag changes does NOT re-evaluate this view's cache.
+        .onReceive(NotificationCenter.default.publisher(for: .tagsDidChange)) { _ in
+            cachedTags = appState.allTags()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .filesDidChange)) { _ in
+            cachedTags = appState.allTags()
+        }
     }
 }
 
