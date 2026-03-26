@@ -1560,10 +1560,6 @@ extension LinkAwareTextView {
             .paragraphStyle: baseParagraphStyle,
         ], range: scopeRange)
 
-        // Restore Apple Color Emoji on emoji characters so they don't flicker
-        // to a fallback glyph while the styling pass is in-flight.
-        restoreEmojiFonts(in: storage, range: scopeRange, bodyFont: bodyFont)
-
         for heading in semanticStyles.headings {
             guard NSIntersectionRange(heading.range, scopeRange).length > 0 else { continue }
             let font: NSFont
@@ -1757,6 +1753,12 @@ extension LinkAwareTextView {
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: match.range)
         }
         */
+
+        // Restore Apple Color Emoji on emoji characters after ALL font-setting passes.
+        // Moving this here (rather than immediately after the blanket setAttributes reset)
+        // prevents heading/bold/italic styling passes from overwriting the emoji font,
+        // which was the root cause of the emoji flicker during typing.
+        restoreEmojiFonts(in: storage, range: scopeRange, bodyFont: bodyFont)
 
         applyCollapsibleStyling(storage: storage)
         if !deferRedraw {
