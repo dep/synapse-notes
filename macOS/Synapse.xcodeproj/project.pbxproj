@@ -10,6 +10,7 @@
 		0306A5C25EAA1A3B89E5FE79 /* MarkdownEditorRefreshPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E877F68AF193B04EA5544A74 /* MarkdownEditorRefreshPlanTests.swift */; };
 		0384CE53BF62B97AAFF7D4EC /* SettingsManagerFileTreeModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4CC0773A494F79664F79AD7 /* SettingsManagerFileTreeModeTests.swift */; };
 		03ECED0F956DB0D5C6067DEE /* PinnedItemStructTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670E10F779C6DB84F830893C /* PinnedItemStructTests.swift */; };
+		07DB5CDC55F3B14B5FAB7960 /* FSEventsVaultWatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121F66A181E43AA3CA9F134E /* FSEventsVaultWatcherTests.swift */; };
 		0BAD97ABBAA364DB85827080 /* TemplatesDirectoryHiddenFolderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEFD465FCA255C7225417AB1 /* TemplatesDirectoryHiddenFolderTests.swift */; };
 		0CC59657A3E5C41575A4FB13 /* MarkdownEditorInlineSemanticStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880F3BB5427731925CF20907 /* MarkdownEditorInlineSemanticStyles.swift */; };
 		0F5E75F1929BB107A3E4F9E6 /* FolderPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C258F5BE9BBC6264833097E /* FolderPickerView.swift */; };
@@ -143,6 +144,7 @@
 		B26B4268AD9B4A526D7D6049 /* TerminalPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2933BCDF0B2B56488D2D9F4 /* TerminalPaneView.swift */; };
 		B350FF53B5BEBCBDD6C35B00 /* SettingsManagerCollapsedPanesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BCDAA7EF51BC5642E126414 /* SettingsManagerCollapsedPanesTests.swift */; };
 		B4518505C126AA57122C59A3 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 618D96D297FAC05857339878 /* SettingsManager.swift */; };
+		B4DE2D6CEED7359ED53618F6 /* EmojiFlickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C2E0E77C530CA093D34089 /* EmojiFlickerTests.swift */; };
 		B542B0B9A1C24CF5427EA322 /* MarkdownDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90131F79CAE1FCE936E4CB27 /* MarkdownDocument.swift */; };
 		B866DA59CF1A2388BAD2E3CB /* MarkdownEditorRefreshPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E1C627874C351669ADC433 /* MarkdownEditorRefreshPlan.swift */; };
 		B87F1BB42DB175A44CDDAE72 /* CodeBlockCopyButtonTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A550D18D4F2CA38FCA1D0B8 /* CodeBlockCopyButtonTests.swift */; };
@@ -207,6 +209,7 @@
 		0DE78783DAFB7D972767FA82 /* AutoUpdaterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoUpdaterTests.swift; sourceTree = "<group>"; };
 		0E15235537B931DCAA752074 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0EC7FB41D2BBF7D5C216E83B /* AppStateOpenFolderDirtyFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateOpenFolderDirtyFileTests.swift; sourceTree = "<group>"; };
+		121F66A181E43AA3CA9F134E /* FSEventsVaultWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FSEventsVaultWatcherTests.swift; sourceTree = "<group>"; };
 		12936BAA078D86D1DC91F861 /* SettingsManagerGitHubPATTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerGitHubPATTests.swift; sourceTree = "<group>"; };
 		12B05C011702D5236468CEDD /* Synapse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Synapse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		144B3EA17E9D478AD62ED9A5 /* InlineTagStylingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineTagStylingTests.swift; sourceTree = "<group>"; };
@@ -229,6 +232,7 @@
 		35A600692EB7955AD6BF962D /* AppStateSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSearchTests.swift; sourceTree = "<group>"; };
 		37535D804D7598740D99FEDD /* SettingsPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPersistenceTests.swift; sourceTree = "<group>"; };
 		380760DBBA1A62E71C1C9D15 /* SettingsManagerBareExtensionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerBareExtensionsTests.swift; sourceTree = "<group>"; };
+		39C2E0E77C530CA093D34089 /* EmojiFlickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiFlickerTests.swift; sourceTree = "<group>"; };
 		3B3634CCE5B1774C3C102A98 /* SettingsManagerMovePaneItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerMovePaneItemTests.swift; sourceTree = "<group>"; };
 		3ECDBE060D21A22336AC6312 /* SettingsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerTests.swift; sourceTree = "<group>"; };
 		3FAFBB2B334B2C5C148C42E6 /* CommandPaletteScoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteScoringTests.swift; sourceTree = "<group>"; };
@@ -505,10 +509,12 @@
 				07462473C99EA91E27849EEA /* DailyNoteStartupBehaviorTests.swift */,
 				6E2746489D8B13D73D6CB39B /* EditorFontStylingTests.swift */,
 				24898CF86DAC494714686ED0 /* EmbeddableNotesTests.swift */,
+				39C2E0E77C530CA093D34089 /* EmojiFlickerTests.swift */,
 				72208A96C6AB803EA25A56D8 /* FileBrowserErrorTests.swift */,
 				78E1B729A125740F1A8C3AAE /* FileTreeHiddenItemsTests.swift */,
 				6BD983D6D3F278E0AD47E0D1 /* FileTreeSortingTests.swift */,
 				89A37B5687F020E8B15BBA70 /* FontEnumeratorTests.swift */,
+				121F66A181E43AA3CA9F134E /* FSEventsVaultWatcherTests.swift */,
 				7B7F3B91E514504EEA336B55 /* GistPublisherHTTPTests.swift */,
 				9D9C3A2B05AAC380C1B9F486 /* GistPublisherTests.swift */,
 				AF32B4A42DB4CCC2F89A19C2 /* GitAutoSaveTests.swift */,
@@ -741,6 +747,8 @@
 				29F4C4E87BAAD286C2712EE9 /* DailyNotesOpenOnStartupTests.swift in Sources */,
 				969A4DA612491FF31111534B /* EditorFontStylingTests.swift in Sources */,
 				AB321E7C9F6DEF1D8296BBD2 /* EmbeddableNotesTests.swift in Sources */,
+				B4DE2D6CEED7359ED53618F6 /* EmojiFlickerTests.swift in Sources */,
+				07DB5CDC55F3B14B5FAB7960 /* FSEventsVaultWatcherTests.swift in Sources */,
 				D3B93EE1AE6B5B34F88C47B9 /* FileBrowserErrorTests.swift in Sources */,
 				9826D148FDB25BE367FE775A /* FileTreeHiddenItemsTests.swift in Sources */,
 				DC6C566BCC20D6F619A926CB /* FileTreeSortingTests.swift in Sources */,

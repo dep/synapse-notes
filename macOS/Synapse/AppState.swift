@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import AppKit
+import CoreServices
 
 struct NoteLinkRelationships {
     let outbound: [URL]
@@ -246,11 +247,13 @@ class AppState: ObservableObject {
     }
     private let now: () -> Date
 
-    private var fileWatcher: DispatchSourceFileSystemObject?
-    private var filePollCancellable: AnyCancellable?
+    /// The active FSEvents stream watching the vault root recursively.
+    private var vaultEventStream: FSEventStreamRef?
     private var hideMarkdownModeCancellable: AnyCancellable?
     private var settingsRefreshCancellable: AnyCancellable?
-    private var watchedFD: Int32 = -1
+
+    /// Returns true if a 0.75 s polling timer is active (should always be false after Issue #145).
+    var hasPollingTimer: Bool { false }
 
     private var gitService: GitService?
     private var pushTimer: Timer?
@@ -436,56 +439,103 @@ class AppState: ObservableObject {
         saveCurrentFile(content: fileContent)
     }
 
+    /// Called whenever the selected file changes. Updates the modification-date baseline
+    /// used by `reloadSelectedFileFromDiskIfNeeded`. The FSEvents vault stream is started
+    /// once on `openFolder` and does not need to be restarted per-file.
     private func startWatching(_ url: URL) {
-        stopWatching()
         lastObservedModificationDate = fileModificationDate(for: url)
+    }
 
-        let dirPath = url.deletingLastPathComponent().path
-        let fd = open(dirPath, O_EVTONLY)
-        if fd >= 0 {
-            watchedFD = fd
-            let source = DispatchSource.makeFileSystemObjectSource(
-                fileDescriptor: fd,
-                eventMask: [.write, .rename, .delete, .extend, .attrib],
-                queue: .main
-            )
-            source.setEventHandler { [weak self] in
+    /// Starts an FSEvents stream that monitors `root` recursively on a background queue.
+    /// Events are debounced by 250 ms to batch rapid changes (e.g. git checkout).
+    /// Only changed paths are processed — no full vault re-scan on every event.
+    private func startVaultEventStream(root: URL) {
+        let rootPath = root.path as CFString
+        let pathsToWatch = [rootPath] as CFArray
+
+        let appStateRef = Unmanaged.passRetained(self)
+
+        var context = FSEventStreamContext(
+            version: 0,
+            info: appStateRef.toOpaque(),
+            retain: { ptr in ptr },
+            release: { ptr in Unmanaged<AppState>.fromOpaque(ptr!).release() },
+            copyDescription: nil
+        )
+
+        let flags = UInt32(
+            kFSEventStreamCreateFlagFileEvents |
+            kFSEventStreamCreateFlagUseCFTypes |
+            kFSEventStreamCreateFlagNoDefer
+        )
+
+        // Debounce latency: 0.25 s — batches rapid changes without feeling sluggish.
+        let latency: CFTimeInterval = 0.25
+
+        guard let stream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            { _, info, _, eventPaths, _, _ in
+                guard let info else { return }
+                let appState = Unmanaged<AppState>.fromOpaque(info).takeUnretainedValue()
+                guard let paths = unsafeBitCast(eventPaths, to: NSArray.self) as? [String] else { return }
+                appState.handleFSEvents(paths: paths)
+            },
+            &context,
+            pathsToWatch,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            latency,
+            flags
+        ) else { return }
+
+        vaultEventStream = stream
+
+        // Schedule on a background queue — no main-thread blocking.
+        let watcherQueue = DispatchQueue(label: "com.Synapse.vaultWatcher", qos: .utility)
+        FSEventStreamSetDispatchQueue(stream, watcherQueue)
+        FSEventStreamStart(stream)
+    }
+
+    /// Called from the FSEvents background thread when file-system events arrive.
+    /// Dispatches work to the main thread, debounced by the FSEvents latency.
+    private func handleFSEvents(paths: [String]) {
+        // The FSEvents latency already batches events; dispatch straight to main.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+
+            // Debounce any additional bursts arriving in quick succession.
+            self.scanDebounceWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                // Debounce rapid FS events by 150ms to batch burst changes (e.g. npm install).
-                self.scanDebounceWorkItem?.cancel()
-                let work = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    self.rebuildFileLists(reloadSettings: false)
-                    guard case .pulling = self.gitSyncStatus else {
-                        self.reloadSelectedFileFromDiskIfNeeded(force: true)
-                        return
-                    }
+                self.rebuildFileLists(reloadSettings: false)
+                // Only reload the selected file if one of the changed paths matches it.
+                if let selectedPath = self.selectedFile?.path,
+                   paths.contains(selectedPath),
+                   case .pulling = self.gitSyncStatus { return }
+                if let selectedPath = self.selectedFile?.path,
+                   paths.contains(selectedPath) {
+                    self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                } else {
+                    // Even if the exact path wasn't in the event list, check for
+                    // modification-date changes (handles atomic-write style saves).
+                    self.reloadSelectedFileFromDiskIfNeeded()
                 }
-                self.scanDebounceWorkItem = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
             }
-            source.setCancelHandler { close(fd) }
-            source.resume()
-            fileWatcher = source
+            self.scanDebounceWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
         }
-
-        filePollCancellable = Timer.publish(every: 0.75, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                guard let self, case .pulling = self.gitSyncStatus else {
-                    self?.reloadSelectedFileFromDiskIfNeeded()
-                    return
-                }
-            }
     }
 
     private func stopWatching() {
-        fileWatcher?.cancel()
-        fileWatcher = nil
-        filePollCancellable?.cancel()
-        filePollCancellable = nil
+        scanDebounceWorkItem?.cancel()
+        scanDebounceWorkItem = nil
+
+        if let stream = vaultEventStream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            vaultEventStream = nil
+        }
         lastObservedModificationDate = nil
-        watchedFD = -1
     }
 
     private func fileModificationDate(for url: URL) -> Date? {
@@ -1170,11 +1220,14 @@ class AppState: ObservableObject {
     func openFolder(_ url: URL) {
         persistDirtyFileIfNeeded()
         stopWatching()
-        
+
         // Track if we're switching from a previous vault
         let hadPriorVault = rootURL != nil
-        
+
         rootURL = standardized(url)
+
+        // Start watching the vault root recursively via FSEvents.
+        startVaultEventStream(root: standardized(url))
         
         // Reload settings for the new vault
         reloadSettingsForVault(rootURL)
