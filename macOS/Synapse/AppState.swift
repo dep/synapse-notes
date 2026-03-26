@@ -318,24 +318,22 @@ class AppState: ObservableObject {
     /// change notifications without observing the monolithic AppState.
     private func bindSubObjectObservers() {
         subObjectCancellables = [
-            // VaultIndex mirrors
+            // VaultIndex mirrors — low-frequency, safe to sink
             $allFiles.sink { [weak self] v in self?.vaultIndex.allFiles = v },
             $allProjectFiles.sink { [weak self] v in self?.vaultIndex.allProjectFiles = v },
             $recentFiles.sink { [weak self] v in self?.vaultIndex.recentFiles = v },
             $isIndexing.sink { [weak self] v in self?.vaultIndex.isIndexing = v },
             $lastContentChange.sink { [weak self] v in self?.vaultIndex.lastContentChange = v },
 
-            // EditorState mirrors
+            // EditorState mirrors — only low-frequency file-selection properties.
+            // High-frequency editor properties (fileContent, isDirty, pendingCursor*,
+            // pendingScrollOffsetY, pendingSearchQuery) are intentionally NOT mirrored
+            // here: they change on every keystroke and undo operation, and sinking them
+            // into EditorState during @Published willSet can interleave with AppKit's
+            // NSUndoManager stack, causing EXC_BAD_ACCESS on Cmd+Z.
             $selectedFile.sink { [weak self] v in self?.editorState.selectedFile = v },
-            $fileContent.sink { [weak self] v in self?.editorState.fileContent = v },
-            $isDirty.sink { [weak self] v in self?.editorState.isDirty = v },
-            $pendingCursorPosition.sink { [weak self] v in self?.editorState.pendingCursorPosition = v },
-            $pendingCursorRange.sink { [weak self] v in self?.editorState.pendingCursorRange = v },
-            $pendingCursorTargetPaneIndex.sink { [weak self] v in self?.editorState.pendingCursorTargetPaneIndex = v },
-            $pendingScrollOffsetY.sink { [weak self] v in self?.editorState.pendingScrollOffsetY = v },
-            $pendingSearchQuery.sink { [weak self] v in self?.editorState.pendingSearchQuery = v },
 
-            // NavigationState mirrors
+            // NavigationState mirrors — low-frequency, safe to sink
             $tabs.sink { [weak self] v in self?.navigationState.tabs = v },
             $activeTabIndex.sink { [weak self] v in self?.navigationState.activeTabIndex = v },
             $canGoBack.sink { [weak self] v in self?.navigationState.canGoBack = v },

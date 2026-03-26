@@ -39,6 +39,10 @@ final class EditorStateTests: XCTestCase {
     }
 
     func test_editorState_fileContent_initiallyEmpty() {
+        // EditorState.fileContent is initialised to empty; it is NOT synced from
+        // AppState to avoid interleaving with NSUndoManager during Cmd+Z (see
+        // bindSubObjectObservers comment). Views that need fileContent should
+        // subscribe to appState directly.
         XCTAssertEqual(sut.editorState.fileContent, "")
     }
 
@@ -46,7 +50,7 @@ final class EditorStateTests: XCTestCase {
         XCTAssertFalse(sut.editorState.isDirty)
     }
 
-    // MARK: - AppState properties forward to EditorState
+    // MARK: - AppState.selectedFile is mirrored into EditorState
 
     func test_appState_selectedFile_forwardsToEditorState() {
         let file = tempDir.appendingPathComponent("note.md")
@@ -54,28 +58,12 @@ final class EditorStateTests: XCTestCase {
         sut.openFolder(tempDir)
         sut.openFile(file)
         XCTAssertEqual(sut.selectedFile, sut.editorState.selectedFile,
-                       "appState.selectedFile must equal editorState.selectedFile")
+                       "appState.selectedFile must be mirrored into editorState.selectedFile")
     }
 
-    func test_appState_fileContent_forwardsToEditorState() {
-        let file = tempDir.appendingPathComponent("note.md")
-        try! "hello".write(to: file, atomically: true, encoding: .utf8)
-        sut.openFolder(tempDir)
-        sut.openFile(file)
-        XCTAssertEqual(sut.fileContent, sut.editorState.fileContent)
-    }
-
-    func test_appState_isDirty_forwardsToEditorState() {
-        XCTAssertEqual(sut.isDirty, sut.editorState.isDirty)
-    }
-
-    func test_appState_setIsDirty_propagatesToEditorState() {
-        sut.isDirty = true
-        XCTAssertTrue(sut.editorState.isDirty)
-    }
-
-    func test_appState_setFileContent_propagatesToEditorState() {
-        sut.fileContent = "new content"
-        XCTAssertEqual(sut.editorState.fileContent, "new content")
-    }
+    // MARK: - High-frequency editor properties are NOT mirrored (crash safety)
+    // fileContent, isDirty, pendingCursor*, pendingScrollOffsetY, and pendingSearchQuery
+    // are intentionally NOT synced from AppState into EditorState. Sinking these during
+    // @Published willSet can interleave with NSUndoManager and cause EXC_BAD_ACCESS on Cmd+Z.
+    // Views that need them must subscribe to appState directly.
 }
