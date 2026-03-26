@@ -120,4 +120,26 @@ final class FileBrowserErrorTests: XCTestCase {
             FileBrowserError.itemAlreadyExists("file.md")
         )
     }
+
+    // MARK: - Additional coverage: different names produce different descriptions
+
+    func test_itemAlreadyExists_differentNames_produceDifferentDescriptions() {
+        let desc1 = FileBrowserError.itemAlreadyExists("alpha.md").errorDescription!
+        let desc2 = FileBrowserError.itemAlreadyExists("beta.md").errorDescription!
+        XCTAssertNotEqual(desc1, desc2,
+                          "Different item names must produce different error descriptions")
+    }
+
+    func test_noWorkspace_errorDescription_isSentenceLike() {
+        let desc = FileBrowserError.noWorkspace.errorDescription!
+        XCTAssertGreaterThanOrEqual(desc.count, 5,
+                                    "noWorkspace error description should be a meaningful sentence")
+    }
+
+    func test_operationFailed_doesNotMutateMessage() {
+        let message = "Unexpected I/O error at path: /tmp/foo.md"
+        let error = FileBrowserError.operationFailed(message)
+        XCTAssertEqual(error.errorDescription, message,
+                       "operationFailed must return the message verbatim, without modification")
+    }
 }

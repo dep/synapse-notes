@@ -166,6 +166,7 @@ struct EditorView: View {
                                     if let match { appState.openFile(match) }
                                 },
                                 onToggleCheckbox: { offset in
+                                    guard !isReadOnly else { return }
                                     var content = displayContent
                                     let ns = content as NSString
                                     guard offset + 3 <= ns.length else { return }

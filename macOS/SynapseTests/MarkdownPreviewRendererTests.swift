@@ -89,6 +89,27 @@ final class MarkdownPreviewRendererTests: XCTestCase {
         XCTAssertTrue(html.contains("<p>not a separator row</p>"))
     }
 
+    func test_renderBody_taskCheckboxEmbedsCorrectAbsoluteSourceOffset() {
+        // The data-offset in the rendered HTML must point at '[' in "[ ]" / "[x]"
+        // so that onToggleCheckbox can do a 3-char replacement at that position.
+        // Regression: read-only EditorView instances must never write through activeTextBinding
+        // when onToggleCheckbox fires; this test verifies the offset itself is correct.
+        let markdown = "- [ ] Ship phase A\n- [x] Ship phase B"
+        let html = renderer.renderBody(from: markdown)
+
+        // First item: "- [ ] Ship phase A" starts at offset 0.
+        // marker "[ ]" begins at offset 2 (after "- ").
+        let ns = markdown as NSString
+        let firstBracket = ns.range(of: "[ ]").location
+        XCTAssertTrue(html.contains("data-offset=\"\(firstBracket)\""),
+                      "Checkbox data-offset for first item should match source offset of '[ ]'")
+
+        // Second item: "- [x] Ship phase B" starts after the newline.
+        let secondBracket = ns.range(of: "[x]").location
+        XCTAssertTrue(html.contains("data-offset=\"\(secondBracket)\""),
+                      "Checkbox data-offset for second item should match source offset of '[x]'")
+    }
+    
     func test_renderBody_rendersHighlightSyntaxAsMarkElement() {
         let markdown = "This is ==highlighted text== in a paragraph."
 
