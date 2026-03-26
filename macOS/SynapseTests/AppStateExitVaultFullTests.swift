@@ -85,6 +85,14 @@ final class AppStateExitVaultFullTests: XCTestCase {
         XCTAssertTrue(sut.allProjectFiles.isEmpty, "allProjectFiles should be empty after exitVault")
     }
 
+    /// Bumping `scanGeneration` on exit invalidates async `rebuildFileLists` work so a scan
+    /// that was queued before exit cannot repopulate `allFiles` after `rootURL` is nil.
+    func test_exitVault_bumpsScanGeneration_toInvalidateInFlightScans() {
+        let generationBeforeExit = sut.scanGeneration
+        sut.exitVault()
+        XCTAssertEqual(sut.scanGeneration, generationBeforeExit + 1)
+    }
+
     // MARK: - Git state reset
 
     func test_exitVault_resetsGitState() {

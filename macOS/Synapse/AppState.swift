@@ -258,7 +258,8 @@ class AppState: ObservableObject {
     private let scanQueue = DispatchQueue(label: "com.Synapse.fileScan", qos: .userInitiated)
     /// Monotonically increasing counter. Each scan start increments it; the result
     /// is only applied when the counter still matches, discarding stale scans.
-    private var scanGeneration: Int = 0
+    /// `exitVault()` also increments this so in-flight async scans cannot commit after close.
+    private(set) var scanGeneration: Int = 0
     /// Pending debounce work item for the DispatchSource file watcher.
     private var scanDebounceWorkItem: DispatchWorkItem?
     private let machineName: String = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
@@ -1166,6 +1167,11 @@ class AppState: ObservableObject {
         navigatingHistory = false
         canGoBack = false
         canGoForward = false
+
+        // Invalidate any in-flight vault scan (async `rebuildFileLists`). Without bumping
+        // `scanGeneration`, a scan started before exit could still complete on the main queue
+        // and repopulate `allFiles` while `rootURL` is nil — breaking splash / command palette.
+        scanGeneration += 1
 
         // Clear all files
         allFiles = []
