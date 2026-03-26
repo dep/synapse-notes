@@ -28,7 +28,7 @@ final class EditorStateTests: XCTestCase {
     }
 
     func test_editorState_isObservableObject() {
-        let _ = sut.editorState as ObservableObject
+        _ = sut.editorState.objectWillChange
         XCTAssertTrue(true, "EditorState conforms to ObservableObject")
     }
 

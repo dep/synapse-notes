@@ -29,7 +29,7 @@ final class VaultIndexTests: XCTestCase {
 
     func test_vaultIndex_isObservableObject() {
         // VaultIndex must conform to ObservableObject
-        let _ = sut.vaultIndex as ObservableObject
+        _ = sut.vaultIndex.objectWillChange
         XCTAssertTrue(true, "VaultIndex conforms to ObservableObject")
     }
 

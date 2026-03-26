@@ -28,7 +28,7 @@ final class NavigationStateTests: XCTestCase {
     }
 
     func test_navigationState_isObservableObject() {
-        let _ = sut.navigationState as ObservableObject
+        _ = sut.navigationState.objectWillChange
         XCTAssertTrue(true, "NavigationState conforms to ObservableObject")
     }
 
