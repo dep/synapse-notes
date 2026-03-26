@@ -203,7 +203,7 @@ struct AllFilesSearchView: View {
                 // ── Results list ────────────────────────────────────────
                 ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
+                    LazyVStack(alignment: .leading, spacing: 6) {
                         if query.isEmpty {
                             Text("Type to search across all notes")
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
