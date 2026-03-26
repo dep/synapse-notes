@@ -191,7 +191,7 @@ final class ContentCacheTests: XCTestCase {
         // Change Source to link to NewTarget instead
         Thread.sleep(forTimeInterval: 0.05)
         try! "[[NewTarget]]".write(to: urlA, atomically: true, encoding: .utf8)
-        sut.updateCacheIncrementally(for: [urlA, urlB, urlC])
+        sut.updateCacheIncrementally(for: [urlA])
 
         XCTAssertNil(
             sut.cachedBacklinks["oldtarget"]?.contains(urlA),
