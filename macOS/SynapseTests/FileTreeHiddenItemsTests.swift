@@ -1,7 +1,7 @@
 import XCTest
 @testable import Synapse
 
-/// Tests for buildFileTree hidden item filtering: dot-folders visible, .git excluded, dot-files excluded
+/// Tests for buildFileTreeLevel hidden item filtering: dot-folders visible, .git excluded, dot-files excluded
 final class FileTreeHiddenItemsTests: XCTestCase {
 
     var vaultDir: URL!
@@ -31,7 +31,7 @@ final class FileTreeHiddenItemsTests: XCTestCase {
         createDir(".obsidian")
         createDir("notes")
 
-        let nodes = buildFileTree(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
+        let nodes = buildFileTreeLevel(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
         let names = nodes.map(\.name)
 
         XCTAssertTrue(names.contains(".obsidian"), "Dot-prefixed folders should appear in tree")
@@ -42,7 +42,7 @@ final class FileTreeHiddenItemsTests: XCTestCase {
         createDir(".git")
         createDir("notes")
 
-        let nodes = buildFileTree(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
+        let nodes = buildFileTreeLevel(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
         let names = nodes.map(\.name)
 
         XCTAssertFalse(names.contains(".git"), ".git folder should be excluded from tree")
@@ -53,11 +53,13 @@ final class FileTreeHiddenItemsTests: XCTestCase {
         createDir(".obsidian")
         createFile(at: ".obsidian/config.json", contents: "{}")
 
-        let nodes = buildFileTree(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
+        let nodes = buildFileTreeLevel(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
         let obsidianNode = nodes.first { $0.name == ".obsidian" }
 
         XCTAssertNotNil(obsidianNode, ".obsidian folder should be present")
-        XCTAssertEqual(obsidianNode?.children?.count, 1, "Contents of dot-folder should be listed")
+        // With lazy loading, children are loaded on demand via a second call
+        let children = buildFileTreeLevel(at: obsidianNode!.url, sortCriterion: .name, ascending: true, settings: settings)
+        XCTAssertEqual(children.count, 1, "Contents of dot-folder should be listed")
     }
 
     // MARK: - Dot-files
@@ -66,7 +68,7 @@ final class FileTreeHiddenItemsTests: XCTestCase {
         createFile(at: ".DS_Store", contents: "")
         createFile(at: "note.md", contents: "")
 
-        let nodes = buildFileTree(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
+        let nodes = buildFileTreeLevel(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
         let names = nodes.map(\.name)
 
         XCTAssertFalse(names.contains(".DS_Store"), "Dot-files should be excluded")
@@ -77,7 +79,7 @@ final class FileTreeHiddenItemsTests: XCTestCase {
         createFile(at: ".hidden-note.md", contents: "")
         createFile(at: "visible.md", contents: "")
 
-        let nodes = buildFileTree(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
+        let nodes = buildFileTreeLevel(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
         let names = nodes.map(\.name)
 
         XCTAssertFalse(names.contains(".hidden-note.md"), "Dot-prefixed files should be excluded")
@@ -91,7 +93,7 @@ final class FileTreeHiddenItemsTests: XCTestCase {
         createFile(at: "secret.project", contents: "")
         createFile(at: "visible.md", contents: "")
 
-        let nodes = buildFileTree(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
+        let nodes = buildFileTreeLevel(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
         let names = nodes.map(\.name)
 
         XCTAssertFalse(names.contains("Design.project"))
@@ -103,7 +105,7 @@ final class FileTreeHiddenItemsTests: XCTestCase {
     // MARK: - Empty vault
 
     func test_buildFileTree_emptyDirectory_returnsEmpty() {
-        let nodes = buildFileTree(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
+        let nodes = buildFileTreeLevel(at: vaultDir, sortCriterion: .name, ascending: true, settings: settings)
         XCTAssertTrue(nodes.isEmpty)
     }
 

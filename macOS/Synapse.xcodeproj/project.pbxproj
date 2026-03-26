@@ -668,10 +668,9 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = F9E134B30A5BBF25B9343AD5 /* Build configuration list for PBXProject "Synapse" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -686,7 +685,6 @@
 				14519BB0FD8BF9DAF35FBD70 /* XCRemoteSwiftPackageReference "Yams" */,
 			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 8B9CF596FCB07B1002F10E36 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

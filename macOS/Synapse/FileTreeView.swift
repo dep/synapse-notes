@@ -73,7 +73,10 @@ private struct BrowserDeleteTarget {
     }
 }
 
-func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool, settings: SettingsManager) -> [FileNode] {
+/// Loads a single level of the file tree at `url` without recursing into subdirectories.
+/// Directories are returned with `children: []` (empty placeholder) — load their contents
+/// lazily via a second call when the user expands the folder.
+func buildFileTreeLevel(at url: URL, sortCriterion: SortCriterion, ascending: Bool, settings: SettingsManager) -> [FileNode] {
     let fm = FileManager.default
     guard let contents = try? fm.contentsOfDirectory(
         at: url,
@@ -93,14 +96,10 @@ func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool, s
         items.append((childURL, isDir, name, modificationDate))
     }
 
-    // Sort with directories first
     items.sort {
-        // First: directories before files
         if $0.isDirectory != $1.isDirectory {
             return $0.isDirectory
         }
-
-        // Second: apply sort criterion
         let comparison: Bool
         switch sortCriterion {
         case .name:
@@ -108,17 +107,13 @@ func buildFileTree(at url: URL, sortCriterion: SortCriterion, ascending: Bool, s
         case .modified:
             comparison = $0.modificationDate < $1.modificationDate
         }
-
-        // Apply ascending/descending
         return ascending ? comparison : !comparison
     }
 
     return items.compactMap { item -> FileNode? in
         if item.isDirectory {
-            let children = buildFileTree(at: item.url, sortCriterion: sortCriterion, ascending: ascending, settings: settings)
-            return FileNode(url: item.url, children: children, modificationDate: item.modificationDate)
+            return FileNode(url: item.url, children: [], modificationDate: item.modificationDate)
         } else {
-            // Use SettingsManager to check if file should be shown
             if !settings.shouldShowFile(item.url) {
                 return nil
             }
@@ -132,6 +127,9 @@ struct FileTreeView: View {
     let settings: SettingsManager
     @State private var nodes: [FileNode] = []
     @State private var expandedDirs: Set<URL> = []
+    /// Cache of lazily-loaded directory children keyed by directory URL.
+    /// Populated on first expand; survives collapse/re-expand so no re-scan occurs.
+    @State private var childrenCache: [URL: [FileNode]] = [:]
     @State private var editorAction: BrowserEditorAction?
     @State private var deleteTarget: BrowserDeleteTarget?
     @State private var errorMessage: String?
@@ -377,6 +375,7 @@ struct FileTreeView: View {
                                         node: node,
                                         depth: 0,
                                         expandedDirs: $expandedDirs,
+                                        loadChildren: { loadChildren(for: $0) },
                                         onCreateNote: { presentCreateNote(in: $0) },
                                         onCreateFolder: { presentCreateFolder(in: $0) },
                                         onRename: { presentRename(for: $0, isDirectory: $1) },
@@ -497,8 +496,29 @@ struct FileTreeView: View {
             nodes = []
             return
         }
-        nodes = buildFileTree(at: root, sortCriterion: appState.sortCriterion, ascending: appState.sortAscending, settings: settings)
+        childrenCache = [:]
+        nodes = buildFileTreeLevel(at: root, sortCriterion: appState.sortCriterion, ascending: appState.sortAscending, settings: settings)
         expandPath(to: appState.selectedFile)
+    }
+
+    /// Returns cached children for a directory, or kicks off an async load and returns nil.
+    /// On cache hit this is instant; on miss, the directory is scanned off the main thread
+    /// and the cache is populated when done (triggering a re-render).
+    func loadChildren(for url: URL) -> [FileNode]? {
+        if let cached = childrenCache[url] {
+            return cached
+        }
+        // Capture sort settings before leaving the main thread
+        let criterion = appState.sortCriterion
+        let ascending = appState.sortAscending
+        let settingsRef = settings
+        DispatchQueue.global(qos: .userInitiated).async {
+            let children = buildFileTreeLevel(at: url, sortCriterion: criterion, ascending: ascending, settings: settingsRef)
+            DispatchQueue.main.async {
+                childrenCache[url] = children
+            }
+        }
+        return nil
     }
 
     private func syncLocalSettings() {
@@ -533,15 +553,28 @@ struct FileTreeView: View {
         }
     }
 
+    /// Synchronously loads and caches children for a directory (used for programmatic expansion).
+    private func ensureChildrenLoaded(for url: URL) {
+        if childrenCache[url] != nil { return }
+        childrenCache[url] = buildFileTreeLevel(at: url, sortCriterion: appState.sortCriterion, ascending: appState.sortAscending, settings: settings)
+    }
+
     private func expandPath(to file: URL?) {
         guard let root = appState.rootURL, let file else { return }
 
+        var ancestors: [URL] = []
         var current = file.deletingLastPathComponent()
         let rootPath = root.standardizedFileURL.path
 
         while current.standardizedFileURL.path.hasPrefix(rootPath), current != root {
-            expandedDirs.insert(current)
+            ancestors.append(current)
             current = current.deletingLastPathComponent()
+        }
+
+        // Load ancestors top-down synchronously so the tree is fully populated
+        for ancestor in ancestors.reversed() {
+            ensureChildrenLoaded(for: ancestor)
+            expandedDirs.insert(ancestor)
         }
 
         expandedDirs.insert(root)
@@ -634,6 +667,8 @@ struct FileNodeRow: View {
     let node: FileNode
     let depth: Int
     @Binding var expandedDirs: Set<URL>
+    /// Returns cached children or nil if loading is in progress.
+    let loadChildren: (URL) -> [FileNode]?
     let onCreateNote: (URL) -> Void
     let onCreateFolder: (URL) -> Void
     let onRename: (URL, Bool) -> Void
@@ -711,12 +746,13 @@ struct FileNodeRow: View {
                 Button("Delete", role: .destructive) { onDelete(node.url, node.isDirectory) }
             }
 
-            if node.isDirectory, isExpanded, let children = node.children {
+            if node.isDirectory, isExpanded, let children = loadChildren(node.url) {
                 ForEach(children) { child in
                     FileNodeRow(
                         node: child,
                         depth: depth + 1,
                         expandedDirs: $expandedDirs,
+                        loadChildren: loadChildren,
                         onCreateNote: onCreateNote,
                         onCreateFolder: onCreateFolder,
                         onRename: onRename,
