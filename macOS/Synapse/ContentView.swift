@@ -131,7 +131,7 @@ struct ContentView: View {
     @EnvironmentObject var autoUpdater: AutoUpdater
     @State private var keyEventMonitor: Any?
     @State private var leftSidebarWidth: CGFloat = 280
-    @State private var rightSidebarPrimaryWidth: CGFloat = 340
+    @State private var rightSidebarPrimaryWidth: CGFloat = 380
     @State private var rightSidebarSecondaryWidth: CGFloat = 300
     @State private var showUpdateBanner: Bool = false
 

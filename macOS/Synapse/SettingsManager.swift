@@ -786,7 +786,15 @@ class SettingsManager: ObservableObject {
             sidebars = Self.applyPaneAssignments(config.sidebarPaneAssignments)
             sidebarPaneHeights = config.sidebarPaneHeights ?? Self.defaultPaneHeights
             collapsedPanes = Set(config.collapsedPanes ?? [])
-            collapsedSidebarIDs = Set(config.collapsedSidebarIDs ?? [FixedSidebar.right2ID.uuidString])
+            // Only reset collapsedSidebarIDs when the YAML contains an explicit value.
+            // If the key is absent (older settings file, or save hasn't flushed yet),
+            // keep the current in-memory state so a CMD-R / refreshAllFiles doesn't
+            // collapse the far-right sidebar back to the default.
+            if let saved = config.collapsedSidebarIDs {
+                collapsedSidebarIDs = Set(saved)
+            } else if isInitializing {
+                collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
+            }
             githubPAT = config.githubPAT ?? ""
             fileTreeMode = FileTreeMode(rawValue: config.fileTreeMode ?? "") ?? .folder
             pinnedItems = config.pinnedItems ?? []
@@ -915,7 +923,11 @@ class SettingsManager: ObservableObject {
         sidebars = Self.applyPaneAssignments(globalConfig?.sidebarPaneAssignments)
         sidebarPaneHeights = globalConfig?.sidebarPaneHeights ?? Self.defaultPaneHeights
         collapsedPanes = Set(globalConfig?.collapsedPanes ?? [])
-        collapsedSidebarIDs = Set(globalConfig?.collapsedSidebarIDs ?? [FixedSidebar.right2ID.uuidString])
+        if let saved = globalConfig?.collapsedSidebarIDs {
+            collapsedSidebarIDs = Set(saved)
+        } else if isInitializing {
+            collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
+        }
         fileTreeMode = FileTreeMode(rawValue: globalConfig?.fileTreeMode ?? "") ?? .folder
 
         if let paths = globalConfig?.vaultPaths, !paths.isEmpty {

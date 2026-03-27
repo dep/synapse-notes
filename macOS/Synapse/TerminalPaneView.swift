@@ -37,11 +37,28 @@ struct LocalTerminalView: NSViewRepresentable {
             }
 
             terminal.send(txt: commandToRun + "\n")
+
+            // Re-trigger setFrameSize after the initial SwiftUI layout pass so
+            // SwiftTerm's processSizeChange runs with the real bounds and sends
+            // the correct TIOCSWINSZ to the PTY. Without this the terminal starts
+            // with a zero-size frame and the cursor lands at column 0 (top-left)
+            // until the user manually resizes the sidebar.
+            let size = terminal.frame.size
+            if size.width > 0 && size.height > 0 {
+                terminal.setFrameSize(size)
+            }
         }
         return terminal
     }
 
-    func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {}
+    /// Re-trigger setFrameSize whenever SwiftUI lays out the view (e.g. sidebar
+    /// resize). SwiftTerm's setFrameSize override calls processSizeChange which
+    /// recomputes cols/rows and sends TIOCSWINSZ to the PTY, keeping it in sync.
+    func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {
+        let size = nsView.frame.size
+        guard size.width > 0 && size.height > 0 else { return }
+        nsView.setFrameSize(size)
+    }
 }
 
 struct TerminalPaneView: View {

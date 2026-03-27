@@ -1232,7 +1232,15 @@ func styleMarkdownContent(_ content: String, fontSize: CGFloat = 12) -> NSAttrib
         }
     }
 
-    // Bold
+    // Italic — applied first so bold applied afterward wins on **word** spans
+    applyPattern("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)") { range in
+        let desc = baseFont.fontDescriptor.withSymbolicTraits(.italic)
+        if let f = NSFont(descriptor: desc, size: fontSize) {
+            storage.addAttribute(.font, value: f, range: range)
+        }
+        dimDelims(range, 1)
+    }
+    // Bold — applied after italic so it wins over any italic applied to ** delimiters
     applyPattern("\\*\\*(.+?)\\*\\*") { range in
         storage.addAttribute(.font, value: NSFont.systemFont(ofSize: fontSize, weight: .bold), range: range)
         dimDelims(range, 2)
@@ -1240,14 +1248,6 @@ func styleMarkdownContent(_ content: String, fontSize: CGFloat = 12) -> NSAttrib
     applyPattern("__(.+?)__") { range in
         storage.addAttribute(.font, value: NSFont.systemFont(ofSize: fontSize, weight: .bold), range: range)
         dimDelims(range, 2)
-    }
-    // Italic
-    applyPattern("\\*(?!\\*)(.+?)(?<!\\*)\\*") { range in
-        let desc = baseFont.fontDescriptor.withSymbolicTraits(.italic)
-        if let f = NSFont(descriptor: desc, size: fontSize) {
-            storage.addAttribute(.font, value: f, range: range)
-        }
-        dimDelims(range, 1)
     }
     // Inline code
     applyPattern("`([^`\\n]+)`") { range in
@@ -1580,6 +1580,13 @@ extension LinkAwareTextView {
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: heading.markerRange)
         }
 
+        // Italic first, bold second — bold must win on **word** spans.
+        // The single-star italic regex would otherwise match the inner *word* of **word**
+        // and overwrite the bold font after it was applied.
+        applyRegex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", to: text, storage: storage, searchRange: searchRange) { range in
+            storage.addAttribute(.font, value: italicFont, range: range)
+            dimDelimiters(storage: storage, outerRange: range, delimLen: 1)
+        }
         applyRegex("\\*\\*(.+?)\\*\\*", to: text, storage: storage, searchRange: searchRange) { range in
             storage.addAttribute(.font, value: boldFont, range: range)
             dimDelimiters(storage: storage, outerRange: range, delimLen: 2)
@@ -1587,10 +1594,6 @@ extension LinkAwareTextView {
         applyRegex("__(.+?)__", to: text, storage: storage, searchRange: searchRange) { range in
             storage.addAttribute(.font, value: boldFont, range: range)
             dimDelimiters(storage: storage, outerRange: range, delimLen: 2)
-        }
-        applyRegex("\\*(?!\\*)(.+?)(?<!\\*)\\*", to: text, storage: storage, searchRange: searchRange) { range in
-            storage.addAttribute(.font, value: italicFont, range: range)
-            dimDelimiters(storage: storage, outerRange: range, delimLen: 1)
         }
         applyRegex("`([^`\\n]+)`", to: text, storage: storage, searchRange: searchRange) { range in
             storage.addAttributes([.font: monoFont, .backgroundColor: MarkdownTheme.codeBackground], range: range)
