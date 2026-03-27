@@ -112,6 +112,7 @@ class SynapseAppDelegate: NSObject, NSApplicationDelegate {
 struct SynapseApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var autoUpdater = AutoUpdater()
+    @StateObject private var themeEnv = ThemeEnvironment()
     @NSApplicationDelegateAdaptor(SynapseAppDelegate.self) var appDelegate
 
     var body: some Scene {
@@ -122,9 +123,13 @@ struct SynapseApp: App {
                     .environmentObject(appState.vaultIndex)
                     .environmentObject(appState.editorState)
                     .environmentObject(appState.navigationState)
+                    .environmentObject(themeEnv)
                     .tint(SynapseTheme.accent)
                     .preferredColorScheme(.dark)
                     .frame(minWidth: 560, minHeight: 420)
+                    .onAppear {
+                        themeEnv.observe(appState.settings)
+                    }
             } else {
                 ContentView()
                     .environmentObject(appState)
@@ -132,6 +137,7 @@ struct SynapseApp: App {
                     .environmentObject(appState.editorState)
                     .environmentObject(appState.navigationState)
                     .environmentObject(autoUpdater)
+                    .environmentObject(themeEnv)
                     .tint(SynapseTheme.accent)
                     .preferredColorScheme(.dark)
                     .frame(minWidth: 900, minHeight: 600)
@@ -139,6 +145,7 @@ struct SynapseApp: App {
                         autoUpdater.checkForUpdatesOnLaunch()
                         // Wire up app delegate to appState
                         appDelegate.appState = appState
+                        themeEnv.observe(appState.settings)
                     }
             }
         }
@@ -227,6 +234,7 @@ struct SynapseApp: App {
                 .environmentObject(appState.vaultIndex)
                 .environmentObject(appState.editorState)
                 .environmentObject(appState.navigationState)
+                .environmentObject(themeEnv)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: 920, minHeight: 760)
         }
