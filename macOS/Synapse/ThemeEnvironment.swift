@@ -17,10 +17,17 @@ final class ThemeEnvironment: ObservableObject {
 
     private var cancellable: AnyCancellable?
 
+    // MARK: - Shared singleton (set by SynapseApp at launch)
+    /// Set once at app startup so SynapseTheme static vars can delegate to the live theme.
+    static weak var shared: ThemeEnvironment?
+
     init() {}
 
     /// Wire up the environment to a settings manager so theme changes are reflected automatically.
     func observe(_ settings: SettingsManager) {
+        // Register as the shared singleton so SynapseTheme statics can read from us
+        ThemeEnvironment.shared = self
+
         cancellable = settings.$activeThemeName
             .combineLatest(settings.$customThemes)
             .receive(on: DispatchQueue.main)

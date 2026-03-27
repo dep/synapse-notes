@@ -129,6 +129,7 @@ func extractSidebarFileURL(from item: Any?) -> URL? {
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var autoUpdater: AutoUpdater
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var keyEventMonitor: Any?
     @State private var leftSidebarWidth: CGFloat = 280
     @State private var rightSidebarPrimaryWidth: CGFloat = 380
