@@ -93,6 +93,84 @@ func refreshAllEditorsForFontChange() {
     }
 }
 
+/// Re-applies all AppKit color properties that were set at view-creation time.
+/// Call this whenever the active theme changes so the editor reflects the new palette
+/// without requiring user interaction.
+func refreshAllEditorsForThemeChange() {
+    for window in NSApp.windows {
+        guard let contentView = window.contentView else { continue }
+
+        // Determine the NSAppearance that matches the active theme so AppKit
+        // stops overriding our explicit backgroundColor assignments.
+        let themeAppearance = ThemeEnvironment.shared?.nsAppearance
+            ?? NSAppearance(named: .darkAqua)
+
+        // Re-theme every LinkAwareTextView (raw editor + read-only panes)
+        for textView in collectLinkAwareTextViews(in: contentView) {
+            let bg = SynapseTheme.editorBackground
+            let fg = SynapseTheme.editorForeground
+
+            // Override AppKit's appearance so dark/light mode doesn't fight our colors
+            textView.appearance = themeAppearance
+
+            textView.backgroundColor = bg
+            textView.textColor = fg
+            textView.insertionPointColor = NSColor(SynapseTheme.accent)
+            textView.selectedTextAttributes = [
+                .backgroundColor: SynapseTheme.editorSelection,
+                .foregroundColor: fg,
+            ]
+
+            if let scroll = textView.enclosingScrollView {
+                scroll.appearance = themeAppearance
+                scroll.backgroundColor = bg
+                scroll.contentView.backgroundColor = bg
+                scroll.drawsBackground = true
+                // display() forces a synchronous repaint, not deferred
+                scroll.display()
+            }
+            textView.display()
+
+            // Re-style the text so markdown token colors update immediately
+            preserveScrollOffset(for: textView) {
+                if let settings = textView.settings {
+                    textView.typingAttributes = [
+                        .font: MarkdownTheme.bodyFont(for: settings),
+                        .foregroundColor: fg,
+                    ]
+                }
+                let shouldApplyPreview = textView.lastAppliedEditorDisplayMode == .preview || !textView.isEditable
+                textView.applyMarkdownStyling(deferRedraw: shouldApplyPreview)
+                if shouldApplyPreview {
+                    textView.applyPreviewStyling(editingSessionOpen: true)
+                }
+            }
+        }
+
+        // Re-theme every EmbeddedNoteView and EmbeddedImageView
+        for embeddedView in collectEmbeddedNoteViews(in: contentView) {
+            embeddedView.updateColors()
+        }
+        for embeddedImageView in collectEmbeddedImageViews(in: contentView) {
+            embeddedImageView.updateColors()
+        }
+    }
+}
+
+private func collectEmbeddedNoteViews(in view: NSView) -> [EmbeddedNoteView] {
+    var result: [EmbeddedNoteView] = []
+    if let v = view as? EmbeddedNoteView { result.append(v) }
+    for sub in view.subviews { result.append(contentsOf: collectEmbeddedNoteViews(in: sub)) }
+    return result
+}
+
+private func collectEmbeddedImageViews(in view: NSView) -> [EmbeddedImageView] {
+    var result: [EmbeddedImageView] = []
+    if let v = view as? EmbeddedImageView { result.append(v) }
+    for sub in view.subviews { result.append(contentsOf: collectEmbeddedImageViews(in: sub)) }
+    return result
+}
+
 @discardableResult
 func activatePaneOnReadOnlyInteraction(isEditable: Bool, onActivatePane: (() -> Void)?) -> Bool {
     guard !isEditable else { return false }
@@ -102,6 +180,7 @@ func activatePaneOnReadOnlyInteraction(isEditable: Bool, onActivatePane: (() -> 
 
 struct EditorView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     var paneIndex: Int = 0
 
     /// When set, renders in read-only mode using these values instead of live appState.
@@ -715,6 +794,12 @@ struct RawEditor: NSViewRepresentable {
         scroll.borderType = .noBorder
         scroll.drawsBackground = true
         scroll.backgroundColor = SynapseTheme.editorBackground
+        // Match the scroll view's appearance to the active theme so AppKit
+        // doesn't re-override backgroundColor during layout.
+        if let appearance = ThemeEnvironment.shared?.nsAppearance {
+            scroll.appearance = appearance
+            textView.appearance = appearance
+        }
         return scroll
     }
 
@@ -1133,11 +1218,13 @@ struct MarkdownTheme {
     static let h2   = NSFont.systemFont(ofSize: 22, weight: .bold)
     static let h3   = NSFont.systemFont(ofSize: 18, weight: .semibold)
     static let h4   = NSFont.systemFont(ofSize: 16, weight: .semibold)
-    static let dimColor            = SynapseTheme.editorMuted
-    static let tagColor            = SynapseTheme.editorLink
-    static let linkColor           = SynapseTheme.editorLink
-    static let unresolvedLinkColor = SynapseTheme.editorUnresolvedLink
-    static let codeBackground      = SynapseTheme.editorCodeBackground
+    // Use static var so these read from ThemeEnvironment.shared at each call-site
+    // rather than being frozen at class-load time.
+    static var dimColor:            NSColor { SynapseTheme.editorMuted }
+    static var tagColor:            NSColor { SynapseTheme.editorLink }
+    static var linkColor:           NSColor { SynapseTheme.editorLink }
+    static var unresolvedLinkColor: NSColor { SynapseTheme.editorUnresolvedLink }
+    static var codeBackground:      NSColor { SynapseTheme.editorCodeBackground }
 }
 
 // Helper extension to apply font weight
@@ -4004,10 +4091,13 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
-        scrollView.backgroundColor = .clear
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = SynapseTheme.editorBackground
 
         let documentView = FlippedNSView()
         documentView.autoresizingMask = [.width]
+        documentView.wantsLayer = true
+        documentView.layer?.backgroundColor = SynapseTheme.editorBackground.cgColor
         scrollView.documentView = documentView
 
         return scrollView
@@ -4015,6 +4105,12 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let documentView = scrollView.documentView else { return }
+
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = SynapseTheme.editorBackground
+        scrollView.contentView.backgroundColor = SynapseTheme.editorBackground
+        scrollView.documentView?.wantsLayer = true
+        scrollView.documentView?.layer?.backgroundColor = SynapseTheme.editorBackground.cgColor
 
         let width: CGFloat = 304 // 320 - 16 padding
         let spacing: CGFloat = 12
@@ -4172,6 +4268,21 @@ final class EmbeddedNoteView: NSView {
         }
 
         openButton.isHidden = (noteURL == nil)
+        updateColors()
+    }
+
+    /// Re-applies all theme-dependent colors. Safe to call any time the theme changes.
+    func updateColors() {
+        borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
+        titleField.textColor = SynapseTheme.nsTextPrimary
+        contentTextView.backgroundColor = SynapseTheme.editorCodeBackground
+        contentTextView.textColor = SynapseTheme.nsTextSecondary
+        contentScrollView.backgroundColor = SynapseTheme.editorCodeBackground
+        // Re-style markdown content with the new theme colors
+        if let text = contentTextView.string.isEmpty ? nil : contentTextView.string {
+            let styledContent = styleMarkdownContent(text, fontSize: 11)
+            contentTextView.textStorage?.setAttributedString(styledContent)
+        }
     }
 
     override func layout() {
@@ -4340,6 +4451,7 @@ final class EmbeddedImageView: NSView {
 
         // Update border color based on selection state
         updateBorderAppearance()
+        updateColors()
     }
 
     private func updateBorderAppearance() {
@@ -4347,6 +4459,14 @@ final class EmbeddedImageView: NSView {
         borderView.layer?.borderColor = isSelected
             ? NSColor(SynapseTheme.accent).cgColor
             : NSColor(SynapseTheme.border).cgColor
+    }
+
+    /// Re-applies all theme-dependent colors. Safe to call any time the theme changes.
+    func updateColors() {
+        borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
+        previewBackgroundView.layer?.backgroundColor = SynapseTheme.editorCodeBackground.cgColor
+        updateBorderAppearance()
+        captionField.textColor = NSColor(SynapseTheme.textSecondary)
     }
 
     private func loadImage(from url: URL) {

@@ -27,10 +27,10 @@ extension View {
             .padding(.vertical, 8)
             .background {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(selected ? SynapseTheme.accentSoft : SynapseTheme.row)
+                    .fill(selected ? SynapseTheme.accent : SynapseTheme.panelElevated)
                     .overlay {
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(selected ? SynapseTheme.accent : SynapseTheme.rowBorder, lineWidth: 1)
+                            .stroke(selected ? SynapseTheme.accentSoft : SynapseTheme.border, lineWidth: 1)
                     }
             }
     }
@@ -47,9 +47,10 @@ struct FileSearchResult: Identifiable {
 
 // MARK: - Inline find bar (current-file mode only)
 
-struct FindBar: View {
-    @EnvironmentObject var appState: AppState
-    @FocusState private var isFieldFocused: Bool
+ struct FindBar: View {
+     @EnvironmentObject var appState: AppState
+     @EnvironmentObject var themeEnv: ThemeEnvironment
+     @FocusState private var isFieldFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -154,6 +155,7 @@ struct FindBar: View {
 
 struct AllFilesSearchView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var query: String = ""
     @State private var results: [FileSearchResult] = []
     @State private var selectedIndex: Int = -1
@@ -245,19 +247,19 @@ struct AllFilesSearchView: View {
                                             HStack(spacing: 6) {
                                                 Text(result.url.lastPathComponent)
                                                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                                    .foregroundStyle(SynapseTheme.textPrimary)
+                                                    .foregroundStyle(index == selectedIndex ? Color.white : SynapseTheme.textPrimary)
                                                     .lineLimit(1)
                                                 Text("line \(result.lineNumber)")
                                                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                                                    .foregroundStyle(SynapseTheme.textMuted)
+                                                    .foregroundStyle(index == selectedIndex ? Color.white.opacity(0.9) : SynapseTheme.textSecondary)
                                             }
                                             Text(result.snippet)
                                                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                                                .foregroundStyle(SynapseTheme.textSecondary)
+                                                .foregroundStyle(index == selectedIndex ? Color.white.opacity(0.95) : SynapseTheme.textPrimary)
                                                 .lineLimit(1)
                                             Text(appState.relativePath(for: result.url))
                                                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                                                .foregroundStyle(SynapseTheme.textMuted)
+                                                .foregroundStyle(index == selectedIndex ? Color.white.opacity(0.82) : SynapseTheme.textSecondary)
                                                 .lineLimit(1)
                                         }
 

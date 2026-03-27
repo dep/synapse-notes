@@ -129,6 +129,7 @@ func extractSidebarFileURL(from item: Any?) -> URL? {
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var autoUpdater: AutoUpdater
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var keyEventMonitor: Any?
     @State private var leftSidebarWidth: CGFloat = 280
     @State private var rightSidebarPrimaryWidth: CGFloat = 380
@@ -529,6 +530,7 @@ struct ContentView: View {
 private struct SidebarSlotView: View {
     let sidebarID: UUID
     @ObservedObject var settings: SettingsManager
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     let expandedWidth: CGFloat
 
     private let collapsedRailWidth: CGFloat = 28
@@ -910,6 +912,7 @@ enum SidebarPaneWrapper {
 struct DynamicSidebarView: View {
     let sidebar: Sidebar
     @ObservedObject var settings: SettingsManager
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var isDropTarget = false
 
     private var isCollapsedToRail: Bool { settings.isSidebarCollapsed(sidebar.id) }
@@ -1115,6 +1118,7 @@ struct SidebarPaneInContainer: View {
     let pane: SidebarPaneItem
     let sidebarId: UUID
     let settings: SettingsManager   // plain ref — no observation
+    @EnvironmentObject var themeEnv: ThemeEnvironment
 
     @State private var isCollapsed: Bool = false
     @State private var headerHovered: Bool = false

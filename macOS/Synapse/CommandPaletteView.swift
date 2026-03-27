@@ -55,6 +55,7 @@ func commandPaletteScore(forURL url: URL, needle: String, relativePath: String) 
 
 struct CommandPaletteView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var query = ""
     @State private var selectedIndex = 0
     @State private var eventMonitor: Any?
@@ -162,7 +163,7 @@ struct CommandPaletteView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(SynapseTheme.textMuted)
+                        .foregroundStyle(SynapseTheme.textSecondary)
 
                     TextField(searchPlaceholder, text: $query)
                         .textFieldStyle(.plain)
@@ -177,10 +178,10 @@ struct CommandPaletteView: View {
                 .padding(.vertical, 12)
                 .background {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(SynapseTheme.row)
+                        .fill(SynapseTheme.panelElevated)
                         .overlay {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(SynapseTheme.rowBorder, lineWidth: 1)
+                                .stroke(SynapseTheme.border, lineWidth: 1)
                         }
                 }
 
@@ -256,11 +257,11 @@ struct CommandPaletteView: View {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(primaryLabel(for: url))
                                             .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(SynapseTheme.textPrimary)
+                                            .foregroundStyle(index == selectedIndex ? Color.white : SynapseTheme.textPrimary)
                                             .lineLimit(1)
                                         Text(secondaryLabel(for: url))
                                             .font(.system(size: 11, weight: .medium, design: .rounded))
-                                            .foregroundStyle(SynapseTheme.textMuted)
+                                            .foregroundStyle(index == selectedIndex ? Color.white.opacity(0.82) : SynapseTheme.textSecondary)
                                             .lineLimit(1)
                                     }
                                     Spacer()

@@ -300,6 +300,28 @@ class SettingsManager: ObservableObject {
         didSet { save() }
     }
 
+    /// Name of the active theme (built-in or custom).
+    @Published var activeThemeName: String {
+        didSet { save() }
+    }
+
+    /// User-imported custom themes, stored alongside vault settings.
+    @Published var customThemes: [AppTheme] {
+        didSet { save() }
+    }
+
+    // MARK: - Computed theme properties
+
+    /// The resolved active theme. Falls back to Synapse (Dark) if the name is unknown.
+    var activeTheme: AppTheme {
+        allThemes.first { $0.name == activeThemeName } ?? .synapseDark
+    }
+
+    /// All available themes: built-ins first, then custom themes.
+    var allThemes: [AppTheme] {
+        AppTheme.builtInThemes + customThemes
+    }
+
     // MARK: - Vault Path Discovery
 
     var leftSidebars:  [Sidebar] { sidebars.filter { $0.position == .left  } }
@@ -527,6 +549,8 @@ class SettingsManager: ObservableObject {
         var editorFontSize: Int?
         var editorLineHeight: Double?
         var respectGitignore: Bool?
+        var activeThemeName: String?
+        var customThemes: [AppTheme]?
 
         init(
             onBootCommand: String,
@@ -549,7 +573,9 @@ class SettingsManager: ObservableObject {
             editorMonospaceFontFamily: String? = nil,
             editorFontSize: Int? = nil,
             editorLineHeight: Double? = nil,
-            respectGitignore: Bool? = nil
+            respectGitignore: Bool? = nil,
+            activeThemeName: String? = nil,
+            customThemes: [AppTheme]? = nil
         ) {
             self.onBootCommand = onBootCommand
             self.fileExtensionFilter = fileExtensionFilter
@@ -572,6 +598,8 @@ class SettingsManager: ObservableObject {
             self.editorFontSize = editorFontSize
             self.editorLineHeight = editorLineHeight
             self.respectGitignore = respectGitignore
+            self.activeThemeName = activeThemeName
+            self.customThemes = customThemes
         }
 
         init(from decoder: Decoder) throws {
@@ -597,6 +625,8 @@ class SettingsManager: ObservableObject {
             editorFontSize = try container.decodeIfPresent(Int.self, forKey: .editorFontSize)
             editorLineHeight = try container.decodeIfPresent(Double.self, forKey: .editorLineHeight)
             respectGitignore = try container.decodeIfPresent(Bool.self, forKey: .respectGitignore)
+            activeThemeName = try container.decodeIfPresent(String.self, forKey: .activeThemeName)
+            customThemes = try container.decodeIfPresent([AppTheme].self, forKey: .customThemes)
         }
     }
 
@@ -687,6 +717,8 @@ class SettingsManager: ObservableObject {
         self.editorLineHeight = 1.6
         self.vaultPaths = []
         self.respectGitignore = true
+        self.activeThemeName = "Synapse (Dark)"
+        self.customThemes = []
 
         applyLegacyConfig(Self.loadConfig(from: configPath))
         self.isInitializing = false
@@ -741,6 +773,8 @@ class SettingsManager: ObservableObject {
         self.editorLineHeight = 1.6
         self.vaultPaths = []
         self.respectGitignore = true
+        self.activeThemeName = "Synapse (Dark)"
+        self.customThemes = []
 
         if let vaultRoot = vaultRoot {
             // Create .synapse folder and settings file if they don't exist
@@ -870,6 +904,8 @@ class SettingsManager: ObservableObject {
             editorFontSize = vaultConfig.editorFontSize ?? 15
             editorLineHeight = vaultConfig.editorLineHeight ?? 1.6
             respectGitignore = vaultConfig.respectGitignore ?? true
+            activeThemeName = vaultConfig.activeThemeName ?? "Synapse (Dark)"
+            customThemes = vaultConfig.customThemes ?? []
             return
         }
 
@@ -893,6 +929,8 @@ class SettingsManager: ObservableObject {
         editorFontSize = 15
         editorLineHeight = 1.6
         respectGitignore = true
+        activeThemeName = "Synapse (Dark)"
+        customThemes = []
     }
 
     private func applyNoVaultDefaults() {
@@ -1112,6 +1150,8 @@ class SettingsManager: ObservableObject {
         let globalConfigPath: String?
         let vaultPaths: [String]
         let respectGitignore: Bool
+        let activeThemeName: String
+        let customThemes: [AppTheme]
 
         init(from s: SettingsManager) {
             useLegacyMode         = s.useLegacyMode
@@ -1146,6 +1186,8 @@ class SettingsManager: ObservableObject {
             globalConfigPath      = s.globalConfigPath
             vaultPaths            = s.vaultPaths
             respectGitignore      = s.respectGitignore
+            activeThemeName       = s.activeThemeName
+            customThemes          = s.customThemes
         }
 
         func write() {
@@ -1267,7 +1309,9 @@ class SettingsManager: ObservableObject {
                 editorMonospaceFontFamily: editorMonospaceFontFamily == "System Monospace" ? nil : editorMonospaceFontFamily,
                 editorFontSize: editorFontSize == 15 ? nil : editorFontSize,
                 editorLineHeight: editorLineHeight == 1.6 ? nil : editorLineHeight,
-                respectGitignore: respectGitignore ? nil : false  // omit when true (default)
+                respectGitignore: respectGitignore ? nil : false,  // omit when true (default)
+                activeThemeName: activeThemeName == "Synapse (Dark)" ? nil : activeThemeName,
+                customThemes: customThemes.isEmpty ? nil : customThemes
             )
             let notedDir = vaultRootURL.appendingPathComponent(".synapse")
             try? FileManager.default.createDirectory(at: notedDir, withIntermediateDirectories: true)

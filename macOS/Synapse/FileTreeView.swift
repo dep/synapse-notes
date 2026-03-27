@@ -124,6 +124,7 @@ func buildFileTreeLevel(at url: URL, sortCriterion: SortCriterion, ascending: Bo
 
 struct FileTreeView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     let settings: SettingsManager
     @State private var nodes: [FileNode] = []
     @State private var expandedDirs: Set<URL> = []
@@ -713,10 +714,6 @@ struct FileNodeRow: View {
             .background {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(isSelected ? SynapseTheme.accentSoft : SynapseTheme.row)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(isSelected ? SynapseTheme.accent : SynapseTheme.rowBorder, lineWidth: 1)
-                    }
             }
             .contentShape(Rectangle())
             .onTapGesture(perform: handleTap)
@@ -825,10 +822,6 @@ struct PinnedItemRow: View {
             .background {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(SynapseTheme.row)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(SynapseTheme.rowBorder, lineWidth: 1)
-                    }
             }
         }
         .buttonStyle(.plain)

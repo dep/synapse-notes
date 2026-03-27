@@ -136,7 +136,7 @@ git push
 
 ### 6. Create a release on GitHub
 
-Use what you know about recent changes to generate the release notes.
+Use what you know about changes SINCE THE LAST RELEASE to generate the release notes.
 
 ```bash
 gh release create <version> --title "<version>" --notes "<dynamically generated release notes>"

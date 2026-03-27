@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TabBarView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
 
     var body: some View {
         HStack(spacing: 0) {

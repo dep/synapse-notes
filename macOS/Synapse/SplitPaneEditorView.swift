@@ -3,6 +3,7 @@ import SwiftUI
 /// Renders either a single editor pane or two independent panes side-by-side / top-bottom.
 struct SplitPaneEditorView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
 
     var body: some View {
         if let orientation = appState.splitOrientation {

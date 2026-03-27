@@ -15,10 +15,13 @@ extension View {
 struct SettingsView: View {
     @AppStorage(kGitSSHAuthSock) private var sshAuthSock: String = ""
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @ObservedObject var settings: SettingsManager
     @State private var isDetecting = false
     @State private var detectError: String?
     @State private var templateVarsExpanded = false
+    @State private var themeImportError: String?
+    @State private var showThemeImportError = false
 
     private let settingsFieldWidth: CGFloat = 440
 
@@ -30,6 +33,62 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            // MARK: - Appearance Section
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Theme picker
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Theme")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        ThemePicker(
+                            allThemes: settings.allThemes,
+                            activeThemeName: $settings.activeThemeName
+                        )
+                        .frame(width: settingsFieldWidth, alignment: .leading)
+                    }
+
+                    // Export / Import buttons
+                    HStack(spacing: 8) {
+                        Button("Export Theme…") {
+                            exportActiveTheme()
+                        }
+                        .font(.system(size: 11))
+
+                        Button("Import Theme…") {
+                            importTheme()
+                        }
+                        .font(.system(size: 11))
+
+                        if !settings.customThemes.isEmpty {
+                            Spacer()
+                            Button("Remove Custom Theme") {
+                                removeActiveCustomTheme()
+                            }
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                            .disabled(settings.activeTheme.isBuiltIn)
+                            .opacity(settings.activeTheme.isBuiltIn ? 0.4 : 1)
+                        }
+                    }
+
+                    Text("Select a built-in theme or import your own. Export any theme as a JSON baseline to customize externally, then import it back.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+                .alert("Import Failed", isPresented: $showThemeImportError) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(themeImportError ?? "Unknown error")
+                }
+            } header: {
+                Text("Appearance")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+
             // MARK: - Launch Behavior Section
             Section {
                 VStack(alignment: .leading, spacing: 16) {
@@ -704,8 +763,62 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Theme Actions
+
+    private func exportActiveTheme() {
+        let theme = settings.activeTheme
+        guard let data = try? AppThemeExporter.exportData(for: theme) else { return }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(theme.name).json"
+        panel.message = "Export theme as JSON"
+        panel.prompt = "Export"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            try? data.write(to: url)
+        }
+    }
+
+    private func importTheme() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a .json theme file to import"
+        panel.prompt = "Import"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let imported = try AppThemeImporter.importTheme(from: data)
+
+            // Overwrite existing custom theme with same name, or append
+            var updated = settings.customThemes
+            if let i = updated.firstIndex(where: { $0.name == imported.name }) {
+                updated[i] = imported
+            } else {
+                updated.append(imported)
+            }
+            settings.customThemes = updated
+            settings.activeThemeName = imported.name
+        } catch {
+            themeImportError = error.localizedDescription
+            showThemeImportError = true
+        }
+    }
+
+    private func removeActiveCustomTheme() {
+        guard !settings.activeTheme.isBuiltIn else { return }
+        let name = settings.activeThemeName
+        settings.customThemes.removeAll { $0.name == name }
+        settings.activeThemeName = "Synapse (Dark)"
+    }
+
     // MARK: - Launch Note Picker
-    
+
     private func pickLaunchNote() {
         guard let rootURL = appState.rootURL else { return }
         
@@ -819,8 +932,71 @@ struct FontPicker: View {
     }
 }
 
+// MARK: - Theme Picker Component
+
+struct ThemePicker: View {
+    let allThemes: [AppTheme]
+    @Binding var activeThemeName: String
+
+    var body: some View {
+        Menu {
+            // Built-in themes group
+            let builtIns = allThemes.filter(\.isBuiltIn)
+            let customs = allThemes.filter { !$0.isBuiltIn }
+
+            ForEach(builtIns) { theme in
+                Button {
+                    activeThemeName = theme.name
+                } label: {
+                    HStack {
+                        Text(theme.name)
+                        if theme.name == activeThemeName {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+
+            if !customs.isEmpty {
+                Divider()
+                ForEach(customs) { theme in
+                    Button {
+                        activeThemeName = theme.name
+                    } label: {
+                        HStack {
+                            Text(theme.name)
+                            if theme.name == activeThemeName {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack {
+                Text(activeThemeName.isEmpty ? "Synapse (Dark)" : activeThemeName)
+                    .font(.system(.body, design: .default))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .frame(width: 200)
+    }
+}
+
 #Preview {
     SettingsView(settings: SettingsManager())
         .environmentObject(AppState())
+        .environmentObject(ThemeEnvironment())
         .preferredColorScheme(.dark)
 }
