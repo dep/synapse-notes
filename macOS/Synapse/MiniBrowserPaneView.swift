@@ -97,6 +97,7 @@ struct MiniBrowserWebView: NSViewRepresentable {
 
 struct MiniBrowserPaneView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @StateObject private var controller = MiniBrowserController()
 
     var body: some View {

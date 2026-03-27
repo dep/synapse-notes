@@ -124,6 +124,7 @@ func buildFileTreeLevel(at url: URL, sortCriterion: SortCriterion, ascending: Bo
 
 struct FileTreeView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     let settings: SettingsManager
     @State private var nodes: [FileNode] = []
     @State private var expandedDirs: Set<URL> = []

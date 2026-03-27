@@ -47,9 +47,10 @@ struct FileSearchResult: Identifiable {
 
 // MARK: - Inline find bar (current-file mode only)
 
-struct FindBar: View {
-    @EnvironmentObject var appState: AppState
-    @FocusState private var isFieldFocused: Bool
+ struct FindBar: View {
+     @EnvironmentObject var appState: AppState
+     @EnvironmentObject var themeEnv: ThemeEnvironment
+     @FocusState private var isFieldFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -154,6 +155,7 @@ struct FindBar: View {
 
 struct AllFilesSearchView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var query: String = ""
     @State private var results: [FileSearchResult] = []
     @State private var selectedIndex: Int = -1

@@ -55,6 +55,7 @@ func commandPaletteScore(forURL url: URL, needle: String, relativePath: String) 
 
 struct CommandPaletteView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var query = ""
     @State private var selectedIndex = 0
     @State private var eventMonitor: Any?

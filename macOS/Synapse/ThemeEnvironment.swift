@@ -34,6 +34,8 @@ final class ThemeEnvironment: ObservableObject {
             .sink { [weak self, weak settings] _, _ in
                 guard let self, let settings else { return }
                 self.theme = settings.activeTheme
+                // Re-apply all AppKit (imperative) color assignments across the app
+                refreshAllEditorsForThemeChange()
             }
         // Apply immediately
         theme = settings.activeTheme

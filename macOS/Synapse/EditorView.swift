@@ -93,6 +93,65 @@ func refreshAllEditorsForFontChange() {
     }
 }
 
+/// Re-applies all AppKit color properties that were set at view-creation time.
+/// Call this whenever the active theme changes so the editor reflects the new palette
+/// without requiring user interaction.
+func refreshAllEditorsForThemeChange() {
+    for window in NSApp.windows {
+        guard let contentView = window.contentView else { continue }
+
+        // Re-theme every LinkAwareTextView (raw editor + read-only panes)
+        for textView in collectLinkAwareTextViews(in: contentView) {
+            textView.backgroundColor = SynapseTheme.editorBackground
+            textView.textColor = SynapseTheme.editorForeground
+            textView.insertionPointColor = NSColor(SynapseTheme.accent)
+            textView.selectedTextAttributes = [
+                .backgroundColor: SynapseTheme.editorSelection,
+                .foregroundColor: SynapseTheme.editorForeground,
+            ]
+            if let scroll = textView.enclosingScrollView {
+                scroll.backgroundColor = SynapseTheme.editorBackground
+            }
+            // Re-style the text so markdown token colors update immediately
+            preserveScrollOffset(for: textView) {
+                if let settings = textView.settings {
+                    textView.typingAttributes = [
+                        .font: MarkdownTheme.bodyFont(for: settings),
+                        .foregroundColor: SynapseTheme.editorForeground,
+                    ]
+                }
+                let shouldApplyPreview = textView.lastAppliedEditorDisplayMode == .preview || !textView.isEditable
+                textView.applyMarkdownStyling(deferRedraw: shouldApplyPreview)
+                if shouldApplyPreview {
+                    textView.applyPreviewStyling(editingSessionOpen: true)
+                }
+            }
+        }
+
+        // Re-theme every EmbeddedNoteView and EmbeddedImageView
+        for embeddedView in collectEmbeddedNoteViews(in: contentView) {
+            embeddedView.updateColors()
+        }
+        for embeddedImageView in collectEmbeddedImageViews(in: contentView) {
+            embeddedImageView.updateColors()
+        }
+    }
+}
+
+private func collectEmbeddedNoteViews(in view: NSView) -> [EmbeddedNoteView] {
+    var result: [EmbeddedNoteView] = []
+    if let v = view as? EmbeddedNoteView { result.append(v) }
+    for sub in view.subviews { result.append(contentsOf: collectEmbeddedNoteViews(in: sub)) }
+    return result
+}
+
+private func collectEmbeddedImageViews(in view: NSView) -> [EmbeddedImageView] {
+    var result: [EmbeddedImageView] = []
+    if let v = view as? EmbeddedImageView { result.append(v) }
+    for sub in view.subviews { result.append(contentsOf: collectEmbeddedImageViews(in: sub)) }
+    return result
+}
+
 @discardableResult
 func activatePaneOnReadOnlyInteraction(isEditable: Bool, onActivatePane: (() -> Void)?) -> Bool {
     guard !isEditable else { return false }
@@ -102,6 +161,7 @@ func activatePaneOnReadOnlyInteraction(isEditable: Bool, onActivatePane: (() -> 
 
 struct EditorView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeEnv: ThemeEnvironment
     var paneIndex: Int = 0
 
     /// When set, renders in read-only mode using these values instead of live appState.
@@ -1133,11 +1193,13 @@ struct MarkdownTheme {
     static let h2   = NSFont.systemFont(ofSize: 22, weight: .bold)
     static let h3   = NSFont.systemFont(ofSize: 18, weight: .semibold)
     static let h4   = NSFont.systemFont(ofSize: 16, weight: .semibold)
-    static let dimColor            = SynapseTheme.editorMuted
-    static let tagColor            = SynapseTheme.editorLink
-    static let linkColor           = SynapseTheme.editorLink
-    static let unresolvedLinkColor = SynapseTheme.editorUnresolvedLink
-    static let codeBackground      = SynapseTheme.editorCodeBackground
+    // Use static var so these read from ThemeEnvironment.shared at each call-site
+    // rather than being frozen at class-load time.
+    static var dimColor:            NSColor { SynapseTheme.editorMuted }
+    static var tagColor:            NSColor { SynapseTheme.editorLink }
+    static var linkColor:           NSColor { SynapseTheme.editorLink }
+    static var unresolvedLinkColor: NSColor { SynapseTheme.editorUnresolvedLink }
+    static var codeBackground:      NSColor { SynapseTheme.editorCodeBackground }
 }
 
 // Helper extension to apply font weight
@@ -4172,6 +4234,21 @@ final class EmbeddedNoteView: NSView {
         }
 
         openButton.isHidden = (noteURL == nil)
+        updateColors()
+    }
+
+    /// Re-applies all theme-dependent colors. Safe to call any time the theme changes.
+    func updateColors() {
+        borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
+        titleField.textColor = SynapseTheme.nsTextPrimary
+        contentTextView.backgroundColor = SynapseTheme.editorCodeBackground
+        contentTextView.textColor = SynapseTheme.nsTextSecondary
+        contentScrollView.backgroundColor = SynapseTheme.editorCodeBackground
+        // Re-style markdown content with the new theme colors
+        if let text = contentTextView.string.isEmpty ? nil : contentTextView.string {
+            let styledContent = styleMarkdownContent(text, fontSize: 11)
+            contentTextView.textStorage?.setAttributedString(styledContent)
+        }
     }
 
     override func layout() {
@@ -4340,6 +4417,7 @@ final class EmbeddedImageView: NSView {
 
         // Update border color based on selection state
         updateBorderAppearance()
+        updateColors()
     }
 
     private func updateBorderAppearance() {
@@ -4347,6 +4425,14 @@ final class EmbeddedImageView: NSView {
         borderView.layer?.borderColor = isSelected
             ? NSColor(SynapseTheme.accent).cgColor
             : NSColor(SynapseTheme.border).cgColor
+    }
+
+    /// Re-applies all theme-dependent colors. Safe to call any time the theme changes.
+    func updateColors() {
+        borderView.layer?.backgroundColor = SynapseTheme.nsPanelElevated.cgColor
+        previewBackgroundView.layer?.backgroundColor = SynapseTheme.editorCodeBackground.cgColor
+        updateBorderAppearance()
+        captionField.textColor = NSColor(SynapseTheme.textSecondary)
     }
 
     private func loadImage(from url: URL) {
