@@ -135,6 +135,11 @@ struct ContentView: View {
     @State private var rightSidebarPrimaryWidth: CGFloat = 380
     @State private var rightSidebarSecondaryWidth: CGFloat = 300
     @State private var showUpdateBanner: Bool = false
+    /// Tracks which sidebars were collapsed automatically (by window resize) so
+    /// we only auto-expand those — never sidebars the user manually collapsed.
+    @State private var autoCollapsedSidebarIDs: Set<UUID> = []
+    /// The most recent auto-collapse target set, used to diff on subsequent resizes.
+    @State private var lastAutoCollapseIDs: Set<UUID> = []
 
     var body: some View {
         ZStack {
@@ -144,49 +149,53 @@ struct ContentView: View {
                 headerBar
                 Rectangle().fill(SynapseTheme.border).frame(height: 1)
 
-                HStack(spacing: 0) {
-                    // Fixed left sidebar
-                    SidebarSlotView(
-                        sidebarID: FixedSidebar.leftID,
-                        settings: appState.settings,
-                        expandedWidth: leftSidebarWidth
-                    )
-                    ResizeDivider(axis: .vertical) { delta in
-                        leftSidebarWidth = max(SynapseTheme.Layout.minLeftSidebarWidth, min(SynapseTheme.Layout.maxLeftSidebarWidth, leftSidebarWidth + delta))
-                    }
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        // Fixed left sidebar
+                        SidebarSlotView(
+                            sidebarID: FixedSidebar.leftID,
+                            settings: appState.settings,
+                            expandedWidth: leftSidebarWidth
+                        )
+                        ResizeDivider(axis: .vertical) { delta in
+                            leftSidebarWidth = max(SynapseTheme.Layout.minLeftSidebarWidth, min(SynapseTheme.Layout.maxLeftSidebarWidth, leftSidebarWidth + delta))
+                        }
 
-                    SplitPaneEditorView()
-                        .environmentObject(appState)
-                        .frame(minWidth: 420)
+                        SplitPaneEditorView()
+                            .environmentObject(appState)
 
-                    ResizeDivider(axis: .vertical) { delta in
-                        rightSidebarPrimaryWidth = max(
-                            SynapseTheme.Layout.minRightSidebarWidth,
-                            min(SynapseTheme.Layout.maxRightSidebarWidth, rightSidebarPrimaryWidth - delta)
+                        ResizeDivider(axis: .vertical) { delta in
+                            rightSidebarPrimaryWidth = max(
+                                SynapseTheme.Layout.minRightSidebarWidth,
+                                min(SynapseTheme.Layout.maxRightSidebarWidth, rightSidebarPrimaryWidth - delta)
+                            )
+                        }
+
+                        // Fixed right sidebars
+                        SidebarSlotView(
+                            sidebarID: FixedSidebar.right1ID,
+                            settings: appState.settings,
+                            expandedWidth: rightSidebarPrimaryWidth
+                        )
+                        ResizeDivider(axis: .vertical) { delta in
+                            let newPrimary = rightSidebarPrimaryWidth + delta
+                            let newSecondary = rightSidebarSecondaryWidth - delta
+                            guard newPrimary >= SynapseTheme.Layout.minRightSidebarWidth,
+                                  newPrimary <= SynapseTheme.Layout.maxRightSidebarWidth,
+                                  newSecondary >= SynapseTheme.Layout.minRightSidebarWidth,
+                                  newSecondary <= SynapseTheme.Layout.maxRightSidebarWidth else { return }
+                            rightSidebarPrimaryWidth = newPrimary
+                            rightSidebarSecondaryWidth = newSecondary
+                        }
+                        SidebarSlotView(
+                            sidebarID: FixedSidebar.right2ID,
+                            settings: appState.settings,
+                            expandedWidth: rightSidebarSecondaryWidth
                         )
                     }
-
-                    // Fixed right sidebars
-                    SidebarSlotView(
-                        sidebarID: FixedSidebar.right1ID,
-                        settings: appState.settings,
-                        expandedWidth: rightSidebarPrimaryWidth
-                    )
-                    ResizeDivider(axis: .vertical) { delta in
-                        let newPrimary = rightSidebarPrimaryWidth + delta
-                        let newSecondary = rightSidebarSecondaryWidth - delta
-                        guard newPrimary >= SynapseTheme.Layout.minRightSidebarWidth,
-                              newPrimary <= SynapseTheme.Layout.maxRightSidebarWidth,
-                              newSecondary >= SynapseTheme.Layout.minRightSidebarWidth,
-                              newSecondary <= SynapseTheme.Layout.maxRightSidebarWidth else { return }
-                        rightSidebarPrimaryWidth = newPrimary
-                        rightSidebarSecondaryWidth = newSecondary
+                    .onChange(of: geo.size.width) { newWidth in
+                        applySidebarAutoCollapse(forWidth: newWidth)
                     }
-                    SidebarSlotView(
-                        sidebarID: FixedSidebar.right2ID,
-                        settings: appState.settings,
-                        expandedWidth: rightSidebarSecondaryWidth
-                    )
                 }
             }
 
@@ -367,6 +376,37 @@ struct ContentView: View {
         }
         .onAppear(perform: installEventMonitor)
         .onDisappear(perform: removeEventMonitor)
+    }
+
+    // MARK: - Sidebar auto-collapse
+
+    /// Called whenever the content area width changes. Collapses or expands
+    /// sidebars to match the breakpoints defined in `sidebarAutoCollapseIDs(forWindowWidth:)`.
+    ///
+    /// Only sidebars that were **auto-collapsed** by this function are eligible
+    /// for auto-expansion — manually collapsed sidebars are never touched.
+    private func applySidebarAutoCollapse(forWidth width: CGFloat) {
+        let newTargetIDs = sidebarAutoCollapseIDs(forWindowWidth: width)
+
+        // Sidebars that should now be collapsed but weren't in the last pass → collapse them
+        let toCollapse = newTargetIDs.subtracting(lastAutoCollapseIDs)
+        for id in toCollapse {
+            if !appState.settings.isSidebarCollapsed(id) {
+                appState.settings.collapsedSidebarIDs.insert(id.uuidString)
+                autoCollapsedSidebarIDs.insert(id)
+            }
+        }
+
+        // Sidebars that were in the last pass but no longer should be collapsed → expand if we collapsed them
+        let toExpand = lastAutoCollapseIDs.subtracting(newTargetIDs)
+        for id in toExpand {
+            if autoCollapsedSidebarIDs.contains(id) {
+                appState.settings.collapsedSidebarIDs.remove(id.uuidString)
+                autoCollapsedSidebarIDs.remove(id)
+            }
+        }
+
+        lastAutoCollapseIDs = newTargetIDs
     }
 
     private func installEventMonitor() {
