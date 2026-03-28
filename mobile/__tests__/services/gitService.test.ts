@@ -272,12 +272,25 @@ describe('GitService', () => {
       });
     });
 
-    it('should throw GitError on conflict', async () => {
+    it('should stage and commit conflicted files on conflict', async () => {
       const localPath = '/repos/test-repo';
-      
-      (git.pull as jest.Mock).mockRejectedValueOnce(new Error('Merge conflict'));
 
-      await expect(GitService.pull(localPath)).rejects.toThrow(GitError);
+      (git.pull as jest.Mock).mockRejectedValueOnce(new Error('Merge conflict'));
+      (git.statusMatrix as jest.Mock).mockResolvedValueOnce([
+        ['conflicted.md', 1, 2, 1],
+        ['clean.md', 1, 1, 1],
+      ]);
+      (git.add as jest.Mock).mockResolvedValueOnce(undefined);
+      (git.commit as jest.Mock).mockResolvedValueOnce('conflict-commit-sha');
+
+      await expect(GitService.pull(localPath)).resolves.toBeUndefined();
+
+      expect(git.statusMatrix).toHaveBeenCalledWith({ fs: expect.any(Object), dir: localPath });
+      expect(git.add).toHaveBeenCalledWith({ fs: expect.any(Object), dir: localPath, filepath: 'conflicted.md' });
+      expect(git.commit).toHaveBeenCalledWith(expect.objectContaining({
+        dir: localPath,
+        message: expect.stringContaining('merge conflict'),
+      }));
     });
 
     it('should throw GitError on network error', async () => {
