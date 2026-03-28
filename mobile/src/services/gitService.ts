@@ -1266,7 +1266,7 @@ export class GitService {
   async pull(dir: string): Promise<void> {
     try {
       const remoteUrl = await this.getRemoteUrl(dir);
-      
+
       await git.pull({
         fs,
         http,
@@ -1277,6 +1277,24 @@ export class GitService {
         onAuth: await GitService.getAuthCallback(remoteUrl),
       });
     } catch (error) {
+      const errorType = getGitErrorType(error as Error);
+      if (errorType === GitErrorType.CONFLICT) {
+        // Stage and commit conflicted files so conflicts appear in the editor
+        const status = await git.statusMatrix({ fs, dir });
+        for (const [filepath, , workdirStatus] of status) {
+          if (workdirStatus !== 0) {
+            await git.add({ fs, dir, filepath });
+          }
+        }
+        const timestamp = new Date().toISOString();
+        await git.commit({
+          fs,
+          dir,
+          message: `Synapse: merge conflict — ${timestamp}`,
+          author: { name: 'Synapse Mobile', email: 'mobile@synapse.local' },
+        });
+        return;
+      }
       this.handleError(error as Error, 'Pull');
     }
   }
