@@ -72,6 +72,36 @@ extension SynapseTheme {
     }
 }
 
+// MARK: - Sidebar Auto-Collapse
+
+extension SynapseTheme.Layout {
+    /// Window width above which all three sidebars are shown expanded.
+    static let allSidebarsExpandedWidth: CGFloat = 1480
+    /// Window width above which left + right1 are shown (right2 collapsed).
+    static let twoSidebarsExpandedWidth: CGFloat = 1125
+    /// Window width above which only the left sidebar is shown (right1 + right2 collapsed).
+    static let oneSidebarExpandedWidth: CGFloat = 900
+}
+
+/// Returns the set of fixed sidebar IDs that should be auto-collapsed for the given window width.
+///
+/// Breakpoints (inclusive lower bound):
+///   ≥ 1480  → all three sidebars expanded  (empty set returned)
+///   ≥ 1125  → left + right1 expanded; right2 collapsed
+///   ≥  900  → left expanded only; right1 + right2 collapsed
+///    < 900  → all three sidebars collapsed
+func sidebarAutoCollapseIDs(forWindowWidth width: CGFloat) -> Set<UUID> {
+    if width >= SynapseTheme.Layout.allSidebarsExpandedWidth {
+        return []
+    } else if width >= SynapseTheme.Layout.twoSidebarsExpandedWidth {
+        return [FixedSidebar.right2ID]
+    } else if width >= SynapseTheme.Layout.oneSidebarExpandedWidth {
+        return [FixedSidebar.right1ID, FixedSidebar.right2ID]
+    } else {
+        return [FixedSidebar.leftID, FixedSidebar.right1ID, FixedSidebar.right2ID]
+    }
+}
+
 // MARK: - Graph Utilities
 
 /// Shared node color logic for graph views.

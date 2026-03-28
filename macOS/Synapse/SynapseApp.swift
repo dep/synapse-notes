@@ -3,12 +3,12 @@ import SwiftUI
 /// AppDelegate adapter to handle application termination with unsaved changes
 class SynapseAppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState?
-    
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let appState = appState else {
             return .terminateNow
         }
-        
+
         // Check if any pane has unsaved changes
         if appState.hasUnsavedChanges() {
             // Show confirmation dialog
@@ -19,36 +19,36 @@ class SynapseAppDelegate: NSObject, NSApplicationDelegate {
             alert.addButton(withTitle: "Save & Exit")
             alert.addButton(withTitle: "Exit Without Saving")
             alert.addButton(withTitle: "Cancel")
-            
+
             let response = alert.runModal()
-            
+
             switch response {
             case .alertFirstButtonReturn: // Save & Exit
                 // Save all unsaved changes
                 appState.saveAllUnsavedChanges()
                 return .terminateNow
-                
+
             case .alertSecondButtonReturn: // Exit Without Saving
                 return .terminateNow
-                
+
             default: // Cancel (third button or ESC)
                 return .terminateCancel
             }
         }
-        
+
         return .terminateNow
     }
-    
+
     /// Handle opening files from Finder or Dock
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
         guard let appState = appState else {
             sender.reply(toOpenOrPrint: .failure)
             return
         }
-        
+
         for filename in filenames {
             let url = URL(fileURLWithPath: filename)
-            
+
             // If it's a directory, open it as a vault
             var isDirectory: ObjCBool = false
             if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue {
@@ -65,30 +65,30 @@ class SynapseAppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        
+
         sender.reply(toOpenOrPrint: .success)
     }
-    
+
     /// Find the vault root for a given URL
     /// - If the URL is a file, walks up to find the vault root (directory containing .synapse folder)
     /// - If the URL is a directory, checks if it's the vault root or walks up to find it
     private func findVaultRoot(for url: URL) -> URL {
         let fileManager = FileManager.default
-        
+
         // Start from the file's directory if it's a file
         var currentDir = url
         var isDirectory: ObjCBool = false
         if fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue {
             currentDir = url.deletingLastPathComponent()
         }
-        
+
         // Walk up the directory tree looking for .synapse folder
         while currentDir.path != "/" && currentDir.path != "/Users" {
             let synapseDir = currentDir.appendingPathComponent(".synapse", isDirectory: true)
             if fileManager.fileExists(atPath: synapseDir.path) {
                 return currentDir
             }
-            
+
             let parentDir = currentDir.deletingLastPathComponent()
             // Stop if we can't go up anymore
             if parentDir.path == currentDir.path {
@@ -96,7 +96,7 @@ class SynapseAppDelegate: NSObject, NSApplicationDelegate {
             }
             currentDir = parentDir
         }
-        
+
         // If no .synapse folder found, return the original directory
         // This handles legacy vaults without .synapse folder
         var originalIsDirectory: ObjCBool = false
@@ -142,7 +142,7 @@ struct SynapseApp: App {
                     .environmentObject(themeEnv)
                     .tint(SynapseTheme.accent)
                     .preferredColorScheme(themeEnv.isLightTheme ? .light : .dark)
-                    .frame(minWidth: 900, minHeight: 600)
+                    .frame(minHeight: 300)
                     .onAppear {
                         autoUpdater.checkForUpdatesOnLaunch()
                         // Wire up app delegate to appState
