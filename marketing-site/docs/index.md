@@ -26,8 +26,6 @@ Once your vault is opened, consider configuring the following:
 
 ## Features
 
-![](images/hero-2.png)
-
 Synapse packs a robust set of features to boost your productivity.
 
 ### Markdown Editor
@@ -46,6 +44,8 @@ Synapse packs a robust set of features to boost your productivity.
 - **Split Panes:** Work efficiently by splitting your editor vertically or horizontally.
 - **Command Palette:** Quickly find files or insert templates from anywhere.
 - **Mobile Search:** Search within the current note from the editor toolbar, or search across your entire vault from the file drawer.
+
+![](images/hero-2.png)
 
 ### Graph View
 Visualize connections between your notes.
@@ -88,6 +88,12 @@ Synapse can automatically hide files and folders that your project's `.gitignore
 - Enable or disable this in **Settings → File Browser → Respect .gitignore** (on by default).
 - Nested `.gitignore` files and global git ignores are honoured automatically.
 - Non-git vaults are unaffected — scanning works normally.
+
+### Themes
+
+Synapse has full theme support, with the ability to use one of our existing dark/light themes or create your own!
+
+![](images/themes.png)
 
 ### Vault-Specific Settings
 Settings automatically sync with your vault. When you open a vault, Synapse stores its settings in `.synapse/settings.yml` at the vault root:
