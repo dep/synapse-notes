@@ -2261,6 +2261,54 @@ class AppState: ObservableObject {
         }
     }
 
+    /// Moves a file from its current location into a new folder.
+    ///
+    /// - Parameters:
+    ///   - url: The source file URL. Must be a regular file (not a directory).
+    ///   - destinationFolder: The target directory.
+    ///   - overwrite: When `true`, any existing file with the same name at the
+    ///     destination is removed before the move. Defaults to `false`.
+    /// - Returns: The new URL of the moved file.
+    /// - Throws: `FileBrowserError.noWorkspace` when no vault is open,
+    ///   `FileBrowserError.operationFailed` when the source does not exist or the
+    ///   file-system operation fails, or `FileBrowserError.itemAlreadyExists` when a
+    ///   file with the same name already exists at the destination and `overwrite` is
+    ///   `false`.
+    @discardableResult
+    func moveFile(at url: URL, toFolder destinationFolder: URL, overwrite: Bool = false) throws -> URL {
+        guard rootURL != nil else { throw FileBrowserError.noWorkspace }
+        let fm = FileManager.default
+
+        guard fm.fileExists(atPath: url.path) else {
+            throw FileBrowserError.operationFailed("The file no longer exists at \(url.lastPathComponent).")
+        }
+
+        let destination = standardized(destinationFolder.appendingPathComponent(url.lastPathComponent))
+        let sourceStd = standardized(url)
+
+        // No-op: already in the target folder.
+        if sourceStd.deletingLastPathComponent() == standardized(destinationFolder) {
+            return sourceStd
+        }
+
+        if fm.fileExists(atPath: destination.path) {
+            guard overwrite else {
+                throw FileBrowserError.itemAlreadyExists(url.lastPathComponent)
+            }
+            try fm.removeItem(at: destination)
+        }
+
+        do {
+            try fm.moveItem(at: sourceStd, to: destination)
+        } catch {
+            throw FileBrowserError.operationFailed("Could not move \(url.lastPathComponent).")
+        }
+
+        updateSelectionAfterMove(from: sourceStd, to: destination)
+        refreshAllFiles()
+        return destination
+    }
+
     func deleteItem(at url: URL) throws {
         do {
             try FileManager.default.removeItem(at: url)
