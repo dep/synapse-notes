@@ -11,6 +11,8 @@ final class AppThemeTests: XCTestCase {
         let names = AppTheme.builtInThemes.map(\.name)
         XCTAssertTrue(names.contains("Synapse (Dark)"))
         XCTAssertTrue(names.contains("Synapse (Light)"))
+        XCTAssertTrue(names.contains("Sacred (Dark)"))
+        XCTAssertTrue(names.contains("Sacred (Light)"))
         XCTAssertTrue(names.contains("Solarized (Dark)"))
         XCTAssertTrue(names.contains("Dracula (Dark)"))
         XCTAssertTrue(names.contains("GitHub (Dark)"))
@@ -22,8 +24,8 @@ final class AppThemeTests: XCTestCase {
         XCTAssertTrue(names.contains("Deuteranopia (Dark)"))
     }
 
-    func test_builtInThemes_containsElevenThemes() {
-        XCTAssertEqual(AppTheme.builtInThemes.count, 11)
+    func test_builtInThemes_containsThirteenThemes() {
+        XCTAssertEqual(AppTheme.builtInThemes.count, 13)
     }
 
     func test_minimalistDark_usesReadableSelectionAccentTokens() {

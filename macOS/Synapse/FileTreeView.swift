@@ -285,19 +285,17 @@ struct FileTreeView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: SynapseTheme.Layout.phi * 4) {
                 Text("Library")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(SynapseTheme.textMuted)
+                    .textCase(.uppercase)
                 Text(appState.rootURL?.lastPathComponent ?? "Files")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(SynapseTheme.textPrimary)
-                HStack(spacing: 8) {
+                HStack(spacing: SynapseTheme.Layout.spaceSmall) {
                     TinyBadge(text: "\(appState.allFiles.count) notes")
-                    if !nodes.isEmpty {
-                        TinyBadge(text: "\(nodes.count) root items")
-                    }
                 }
             }
             Spacer()
@@ -811,18 +809,20 @@ struct FileNodeRow: View {
     var body: some View {
         Group {
             HStack(spacing: 4) {
-                Spacer().frame(width: CGFloat(depth) * 16)
+                Spacer().frame(width: CGFloat(depth) * SynapseTheme.Layout.fileTreeIndentWidth)
 
                 if node.isDirectory {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
+                        .font(.system(size: 8, weight: .bold))
                         .frame(width: 10)
+                        .foregroundStyle(SynapseTheme.textMuted)
                     Image(systemName: isTemplatesDirectory ? "folder.badge.gearshape.fill" : "folder.fill")
                         .foregroundStyle(SynapseTheme.accent)
                 } else {
                     Spacer().frame(width: 10)
-                    Image(systemName: node.isMarkdown ? "doc.text" : "doc.plaintext")
-                        .foregroundStyle(node.isMarkdown ? SynapseTheme.textPrimary : SynapseTheme.textSecondary)
+                    Image(systemName: node.isMarkdown ? "doc.text.fill" : "doc.text")
+                        .foregroundStyle(node.isMarkdown ? SynapseTheme.accent : SynapseTheme.textMuted)
+                        .opacity(0.8)
                 }
 
                 Text(node.name)
@@ -837,16 +837,16 @@ struct FileNodeRow: View {
 
                 Spacer()
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 5)
             .padding(.horizontal, 8)
             .background {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(isDragTarget
                           ? SynapseTheme.accent.opacity(0.18)
                           : isSelected ? SynapseTheme.accentSoft : SynapseTheme.row)
                     .overlay {
                         if isDragTarget {
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .stroke(SynapseTheme.accent, lineWidth: 1.5)
                         }
                     }

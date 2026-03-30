@@ -96,6 +96,7 @@
 		716F196A70B019DB1125E38F /* AppStateCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56691DF2CDDFA2DF5F263CF3 /* AppStateCoreTests.swift */; };
 		726A539D32A11574BB72A17D /* AppStateExitVaultFullTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490C9CA7FD044A526559CA53 /* AppStateExitVaultFullTests.swift */; };
 		72B187CC92232606DB011D92 /* InlineTagStylingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144B3EA17E9D478AD62ED9A5 /* InlineTagStylingTests.swift */; };
+		72CDC61F089682F4EC22458B /* SortCriterionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5CBC88B1291430D783E2169 /* SortCriterionTests.swift */; };
 		7371C3F9A6EADA8C24730961 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 09980A02177F156C0F1B20D8 /* Yams */; };
 		7715A2594C966414407B38C9 /* SettingsPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37535D804D7598740D99FEDD /* SettingsPersistenceTests.swift */; };
 		7841C9E4C60EE935FA8109EF /* AppStateSyncToRemoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CC853F6E8FEBD07D8F6509D /* AppStateSyncToRemoteTests.swift */; };
@@ -199,6 +200,7 @@
 		F74DC7FF8A8BF5743CE92337 /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77EFD07F12F0D2B96BFEA6E0 /* SyntaxHighlighter.swift */; };
 		F7FD9E9AD76FFDC35BEFB9FE /* EditorStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA183A2B420DA7C4261DEBD8 /* EditorStateTests.swift */; };
 		F8CE6A091363039D10951B3F /* MarkdownPreviewCSS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575EBDEB0FCDE2BC05FFF26C /* MarkdownPreviewCSS.swift */; };
+		F9F4DA3682F63DC0C0AE6E4B /* ThemeEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD5F4BF1B221EC143CBF1982 /* ThemeEnvironmentTests.swift */; };
 		FA748D708DD0F029A45CA494 /* GraphPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ADBC72A6A85DB161568424D /* GraphPaneView.swift */; };
 		FB69E60D92275DD48F59979D /* SettingsManagerRemovePaneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8385D1262EFC1C89910D50A1 /* SettingsManagerRemovePaneTests.swift */; };
 		FD54F8F02EEBBF560E956885 /* SettingsManagerBrowserStartupURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26693477A455D0812BEF659A /* SettingsManagerBrowserStartupURLTests.swift */; };
@@ -359,6 +361,7 @@
 		B27EA6038CE434E63D723B28 /* AppStateInactivePaneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateInactivePaneTests.swift; sourceTree = "<group>"; };
 		B2933BCDF0B2B56488D2D9F4 /* TerminalPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPaneView.swift; sourceTree = "<group>"; };
 		B36D775B1AD89841EFA0C7C7 /* MarkdownTablePrettifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTablePrettifier.swift; sourceTree = "<group>"; };
+		B5CBC88B1291430D783E2169 /* SortCriterionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortCriterionTests.swift; sourceTree = "<group>"; };
 		B5D92FC21925B030CA71BEB4 /* SaveButtonVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveButtonVisibilityTests.swift; sourceTree = "<group>"; };
 		B6076EE60ED15C4BA9011BE7 /* AppStateNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateNavigationTests.swift; sourceTree = "<group>"; };
 		B916ADB0587845108BD3EF62 /* EditorModeToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorModeToggle.swift; sourceTree = "<group>"; };
@@ -380,6 +383,7 @@
 		CCA291BB0D7F58173BE62A2C /* MarkdownEditorSemanticStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditorSemanticStyles.swift; sourceTree = "<group>"; };
 		CD119E93048F3C571E60BD8A /* AppConstantsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstantsTests.swift; sourceTree = "<group>"; };
 		CD24A6CF1D5D237DEE3390E6 /* EditorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorState.swift; sourceTree = "<group>"; };
+		CD5F4BF1B221EC143CBF1982 /* ThemeEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeEnvironmentTests.swift; sourceTree = "<group>"; };
 		D3088575F730FD77375CDC73 /* VaultIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultIndexTests.swift; sourceTree = "<group>"; };
 		D4482EC8C9915BC9A0022159 /* AppStateSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateSaveTests.swift; sourceTree = "<group>"; };
 		D688EED08E44E1A4DAD82C72 /* AppStateRefreshFilesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateRefreshFilesTests.swift; sourceTree = "<group>"; };
@@ -630,6 +634,7 @@
 				CB3B1F42FA2D44B23BE869BF /* SidebarPaneItemCodableTests.swift */,
 				79CCB6B287F3565EC8CEF2AF /* SidebarPaneTitleTests.swift */,
 				0584EC822EFEC9CD5AA1241C /* SlashCommandsTests.swift */,
+				B5CBC88B1291430D783E2169 /* SortCriterionTests.swift */,
 				58B5194AC3C7EE4980499F00 /* SplitPaneKeyboardAndCursorTests.swift */,
 				85E73CBBC3E1A1A65EC1C1AA /* SynapseThemeConstantsTests.swift */,
 				ACDCB904B2D9DC31F370D424 /* SynapseThemeLayoutConstantsTests.swift */,
@@ -639,6 +644,7 @@
 				C5928863F052D71F95DEA4C4 /* TaskListCheckboxInteractionTests.swift */,
 				FEFD465FCA255C7225417AB1 /* TemplatesDirectoryHiddenFolderTests.swift */,
 				47250559CE52FF1D2C46C549 /* TemplatesDirectoryUIBehaviorTests.swift */,
+				CD5F4BF1B221EC143CBF1982 /* ThemeEnvironmentTests.swift */,
 				C2B942CDAEC5B557F6B0ABE9 /* VaultFullTextSearchTests.swift */,
 				41163003C27A75907A3B1909 /* VaultIndexNotifyTests.swift */,
 				D3088575F730FD77375CDC73 /* VaultIndexTests.swift */,
@@ -882,6 +888,7 @@
 				6C4F37B062382BC0D458C214 /* SidebarPaneItemCodableTests.swift in Sources */,
 				3D8E450676D3E902377E71F5 /* SidebarPaneTitleTests.swift in Sources */,
 				AA87DDE9D7A227F45AFF75F0 /* SlashCommandsTests.swift in Sources */,
+				72CDC61F089682F4EC22458B /* SortCriterionTests.swift in Sources */,
 				70792E277639E834624DC380 /* SplitPaneKeyboardAndCursorTests.swift in Sources */,
 				B10BC1B3768ED86267DC09FC /* SynapseThemeConstantsTests.swift in Sources */,
 				86E0161BF2CD685ACD548296 /* SynapseThemeLayoutConstantsTests.swift in Sources */,
@@ -891,6 +898,7 @@
 				E2E8123275C188D9FD5C8204 /* TaskListCheckboxInteractionTests.swift in Sources */,
 				0BAD97ABBAA364DB85827080 /* TemplatesDirectoryHiddenFolderTests.swift in Sources */,
 				4DCEA0C615CA64683100C661 /* TemplatesDirectoryUIBehaviorTests.swift in Sources */,
+				F9F4DA3682F63DC0C0AE6E4B /* ThemeEnvironmentTests.swift in Sources */,
 				2090AC5921E42CC1E91C1CEF /* VaultFullTextSearchTests.swift in Sources */,
 				C786C6538DD91671FCB92EEC /* VaultIndexNotifyTests.swift in Sources */,
 				6BB676AA07F70C9D85355EF6 /* VaultIndexTests.swift in Sources */,

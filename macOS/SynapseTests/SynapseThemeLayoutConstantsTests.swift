@@ -25,46 +25,46 @@ final class SynapseThemeLayoutConstantsTests: XCTestCase {
                           "Min right sidebar width must be less than max")
     }
 
-    func test_minLeftSidebarWidth_is220() {
-        XCTAssertEqual(SynapseTheme.Layout.minLeftSidebarWidth, 220)
+    func test_minLeftSidebarWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.minLeftSidebarWidth, 180 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_maxLeftSidebarWidth_is420() {
-        XCTAssertEqual(SynapseTheme.Layout.maxLeftSidebarWidth, 420)
+    func test_maxLeftSidebarWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.maxLeftSidebarWidth, 260 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_minRightSidebarWidth_is280() {
-        XCTAssertEqual(SynapseTheme.Layout.minRightSidebarWidth, 280)
+    func test_minRightSidebarWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.minRightSidebarWidth, 200 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_maxRightSidebarWidth_is620() {
-        XCTAssertEqual(SynapseTheme.Layout.maxRightSidebarWidth, 620)
+    func test_maxRightSidebarWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.maxRightSidebarWidth, 380 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
     // MARK: - Layout: editor and pane constraints
 
-    func test_minEditorWidth_is420() {
-        XCTAssertEqual(SynapseTheme.Layout.minEditorWidth, 420)
+    func test_minEditorWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.minEditorWidth, 400 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_minPaneHeight_is80() {
-        XCTAssertEqual(SynapseTheme.Layout.minPaneHeight, 80)
+    func test_minPaneHeight_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.minPaneHeight, 50 * (SynapseTheme.Layout.phi * SynapseTheme.Layout.phi), accuracy: 0.1)
     }
 
-    func test_fileTreeIndentWidth_is16() {
-        XCTAssertEqual(SynapseTheme.Layout.fileTreeIndentWidth, 16)
+    func test_fileTreeIndentWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.fileTreeIndentWidth, 10 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_completionPopoverWidth_is420() {
-        XCTAssertEqual(SynapseTheme.Layout.completionPopoverWidth, 420)
+    func test_completionPopoverWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.completionPopoverWidth, 260 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_completionPopoverHeight_is260() {
-        XCTAssertEqual(SynapseTheme.Layout.completionPopoverHeight, 260)
+    func test_completionPopoverHeight_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.completionPopoverHeight, 160 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_embeddedPanelWidth_is320() {
-        XCTAssertEqual(SynapseTheme.Layout.embeddedPanelWidth, 320)
+    func test_embeddedPanelWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Layout.embeddedPanelWidth, 200 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
     // MARK: - Editor: font sizes
@@ -77,24 +77,24 @@ final class SynapseThemeLayoutConstantsTests: XCTestCase {
         XCTAssertEqual(SynapseTheme.Editor.monoFontSize, 13)
     }
 
-    func test_h1FontSize_is28() {
-        XCTAssertEqual(SynapseTheme.Editor.h1FontSize, 28)
+    func test_h1FontSize_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Editor.h1FontSize, 15 * (SynapseTheme.Layout.phi * SynapseTheme.Layout.phi), accuracy: 0.1)
     }
 
-    func test_h2FontSize_is22() {
-        XCTAssertEqual(SynapseTheme.Editor.h2FontSize, 22)
+    func test_h2FontSize_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Editor.h2FontSize, 15 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
-    func test_h3FontSize_is18() {
-        XCTAssertEqual(SynapseTheme.Editor.h3FontSize, 18)
+    func test_h3FontSize_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Editor.h3FontSize, 15 * (SynapseTheme.Layout.phi * 0.8), accuracy: 0.1)
     }
 
     func test_h4FontSize_is16() {
-        XCTAssertEqual(SynapseTheme.Editor.h4FontSize, 16)
+        XCTAssertEqual(SynapseTheme.Editor.h4FontSize, 16.05, accuracy: 0.1)
     }
 
-    func test_maxInlinePreviewWidth_is520() {
-        XCTAssertEqual(SynapseTheme.Editor.maxInlinePreviewWidth, 520)
+    func test_maxInlinePreviewWidth_isExpectedValue() {
+        XCTAssertEqual(SynapseTheme.Editor.maxInlinePreviewWidth, 320 * SynapseTheme.Layout.phi, accuracy: 0.1)
     }
 
     // MARK: - Heading sizes must decrease monotonically from h1 to h4

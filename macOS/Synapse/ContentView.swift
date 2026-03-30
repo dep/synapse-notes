@@ -140,9 +140,9 @@ struct ContentView: View {
     @EnvironmentObject var autoUpdater: AutoUpdater
     @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var keyEventMonitor: Any?
-    @State private var leftSidebarWidth: CGFloat = 280
-    @State private var rightSidebarPrimaryWidth: CGFloat = 380
-    @State private var rightSidebarSecondaryWidth: CGFloat = 300
+    @State private var leftSidebarWidth: CGFloat = SynapseTheme.Layout.minLeftSidebarWidth
+    @State private var rightSidebarPrimaryWidth: CGFloat = SynapseTheme.Layout.minRightSidebarWidth + 100
+    @State private var rightSidebarSecondaryWidth: CGFloat = 180 * SynapseTheme.Layout.phi
     @State private var showUpdateBanner: Bool = false
     /// Tracks which sidebars were collapsed automatically (by window resize) so
     /// we only auto-expand those — never sidebars the user manually collapsed.
@@ -455,9 +455,9 @@ struct ContentView: View {
     }
 
     private var headerBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: SynapseTheme.Layout.spaceMedium) {
             // Left side: Title, folder, and navigation
-            HStack(spacing: 10) {
+            HStack(spacing: SynapseTheme.Layout.spaceSmall) {
                 Text("Synapse")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(SynapseTheme.textPrimary)
@@ -503,7 +503,7 @@ struct ContentView: View {
                     .keyboardShortcut("]", modifiers: [.command, .shift])
                     .hidden()
                 }
-                .padding(.leading, 8)
+                .padding(.leading, SynapseTheme.Layout.spaceSmall)
             }
 
             Spacer(minLength: 0)
@@ -513,7 +513,7 @@ struct ContentView: View {
             }
 
             // Right side: Other toolbar buttons (without back/forward)
-            HStack(spacing: 8) {
+            HStack(spacing: SynapseTheme.Layout.spaceSmall) {
                 Button(action: { appState.openGraphTab() }) {
                     Image(systemName: "circle.grid.2x2")
                 }
@@ -556,8 +556,8 @@ struct ContentView: View {
                 .help("Exit Vault (⌘⇧N)")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, SynapseTheme.Layout.spaceLarge)
+        .padding(.vertical, SynapseTheme.Layout.spaceMedium)
         .background(SynapseTheme.panelElevated)
     }
 

@@ -36,7 +36,7 @@ struct SplitPaneEditorView: View {
     private func pane(index: Int) -> some View {
         PaneView(paneIndex: index)
             .environmentObject(appState)
-            .frame(minWidth: 300)
+            .frame(minWidth: SynapseTheme.Layout.minEditorWidth / 2.0)
     }
 }
 
@@ -67,7 +67,7 @@ struct PaneView: View {
             }
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 0)
+            Rectangle()
                 .stroke(isActive ? SynapseTheme.accent.opacity(0.4) : Color.clear, lineWidth: 1)
                 .allowsHitTesting(false)
         )
@@ -92,7 +92,7 @@ struct PaneView: View {
 
             Button(action: { appState.closePane(paneIndex) }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(SynapseTheme.textMuted)
                     .frame(width: 22, height: 22)
                     .contentShape(Rectangle())
@@ -108,7 +108,7 @@ struct PaneView: View {
             .padding(.trailing, 4)
             .help("Close Pane")
         }
-        .frame(height: 32)
+        .frame(height: 20 * SynapseTheme.Layout.phi)
         .background(SynapseTheme.editorShell)
         .overlay(
             Rectangle()
@@ -134,13 +134,13 @@ struct InactivePaneTabBar: View {
             ForEach(Array(appState.inactivePane(paneIndex).tabs.enumerated()), id: \.offset) { index, tab in
                 let isActive = index == appState.inactivePane(paneIndex).activeTabIndex
                 Text(tab.displayName)
-                    .font(.system(size: 12, weight: isActive ? .semibold : .medium))
+                    .font(.system(size: 12, weight: isActive ? .semibold : .medium, design: .rounded))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .foregroundColor(isActive ? SynapseTheme.textPrimary : SynapseTheme.textSecondary)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, SynapseTheme.Layout.spaceMedium)
                     .padding(.vertical, 6)
-                    .frame(height: 32)
+                    .frame(height: 20 * SynapseTheme.Layout.phi)
                     .background(isActive ? SynapseTheme.tabActive : Color.clear)
                     .onTapGesture {
                         appState.focusPane(paneIndex)

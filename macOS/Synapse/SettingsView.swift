@@ -35,12 +35,14 @@ struct SettingsView: View {
         Form {
             // MARK: - Appearance Section
             Section {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: SynapseTheme.Layout.spaceMedium) {
                     // Theme picker
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Theme")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.0)
                             .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
 
                         ThemePicker(
                             allThemes: settings.allThemes,
@@ -50,16 +52,16 @@ struct SettingsView: View {
                     }
 
                     // Export / Import buttons
-                    HStack(spacing: 8) {
+                    HStack(spacing: SynapseTheme.Layout.spaceSmall) {
                         Button("Export Theme…") {
                             exportActiveTheme()
                         }
-                        .font(.system(size: 11))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
 
                         Button("Import Theme…") {
                             importTheme()
                         }
-                        .font(.system(size: 11))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
 
                         if !settings.customThemes.isEmpty {
                             Spacer()
@@ -191,8 +193,10 @@ struct SettingsView: View {
                     // Body Font Picker
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Body Font")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.0)
                             .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
                         
                         FontPicker(
                             selection: $settings.editorBodyFontFamily,
@@ -205,8 +209,10 @@ struct SettingsView: View {
                     // Monospace Font Picker
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Monospace Font")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.0)
                             .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
                         
                         FontPicker(
                             selection: $settings.editorMonospaceFontFamily,
@@ -219,8 +225,10 @@ struct SettingsView: View {
                     // Font Size Field
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Font Size")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.0)
                             .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
                         
                         HStack(spacing: 8) {
                             TextField("", value: $settings.editorFontSize, format: .number)
@@ -237,8 +245,10 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Line Height")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.0)
                             .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
 
                         HStack(spacing: 8) {
                             TextField("", value: $settings.editorLineHeight, format: .number.precision(.fractionLength(1)))

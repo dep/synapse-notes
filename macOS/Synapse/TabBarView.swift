@@ -24,7 +24,7 @@ struct TabBarView: View {
 
             Spacer()
         }
-        .frame(height: 32)
+        .frame(height: 20 * SynapseTheme.Layout.phi)
         .background(SynapseTheme.editorShell)
         .overlay(
             Rectangle()
@@ -47,7 +47,7 @@ struct TabItemView: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(displayName)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12, weight: isActive ? .bold : .medium, design: .rounded))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .foregroundColor(isActive ? SynapseTheme.textPrimary : SynapseTheme.textSecondary)
@@ -55,7 +55,7 @@ struct TabItemView: View {
             if isHovered || isActive {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 8, weight: .bold))
                         .foregroundColor(SynapseTheme.textMuted)
                         .frame(width: 16, height: 16)
                         .contentShape(Rectangle())
@@ -66,9 +66,9 @@ struct TabItemView: View {
                     .frame(width: 16, height: 16)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, SynapseTheme.Layout.spaceMedium)
         .padding(.vertical, 6)
-        .frame(height: 32)
+        .frame(height: 20 * SynapseTheme.Layout.phi)
         .background(
             isActive ? SynapseTheme.tabActive : Color.clear
         )

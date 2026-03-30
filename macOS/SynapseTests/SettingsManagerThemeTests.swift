@@ -113,10 +113,11 @@ final class SettingsManagerThemeTests: XCTestCase {
     func test_allThemes_containsBuiltInsFirst() {
         let all = sut.allThemes
         let names = all.map(\.name)
+        // Built-in themes order: Synapse (Dark), Synapse (Light), Sacred (Dark), Sacred (Light), Solarized (Dark), Dracula (Dark), ...
         XCTAssertTrue(names.prefix(4).contains("Synapse (Dark)"))
         XCTAssertTrue(names.prefix(4).contains("Synapse (Light)"))
-        XCTAssertTrue(names.prefix(4).contains("Solarized (Dark)"))
-        XCTAssertTrue(names.prefix(4).contains("Dracula (Dark)"))
+        XCTAssertTrue(names.prefix(4).contains("Sacred (Dark)"))
+        XCTAssertTrue(names.prefix(4).contains("Sacred (Light)"))
     }
 
     func test_allThemes_appendsCustomThemesAfterBuiltIns() {

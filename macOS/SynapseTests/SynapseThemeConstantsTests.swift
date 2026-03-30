@@ -11,11 +11,11 @@ import SwiftUI
 final class SynapseThemeConstantsTests: XCTestCase {
 
     func test_accentColor_matchesDesignToken() {
-        XCTAssertEqual(AppTheme.synapseDark.colors["accent"], "#47A8FA")
+        XCTAssertEqual(AppTheme.synapseDark.colors["accent"], "#1F6FBF")
     }
 
     func test_accentSoftColor_matchesDesignToken() {
-        XCTAssertEqual(AppTheme.synapseDark.colors["accent.soft"], "#337AE3")
+        XCTAssertEqual(AppTheme.synapseDark.colors["accent.soft"], "#174F8A")
     }
 
     func test_successAndErrorColors_matchDesignTokens() {

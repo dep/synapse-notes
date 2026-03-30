@@ -49,26 +49,35 @@ enum AppConstants {
 
 extension SynapseTheme {
     enum Layout {
-        static let minLeftSidebarWidth: CGFloat = 220
-        static let maxLeftSidebarWidth: CGFloat = 420
-        static let minRightSidebarWidth: CGFloat = 280
-        static let maxRightSidebarWidth: CGFloat = 620
-        static let minEditorWidth: CGFloat = 420
-        static let minPaneHeight: CGFloat = 80
-        static let fileTreeIndentWidth: CGFloat = 16
-        static let completionPopoverWidth: CGFloat = 420
-        static let completionPopoverHeight: CGFloat = 260
-        static let embeddedPanelWidth: CGFloat = 320
+        /// The Golden Ratio (phi)
+        static let phi: CGFloat = 1.61803398875
+        
+        static let baseUnit: CGFloat = 8.0
+        static let spaceSmall: CGFloat = baseUnit * 1.0           // 8.0
+        static let spaceMedium: CGFloat = baseUnit * phi         // ~13.0
+        static let spaceLarge: CGFloat = baseUnit * (phi * phi)  // ~21.0
+        static let spaceExtraLarge: CGFloat = baseUnit * pow(phi, 3) // ~34.0
+
+        static let minLeftSidebarWidth: CGFloat = 180 * phi      // ~291
+        static let maxLeftSidebarWidth: CGFloat = 260 * phi      // ~420
+        static let minRightSidebarWidth: CGFloat = 200 * phi     // ~324
+        static let maxRightSidebarWidth: CGFloat = 380 * phi     // ~615
+        static let minEditorWidth: CGFloat = 400 * phi           // ~647
+        static let minPaneHeight: CGFloat = 50 * (phi * phi)     // ~130
+        static let fileTreeIndentWidth: CGFloat = 10 * phi       // ~16
+        static let completionPopoverWidth: CGFloat = 260 * phi   // ~420
+        static let completionPopoverHeight: CGFloat = 160 * phi  // ~260
+        static let embeddedPanelWidth: CGFloat = 200 * phi       // ~324
     }
 
     enum Editor {
         static let bodyFontSize: CGFloat = 15
         static let monoFontSize: CGFloat = 13
-        static let h1FontSize: CGFloat = 28
-        static let h2FontSize: CGFloat = 22
-        static let h3FontSize: CGFloat = 18
-        static let h4FontSize: CGFloat = 16
-        static let maxInlinePreviewWidth: CGFloat = 520
+        static let h1FontSize: CGFloat = bodyFontSize * (Layout.phi * Layout.phi) // ~39
+        static let h2FontSize: CGFloat = bodyFontSize * Layout.phi               // ~24
+        static let h3FontSize: CGFloat = bodyFontSize * (Layout.phi * 0.8)       // ~18
+        static let h4FontSize: CGFloat = bodyFontSize * 1.07                     // ~16
+        static let maxInlinePreviewWidth: CGFloat = 320 * Layout.phi             // ~518
     }
 }
 
@@ -76,11 +85,11 @@ extension SynapseTheme {
 
 extension SynapseTheme.Layout {
     /// Window width above which all three sidebars are shown expanded.
-    static let allSidebarsExpandedWidth: CGFloat = 1480
+    static let allSidebarsExpandedWidth: CGFloat = 800 * phi      // ~1294
     /// Window width above which left + right1 are shown (right2 collapsed).
-    static let twoSidebarsExpandedWidth: CGFloat = 1125
+    static let twoSidebarsExpandedWidth: CGFloat = 600 * phi      // ~970
     /// Window width above which only the left sidebar is shown (right1 + right2 collapsed).
-    static let oneSidebarExpandedWidth: CGFloat = 900
+    static let oneSidebarExpandedWidth: CGFloat = 500 * phi       // ~809
 }
 
 /// Returns the set of fixed sidebar IDs that should be auto-collapsed for the given window width.

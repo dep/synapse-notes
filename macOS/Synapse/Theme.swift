@@ -61,7 +61,32 @@ enum SynapseTheme {
 
 struct AppBackdrop: View {
     var body: some View {
-        SynapseTheme.canvas.ignoresSafeArea()
+        ZStack {
+            SynapseTheme.canvas.ignoresSafeArea()
+            SacredGeometryPattern()
+                .opacity(0.03)
+                .blendMode(.plusLighter)
+                .ignoresSafeArea()
+        }
+    }
+}
+
+struct SacredGeometryPattern: View {
+    var body: some View {
+        Canvas { context, size in
+            let phi = SynapseTheme.Layout.phi
+            let step = 60.0 * phi
+            let radius = step * (phi / 2.0)
+            
+            for y in stride(from: 0.0, to: size.height + step, by: step * 0.866) {
+                let xOffset = (Int(y / (step * 0.866)) % 2 == 0) ? 0 : step / 2.0
+                for x in stride(from: -step, to: size.width + step, by: step) {
+                    let center = CGPoint(x: x + xOffset, y: y)
+                    let circle = Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+                    context.stroke(circle, with: .color(Color.white), lineWidth: 0.5)
+                }
+            }
+        }
     }
 }
 
@@ -77,13 +102,13 @@ struct PanelSurface: ViewModifier {
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
                             .stroke(SynapseTheme.border, lineWidth: 1)
                     }
-                    .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 4)
+                    .shadow(color: .black.opacity(0.15), radius: SynapseTheme.Layout.spaceSmall, x: 0, y: 4)
             }
     }
 }
 
 extension View {
-    func synapsePanel(radius: CGFloat = 6) -> some View {
+    func synapsePanel(radius: CGFloat = SynapseTheme.Layout.spaceSmall) -> some View {
         modifier(PanelSurface(radius: radius))
     }
 }
@@ -93,13 +118,13 @@ struct ChromeButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 13, weight: .semibold, design: .rounded))
             .foregroundStyle(SynapseTheme.textPrimary)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, SynapseTheme.Layout.spaceMedium)
             .padding(.vertical, 7)
             .background {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.white.opacity(configuration.isPressed ? 0.08 : 0.04))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(Color.white.opacity(0.06), lineWidth: 1)
                     }
             }
@@ -118,13 +143,13 @@ struct PrimaryChromeButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: 13, weight: .bold, design: .rounded))
             .foregroundStyle(Color.white)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, SynapseTheme.Layout.spaceLarge)
             .padding(.vertical, 7)
             .background {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(SynapseTheme.accent)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(Color.white.opacity(0.10), lineWidth: 1)
                     }
                     .opacity(configuration.isPressed ? 0.88 : 1)
@@ -145,13 +170,14 @@ struct TinyBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .tracking(0.5)
             .foregroundStyle(color)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, SynapseTheme.Layout.spaceSmall)
             .padding(.vertical, 3)
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .stroke(Color.white.opacity(0.06), lineWidth: 1)
             }
     }

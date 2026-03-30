@@ -714,7 +714,7 @@ struct RawEditor: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
-        textView.textContainerInset = NSSize(width: 24, height: 24)
+        textView.textContainerInset = NSSize(width: SynapseTheme.Layout.spaceExtraLarge, height: SynapseTheme.Layout.spaceExtraLarge)
         textView.textContainer?.widthTracksTextView = true
         textView.allowsUndo = true
         textView.drawsBackground = true
@@ -1142,7 +1142,7 @@ struct MarkdownTheme {
     
     static func monoFont(for settings: SettingsManager) -> NSFont {
         let baseSize = CGFloat(settings.editorFontSize)
-        let size = max(10, baseSize - 2) // Monospace is 2 points smaller, minimum 10
+        let size = max(10, baseSize / SynapseTheme.Layout.phi)
         if settings.editorMonospaceFontFamily.isEmpty || settings.editorMonospaceFontFamily == "System Monospace" {
             return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         }
@@ -1151,7 +1151,7 @@ struct MarkdownTheme {
     }
     
     static func h1Font(for settings: SettingsManager) -> NSFont {
-        let size = round(CGFloat(settings.editorFontSize) * 1.87) // 28/15 ≈ 1.87
+        let size = round(CGFloat(settings.editorFontSize) * (SynapseTheme.Layout.phi * SynapseTheme.Layout.phi))
         if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
             return NSFont.systemFont(ofSize: size, weight: .bold)
         }
@@ -1160,7 +1160,7 @@ struct MarkdownTheme {
     }
     
     static func h2Font(for settings: SettingsManager) -> NSFont {
-        let size = round(CGFloat(settings.editorFontSize) * 1.47) // 22/15 ≈ 1.47
+        let size = round(CGFloat(settings.editorFontSize) * SynapseTheme.Layout.phi)
         if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
             return NSFont.systemFont(ofSize: size, weight: .bold)
         }
@@ -1169,7 +1169,7 @@ struct MarkdownTheme {
     }
     
     static func h3Font(for settings: SettingsManager) -> NSFont {
-        let size = round(CGFloat(settings.editorFontSize) * 1.2) // 18/15 = 1.2
+        let size = round(CGFloat(settings.editorFontSize) * (SynapseTheme.Layout.phi * 0.8))
         if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
             return NSFont.systemFont(ofSize: size, weight: .semibold)
         }
@@ -1178,7 +1178,7 @@ struct MarkdownTheme {
     }
     
     static func h4Font(for settings: SettingsManager) -> NSFont {
-        let size = round(CGFloat(settings.editorFontSize) * 1.07) // 16/15 ≈ 1.07
+        let size = round(CGFloat(settings.editorFontSize) * 1.07)
         if settings.editorBodyFontFamily.isEmpty || settings.editorBodyFontFamily == "System" {
             return NSFont.systemFont(ofSize: size, weight: .semibold)
         }

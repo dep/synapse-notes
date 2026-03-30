@@ -12,16 +12,16 @@ struct FolderPickerView: View {
             VStack {
                 Spacer(minLength: 0)
 
-                VStack(spacing: 18) {
+                VStack(spacing: SynapseTheme.Layout.spaceLarge) {
                     // App Icon Representation
                     Image(nsImage: NSApp.applicationIconImage)
                         .resizable()
-                        .frame(width: 96, height: 96)
-                        .padding(.bottom, 8)
+                        .frame(width: 80 * SynapseTheme.Layout.phi, height: 80 * SynapseTheme.Layout.phi)
+                        .padding(.bottom, SynapseTheme.Layout.spaceSmall)
 
-                    VStack(spacing: 10) {
+                    VStack(spacing: SynapseTheme.Layout.spaceMedium) {
                         Text("Synapse")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .font(.system(size: 20 * (SynapseTheme.Layout.phi * SynapseTheme.Layout.phi), weight: .bold, design: .rounded))
                             .foregroundStyle(SynapseTheme.textPrimary)
 
                         Text("A sleek markdown workspace with a focused editor, polished navigation, and a built-in terminal.")
@@ -29,38 +29,39 @@ struct FolderPickerView: View {
                             .foregroundStyle(SynapseTheme.textSecondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: 360)
+                            .lineSpacing(4)
+                            .frame(maxWidth: 220 * SynapseTheme.Layout.phi)
                     }
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: SynapseTheme.Layout.spaceSmall) {
                         TinyBadge(text: "Dark canvas")
                         TinyBadge(text: "Live markdown")
                         TinyBadge(text: "Terminal ready")
                     }
 
-                    VStack(spacing: 10) {
+                    VStack(spacing: SynapseTheme.Layout.spaceMedium) {
                         Button(action: appState.pickFolder) {
                             Label("Open Folder…", systemImage: "folder.badge.plus")
-                                .frame(width: 210)
+                                .frame(width: 130 * SynapseTheme.Layout.phi)
                         }
                         .buttonStyle(PrimaryChromeButtonStyle())
                         .keyboardShortcut(.defaultAction)
 
                         Button(action: { isCloneSheetPresented = true }) {
                             Label("Clone Repository…", systemImage: "arrow.down.to.line")
-                                .frame(width: 210)
+                                .frame(width: 130 * SynapseTheme.Layout.phi)
                         }
                         .buttonStyle(ChromeButtonStyle())
                     }
 
                     Text("Open a local folder or clone a remote git repository.")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(SynapseTheme.textMuted)
                 }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 28)
-                .frame(maxWidth: 460)
-                .synapsePanel(radius: 6)
+                .padding(.horizontal, SynapseTheme.Layout.spaceExtraLarge)
+                .padding(.vertical, 24 * SynapseTheme.Layout.phi)
+                .frame(maxWidth: 280 * SynapseTheme.Layout.phi)
+                .synapsePanel(radius: 12)
 
                 Spacer(minLength: 0)
             }

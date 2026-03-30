@@ -41,7 +41,8 @@ struct AppTheme: Codable, Equatable, Identifiable {
 extension AppTheme {
 
     static let builtInThemeNames: Set<String> = [
-        "Synapse (Dark)", "Synapse (Light)", "Solarized (Dark)", "Dracula (Dark)",
+        "Synapse (Dark)", "Synapse (Light)", "Sacred (Dark)", "Sacred (Light)",
+        "Solarized (Dark)", "Dracula (Dark)",
         "GitHub (Dark)", "Minimalist (Dark)", "Cyberpunk (Dark)", "Rainbow (Light)", "Rainbow (Dark)",
         "Protanopia (Dark)", "Deuteranopia (Dark)"
     ]
@@ -50,6 +51,8 @@ extension AppTheme {
     static let builtInThemes: [AppTheme] = [
         .synapseDark,
         .synapseLight,
+        .sacredDark,
+        .sacredLight,
         .solarized,
         .dracula,
         .githubDark,
@@ -61,6 +64,46 @@ extension AppTheme {
         .deuteranopiaDark,
     ]
 
+    // MARK: Sacred (Dark)
+    static let sacredDark = AppTheme(
+        name: "Sacred (Dark)",
+        colors: [
+            "background.primary":   "#050505",
+            "background.secondary": "#0A0A0A",
+            "background.elevated":  "#121212",
+            "text.primary":         "#F5F5DC", // Parchment
+            "text.secondary":       "#C2B280", // Sand
+            "text.muted":           "#706A55",
+            "accent":               "#8B4A1C", // Deep Sacred Ember
+            "accent.soft":          "#6B3615",
+            "border":               "#1F1C12",
+            "divider":              "#14120B",
+            "row":                  "#080808",
+            "success":              "#9DC183", // Sage
+            "error":                "#8B0000", // Crimson
+        ]
+    )
+
+    // MARK: Sacred (Light)
+    static let sacredLight = AppTheme(
+        name: "Sacred (Light)",
+        colors: [
+            "background.primary":   "#FDFDFD", // Alabaster
+            "background.secondary": "#F5F5F0", // Pearl
+            "background.elevated":  "#FFFFFF",
+            "text.primary":         "#3C2F2F", // Deep Sepia
+            "text.secondary":       "#5D4A4A",
+            "text.muted":           "#8E7E7E",
+            "accent":               "#B76E79", // Rose Gold
+            "accent.soft":          "#D4A5AB",
+            "border":               "#E8E1E1",
+            "divider":              "#F2EBEB",
+            "row":                  "#FAFAFA",
+            "success":              "#6B8E23", // Olive
+            "error":                "#A52A2A", // Brown-Red
+        ]
+    )
+
     // MARK: Synapse (Dark) (current/default)
     static let synapseDark = AppTheme(
         name: "Synapse (Dark)",
@@ -71,8 +114,8 @@ extension AppTheme {
             "text.primary":         "#EBEBEB",
             "text.secondary":       "#ADADAD",
             "text.muted":           "#737373",
-            "accent":               "#47A8FA",
-            "accent.soft":          "#337AE3",
+            "accent":               "#1F6FBF",
+            "accent.soft":          "#174F8A",
             "border":               "#141414",
             "divider":              "#0F0F0F",
             "row":                  "#0A0A0A",
@@ -131,8 +174,8 @@ extension AppTheme {
             "text.primary":         "#F8F8F2",
             "text.secondary":       "#BFBFBF",
             "text.muted":           "#6272A4",
-            "accent":               "#BD93F9",
-            "accent.soft":          "#9F7FD6",
+            "accent":               "#7B4FBF",
+            "accent.soft":          "#5E3A99",
             "border":               "#3D3F52",
             "divider":              "#343746",
             "row":                  "#2D2F40",
@@ -191,8 +234,8 @@ extension AppTheme {
             "text.primary":         "#F7F36B",
             "text.secondary":       "#F3A8FF",
             "text.muted":           "#8D88C7",
-            "accent":               "#00F5D4",
-            "accent.soft":          "#00C2A8",
+            "accent":               "#00917D",
+            "accent.soft":          "#006B5C",
             "border":               "#2A245E",
             "divider":              "#1E1A45",
             "row":                  "#14112E",
