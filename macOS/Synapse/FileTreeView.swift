@@ -511,19 +511,6 @@ struct FileTreeView: View {
             .padding(.vertical, 8)
         } else {
             LazyVStack(alignment: .leading, spacing: 6) {
-                RootDropTargetRow(
-                    rootURL: appState.rootURL,
-                    isTargeted: dragOverFolderURL == appState.rootURL,
-                    onDrop: { providers in
-                        guard let root = appState.rootURL else { return false }
-                        handleDrop(providers: providers, toFolder: root)
-                        return true
-                    },
-                    setTargeted: { targeted in
-                        dragOverFolderURL = targeted ? appState.rootURL : nil
-                    }
-                )
-
                 ForEach(nodes) { node in
                     FileNodeRow(
                         node: node,
@@ -538,6 +525,19 @@ struct FileTreeView: View {
                         onMoveFile: { presentMoveFile(from: $0, toFolder: $1) }
                     )
                 }
+
+                RootDropTargetRow(
+                    rootURL: appState.rootURL,
+                    isTargeted: dragOverFolderURL == appState.rootURL,
+                    onDrop: { providers in
+                        guard let root = appState.rootURL else { return false }
+                        handleDrop(providers: providers, toFolder: root)
+                        return true
+                    },
+                    setTargeted: { targeted in
+                        dragOverFolderURL = targeted ? appState.rootURL : nil
+                    }
+                )
             }
             .padding(.vertical, 4)
         }
@@ -927,8 +927,9 @@ struct FileNodeRow: View {
     }
 }
 
-/// A drop zone row at the top of the file tree. Always present in the view
-/// hierarchy so it can accept drag events, but visually hidden until targeted.
+/// A persistent drop zone at the bottom of the folder tree that lets users
+/// move files back to the vault root. Always visible at a small size so
+/// SwiftUI can hit-test it; highlights when a drag hovers over it.
 private struct RootDropTargetRow: View {
     let rootURL: URL?
     let isTargeted: Bool
@@ -937,27 +938,26 @@ private struct RootDropTargetRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "tray.and.arrow.down")
-                .foregroundStyle(isTargeted ? SynapseTheme.accent : SynapseTheme.textMuted)
-                .frame(width: 16)
+            Image(systemName: isTargeted ? "tray.and.arrow.down.fill" : "tray.and.arrow.down")
+                .font(.system(size: 11))
+                .foregroundStyle(isTargeted ? SynapseTheme.accent : SynapseTheme.textMuted.opacity(0.6))
+                .frame(width: 14)
             Text("Move to Root")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(isTargeted ? SynapseTheme.accent : SynapseTheme.textPrimary)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(isTargeted ? SynapseTheme.accent : SynapseTheme.textMuted.opacity(0.6))
             Spacer()
         }
-        .padding(.vertical, isTargeted ? 8 : 0)
-        .padding(.horizontal, 10)
-        .frame(height: isTargeted ? nil : 0)
-        .clipped()
+        .padding(.vertical, isTargeted ? 8 : 5)
+        .padding(.horizontal, 8)
         .background {
-            if isTargeted {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(SynapseTheme.accent.opacity(0.15))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(SynapseTheme.accent, lineWidth: 1.5)
-                    }
-            }
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(isTargeted ? SynapseTheme.accent.opacity(0.12) : Color.clear)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .stroke(isTargeted ? SynapseTheme.accent : SynapseTheme.border.opacity(0.3),
+                                style: StrokeStyle(lineWidth: isTargeted ? 1.5 : 1,
+                                                   dash: isTargeted ? [] : [4, 3]))
+                }
         }
         .contentShape(Rectangle())
         .onDrop(
@@ -969,7 +969,7 @@ private struct RootDropTargetRow: View {
             perform: onDrop
         )
         .padding(.horizontal, 2)
-        .animation(.easeInOut(duration: 0.15), value: isTargeted)
+        .animation(.easeInOut(duration: 0.12), value: isTargeted)
     }
 }
 
