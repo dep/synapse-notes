@@ -1712,6 +1712,41 @@ class AppState: ObservableObject {
         rebuildFileLists(reloadSettings: true)
     }
 
+    /// URL used when persisting a pane's in-memory buffer (mirrors `saveCurrentFile` / auto-save timer).
+    private func fileURLForPaneFlush(_ pane: PaneState) -> URL? {
+        if let url = pane.selectedFile { return url }
+        guard let idx = pane.activeTabIndex, idx >= 0, idx < pane.tabs.count else { return nil }
+        return pane.tabs[idx].fileURL
+    }
+
+    /// Writes dirty buffers from **all** split panes to disk before git sees the working tree.
+    /// Without this, CMD-R could commit and pull while an inactive pane still had only in-memory edits,
+    /// permanently losing those edits (`reloadSelectedFileFromDiskIfNeeded` also skips while `isDirty`).
+    private func flushAllDirtyEditorBuffersToDiskBeforeGit() {
+        snapshotCurrentPane(index: activePaneIndex, includePendingEditorState: true)
+        var flushedURLs: [URL] = []
+        var activeFlushedURL: URL?
+        for index in 0..<paneStates.count {
+            guard paneStates[index].isDirty else { continue }
+            guard let url = fileURLForPaneFlush(paneStates[index]) else { continue }
+            try? paneStates[index].fileContent.write(to: url, atomically: true, encoding: .utf8)
+            paneStates[index].isDirty = false
+            flushedURLs.append(url)
+            if index == activePaneIndex {
+                activeFlushedURL = url
+            }
+        }
+        if let url = activeFlushedURL {
+            isDirty = false
+            lastObservedModificationDate = fileModificationDate(for: url)
+            lastContentChange = UUID()
+        }
+        if !flushedURLs.isEmpty {
+            updateCacheIncrementally(for: flushedURLs)
+            stageGitChanges()
+        }
+    }
+
     /// CMD-R: git pull (if the vault has a remote) then refresh the file list.
     /// If there is no git remote the pull is skipped and only the file list is refreshed.
     ///
@@ -1719,14 +1754,7 @@ class AppState: ObservableObject {
     /// "WIP: auto-save before refresh" message so no work is ever lost during a sync.
     /// If the editor has dirty (unsaved) in-memory content it is flushed to disk first.
     func pullAndRefresh() {
-        // Flush in-memory dirty content to disk before we inspect git status,
-        // so the WIP commit captures the latest edits.
-        if isDirty, let url = selectedFile ?? activeTab?.fileURL {
-            try? fileContent.write(to: url, atomically: true, encoding: .utf8)
-            isDirty = false
-            lastObservedModificationDate = fileModificationDate(for: url)
-            lastContentChange = UUID()
-        }
+        flushAllDirtyEditorBuffersToDiskBeforeGit()
 
         guard let git = gitService else {
             refreshAllFiles()       // no git — just rescan

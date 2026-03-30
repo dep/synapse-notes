@@ -150,6 +150,51 @@ final class PullAndRefreshWIPAutoSaveTests: XCTestCase {
                        "pullAndRefresh should flush dirty in-memory content to disk before committing")
     }
 
+    /// When the split view is focused on one pane, the other pane can still hold unsaved edits in
+    /// `paneStates`. CMD-R must flush those too; otherwise the WIP commit omits them and a forced
+    /// reload can drop the inactive buffer (see `reloadSelectedFileFromDiskIfNeeded` while dirty).
+    func test_pullAndRefresh_withDirtyInactiveSplitPane_flushesThatPaneToDiskAndWIPCommits() throws {
+        try initGitRepo()
+
+        let noteFile = tempDir.appendingPathComponent("note.md")
+        try "# Original\n".write(to: noteFile, atomically: true, encoding: .utf8)
+        gitRun("add", "-A")
+        gitRun("commit", "-m", "add note.md")
+
+        sut.openFolder(tempDir)
+        sut.openFile(noteFile)
+        sut.splitVertically()
+        // splitPane leaves focus on pane 1; move to pane 0 and make edits there.
+        sut.focusPane(0)
+        sut.fileContent = "# Edited in background pane\n"
+        sut.isDirty = true
+        // Focus the other pane so the dirty buffer lives only in the inactive snapshot.
+        sut.focusPane(1)
+
+        XCTAssertTrue(sut.hasUnsavedChanges(), "Pre-condition: inactive pane should still be dirty")
+
+        sut.pullAndRefresh()
+
+        let exp = expectation(description: "WIP commit includes inactive pane flush")
+        DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
+            exp.fulfill()
+        }
+        waitForExpectations(timeout: 5)
+
+        let commits = gitLog()
+        XCTAssertTrue(
+            commits.contains { $0.hasPrefix("WIP:") },
+            "Expected WIP commit after flushing inactive pane. Commits: \(commits)"
+        )
+
+        let diskContent = (try? String(contentsOf: noteFile, encoding: .utf8)) ?? ""
+        XCTAssertEqual(
+            diskContent,
+            "# Edited in background pane\n",
+            "Inactive pane buffer should be written to disk before the WIP commit"
+        )
+    }
+
     // MARK: - No WIP commit when repo is clean
 
     func test_pullAndRefresh_withNoUncommittedChanges_doesNotCreateWIPCommit() throws {
