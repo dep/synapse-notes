@@ -34,8 +34,9 @@ struct FolderPickerView: View {
                     }
 
                     HStack(spacing: SynapseTheme.Layout.spaceSmall) {
-                        TinyBadge(text: "Mathematical canvas")
-                        TinyBadge(text: "Golden ratio")
+                        TinyBadge(text: "Dark canvas")
+                        TinyBadge(text: "Live markdown")
+                        TinyBadge(text: "Terminal ready")
                     }
 
                     VStack(spacing: SynapseTheme.Layout.spaceMedium) {
