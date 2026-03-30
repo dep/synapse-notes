@@ -512,6 +512,7 @@ struct FileTreeView: View {
         } else {
             LazyVStack(alignment: .leading, spacing: 6) {
                 RootDropTargetRow(
+                    vaultName: appState.rootURL?.lastPathComponent ?? "Root",
                     isTargeted: dragOverFolderURL == appState.rootURL,
                     onDrop: { providers in
                         guard let root = appState.rootURL else { return false }
@@ -747,7 +748,12 @@ struct FileTreeView: View {
     /// Initiates a file move, showing a conflict alert if needed.
     func presentMoveFile(from sourceURL: URL, toFolder destinationFolder: URL) {
         isMoveInProgress = true
-        defer { isMoveInProgress = false }
+        defer {
+            isMoveInProgress = false
+            // Clear the global drag flag so sidebar pane drops work again for
+            // non-file-tree drags.
+            isFileTreeDragActive = false
+        }
         do {
             try appState.moveFile(at: sourceURL, toFolder: destinationFolder)
             // Invalidate only the two affected directories so they reload
@@ -926,24 +932,25 @@ struct FileNodeRow: View {
     }
 }
 
-/// Drop zone at the top of the folder tree for moving files back to root.
-/// Always present in the view hierarchy (so SwiftUI can hit-test it) but
-/// invisible until a drag hovers over it, at which point it renders like
-/// a folder row at depth 0.
+/// Root-level drop target rendered as the first row in the folder tree.
+/// Looks like a vault-name folder row. Always full-sized and in the view
+/// hierarchy so it can receive drag events. Highlights when targeted.
 private struct RootDropTargetRow: View {
+    let vaultName: String
     let isTargeted: Bool
     let onDrop: ([NSItemProvider]) -> Bool
     let setTargeted: (Bool) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.down")
                 .font(.caption2)
                 .frame(width: 10)
             Image(systemName: "folder.fill")
                 .foregroundStyle(SynapseTheme.accent)
-            Text("Move to Root")
+            Text(vaultName)
                 .lineLimit(1)
+                .truncationMode(.middle)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(SynapseTheme.textPrimary)
             Spacer()
@@ -964,9 +971,6 @@ private struct RootDropTargetRow: View {
             perform: onDrop
         )
         .padding(.horizontal, 2)
-        .opacity(isTargeted ? 1 : 0)
-        .frame(height: isTargeted ? nil : 1)
-        .animation(.easeInOut(duration: 0.12), value: isTargeted)
     }
 }
 
