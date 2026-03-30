@@ -515,6 +515,7 @@ struct FileTreeView: View {
                     rootURL: appState.rootURL,
                     vaultName: appState.rootURL?.lastPathComponent ?? "Root",
                     isTargeted: dragOverFolderURL == appState.rootURL,
+                    isDragActive: dragOverFolderURL != nil,
                     onDrop: { providers in
                         guard let root = appState.rootURL else { return false }
                         handleDrop(providers: providers, toFolder: root)
@@ -928,48 +929,55 @@ struct FileNodeRow: View {
     }
 }
 
+/// A drop zone row at the top of the file tree that appears when a drag is
+/// active, giving the user a clear target to move a file back to the vault root.
 private struct RootDropTargetRow: View {
     let rootURL: URL?
     let vaultName: String
     let isTargeted: Bool
+    /// Whether any drag is active over the file tree (controls visibility).
+    let isDragActive: Bool
     let onDrop: ([NSItemProvider]) -> Bool
     let setTargeted: (Bool) -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "tray.and.arrow.down")
-                .foregroundStyle(SynapseTheme.textMuted)
-                .frame(width: 16)
-            Text("Drop to Root")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(SynapseTheme.textPrimary)
-            Text(vaultName)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(SynapseTheme.textMuted)
-                .lineLimit(1)
-            Spacer()
+        if isDragActive || isTargeted {
+            HStack(spacing: 6) {
+                Image(systemName: "tray.and.arrow.down")
+                    .foregroundStyle(isTargeted ? SynapseTheme.accent : SynapseTheme.textMuted)
+                    .frame(width: 16)
+                Text("Move to Root")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(isTargeted ? SynapseTheme.accent : SynapseTheme.textPrimary)
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isTargeted
+                          ? SynapseTheme.accent.opacity(0.15)
+                          : SynapseTheme.panel.opacity(0.6))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(isTargeted ? SynapseTheme.accent : SynapseTheme.border.opacity(0.5),
+                                    style: StrokeStyle(lineWidth: 1.5,
+                                                       dash: isTargeted ? [] : [5, 3]))
+                    }
+            }
+            .contentShape(Rectangle())
+            .onDrop(
+                of: [.fileURL],
+                isTargeted: Binding(
+                    get: { isTargeted },
+                    set: setTargeted
+                ),
+                perform: onDrop
+            )
+            .padding(.horizontal, 2)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+            .animation(.easeInOut(duration: 0.15), value: isTargeted)
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 8)
-        .background {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(isTargeted ? SynapseTheme.accent.opacity(0.18) : SynapseTheme.panel)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(isTargeted ? SynapseTheme.accent : SynapseTheme.border, lineWidth: 1)
-                }
-        }
-        .contentShape(Rectangle())
-        .onDrop(
-            of: [UTType(fileTreeDragTypeIdentifier)].compactMap { $0 },
-            isTargeted: Binding(
-                get: { isTargeted },
-                set: setTargeted
-            ),
-            perform: onDrop
-        )
-        .padding(.horizontal, 2)
-        .opacity(rootURL == nil ? 0 : 1)
     }
 }
 
@@ -1004,7 +1012,7 @@ private struct FolderDropModifier: ViewModifier {
         if isFolder {
             content
                 .onDrop(
-                    of: [UTType(fileTreeDragTypeIdentifier)].compactMap { $0 },
+                    of: [.fileURL],
                     isTargeted: Binding(
                         get: { dragOverFolderURL == folderURL },
                         set: { targeted in
