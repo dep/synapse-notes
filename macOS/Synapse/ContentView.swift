@@ -30,8 +30,14 @@ private enum SidebarDropPayload {
     case file(URL)
 }
 
+/// Tracks whether the current drag session was initiated from the file tree.
+/// Set to `true` in `sidebarFileItemProvider` (called by `.onDrag`), cleared
+/// on the next run-loop tick after the drop handler runs.
+var isFileTreeDragActive = false
+
 func sidebarFileItemProvider(for fileURL: URL) -> NSItemProvider {
-    NSItemProvider(object: fileURL as NSURL)
+    isFileTreeDragActive = true
+    return NSItemProvider(object: fileURL as NSURL)
 }
 
 let sidebarItemTokenPrefix = "synapse-sidebar-item:"
@@ -53,7 +59,10 @@ func sidebarItem(from token: String) -> SidebarPaneItem? {
 }
 
 private func canHandleSidebarDrop(_ providers: [NSItemProvider]) -> Bool {
-    providers.contains {
+    // Reject drags that originated from the file tree — those are file-move ops,
+    // not open-in-pane ops.
+    guard !isFileTreeDragActive else { return false }
+    return providers.contains {
         $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) ||
         $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
     }

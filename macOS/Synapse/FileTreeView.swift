@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum FileTreeMode: String, CaseIterable {
     case folder = "folder"
@@ -122,6 +123,14 @@ func buildFileTreeLevel(at url: URL, sortCriterion: SortCriterion, ascending: Bo
     }
 }
 
+/// Pending conflict for a drag-and-drop move that requires user confirmation.
+private struct FileMoveConflict: Identifiable {
+    let id = UUID()
+    let sourceURL: URL
+    let destinationFolder: URL
+    var fileName: String { sourceURL.lastPathComponent }
+}
+
 struct FileTreeView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var themeEnv: ThemeEnvironment
@@ -139,258 +148,19 @@ struct FileTreeView: View {
     @State private var fileExtensionFilter = ""
     @State private var hiddenFileFolderFilter = ""
     @State private var templatesDirectory = "templates"
+    /// The folder currently highlighted as a drag drop target.
+    @State private var dragOverFolderURL: URL? = nil
+    /// Pending conflict requiring user confirmation before overwrite.
+    @State private var moveConflict: FileMoveConflict? = nil
+    /// Set to true while a drag-drop move is in progress so the allFiles
+    /// onChange handler skips the full refresh (avoiding scroll-to-top).
+    @State private var isMoveInProgress = false
 
     var body: some View {
         ScrollViewReader { proxy in
-            VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Library")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .tracking(1.8)
-                        .foregroundStyle(SynapseTheme.textMuted)
-
-                    Text(appState.rootURL?.lastPathComponent ?? "Files")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(SynapseTheme.textPrimary)
-
-                    HStack(spacing: 8) {
-                        TinyBadge(text: "\(appState.allFiles.count) notes")
-                        if !nodes.isEmpty {
-                            TinyBadge(text: "\(nodes.count) root items")
-                        }
-                    }
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Menu {
-                        Button("New Note") { appState.presentRootNoteSheet(in: appState.rootURL) }
-                        Button("New Folder") { presentCreateFolder(in: appState.rootURL) }
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(ChromeButtonStyle())
-                    .help("Create")
-
-                    Button(action: appState.refreshAllFiles) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(ChromeButtonStyle())
-                    .help("Refresh")
-                }
-            }
-
-                if dailyNotesEnabled, appState.rootURL != nil {
-                Button(action: { appState.openTodayNote() }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "calendar")
-                            .foregroundStyle(SynapseTheme.accent)
-                            .frame(width: 16)
-                        Text("Today")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(SynapseTheme.textPrimary)
-                        Spacer()
-                    }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 8)
-                    .background {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(SynapseTheme.row)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .stroke(SynapseTheme.rowBorder, lineWidth: 1)
-                            }
-                    }
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 2)
-                .onHover { hovering in
-                    if hovering {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
-                }
-
-                // MARK: - Pinned Section
-                if !appState.pinnedItems.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Pinned")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .tracking(1.8)
-                            .foregroundStyle(SynapseTheme.textMuted)
-                            .padding(.horizontal, 8)
-                            .padding(.top, 4)
-
-                        ForEach(appState.pinnedItems) { item in
-                            PinnedItemRow(item: item)
-                        }
-                    }
-                    .padding(.bottom, 8)
-                }
-
-            // View mode toggle + Sort Controls
-            HStack(spacing: 8) {
-                // Folder / File view toggle
-                HStack(spacing: 0) {
-                    ForEach([FileTreeMode.folder, .file], id: \.self) { mode in
-                        Button(action: {
-                            fileTreeMode = mode
-                            settings.fileTreeMode = mode
-                        }) {
-                            Image(systemName: mode == .folder ? "folder" : "list.bullet")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(fileTreeMode == mode ? SynapseTheme.textPrimary : SynapseTheme.textMuted)
-                                .frame(width: 28, height: 24)
-                                .background(fileTreeMode == mode ? SynapseTheme.row : Color.clear)
-                        }
-                        .buttonStyle(.plain)
-                        .help(mode == .folder ? "Folder View" : "File View")
-                    }
-                }
-                .background(SynapseTheme.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(SynapseTheme.border, lineWidth: 1))
-
-                HStack(spacing: 0) {
-                    ForEach(SortCriterion.allCases, id: \.self) { criterion in
-                        Button(action: {
-                            if appState.sortCriterion == criterion {
-                                appState.sortAscending.toggle()
-                            } else {
-                                appState.sortCriterion = criterion
-                                appState.sortAscending = true
-                            }
-                            refresh()
-                        }) {
-                            Text(criterion.rawValue)
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundStyle(appState.sortCriterion == criterion ? SynapseTheme.textPrimary : SynapseTheme.textMuted)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(appState.sortCriterion == criterion ? SynapseTheme.row : Color.clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .stroke(appState.sortCriterion == criterion ? SynapseTheme.border : Color.clear, lineWidth: 1)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .background(SynapseTheme.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-
-                Button(action: {
-                    appState.sortAscending.toggle()
-                    refresh()
-                }) {
-                    Image(systemName: appState.sortAscending ? "arrow.up" : "arrow.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(SynapseTheme.textSecondary)
-                        .frame(width: 28, height: 24)
-                        .background(SynapseTheme.panel)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(SynapseTheme.border, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .help(appState.sortAscending ? "Ascending" : "Descending")
-
-                Spacer()
-            }
-
-            Rectangle()
-                .fill(SynapseTheme.divider)
-                .frame(height: 1)
-
-                ScrollView {
-                    if fileTreeMode == .file {
-                        let flatFiles = flatSortedFiles()
-                        if flatFiles.isEmpty {
-                            Text("No notes yet")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundStyle(SynapseTheme.textPrimary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 8)
-                        } else {
-                            LazyVStack(alignment: .leading, spacing: 2) {
-                        ForEach(flatFiles, id: \.self) { url in
-                            Button(action: { appState.openFile(url) }) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "doc.text")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textMuted)
-                                        .frame(width: 14)
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(url.deletingPathExtension().lastPathComponent)
-                                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                                            .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textPrimary)
-                                            .lineLimit(1)
-                                        Text(appState.relativePath(for: url))
-                                            .font(.system(size: 10, weight: .regular, design: .rounded))
-                                            .foregroundStyle(appState.selectedFile == url ? Color.white.opacity(0.8) : SynapseTheme.textMuted)
-                                            .lineLimit(1)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.vertical, 5)
-                                .padding(.horizontal, 6)
-                                .background(appState.selectedFile == url ? SynapseTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { hovering in
-                                if hovering {
-                                    NSCursor.pointingHand.push()
-                                } else {
-                                    NSCursor.pop()
-                                }
-                            }
-                            .onDrag {
-                                sidebarFileItemProvider(for: url)
-                            }
-                        }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    } else {
-                        if nodes.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("No notes yet")
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(SynapseTheme.textPrimary)
-                                Text("Create a note or folder to start organizing your workspace.")
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(SynapseTheme.textMuted)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 8)
-                        } else {
-                            LazyVStack(alignment: .leading, spacing: 6) {
-                                ForEach(nodes) { node in
-                                    FileNodeRow(
-                                        node: node,
-                                        depth: 0,
-                                        expandedDirs: $expandedDirs,
-                                        loadChildren: { loadChildren(for: $0) },
-                                        onCreateNote: { presentCreateNote(in: $0) },
-                                        onCreateFolder: { presentCreateFolder(in: $0) },
-                                        onRename: { presentRename(for: $0, isDirectory: $1) },
-                                        onDelete: { presentDelete(for: $0, isDirectory: $1) }
-                                    )
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            mainContent
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .onAppear {
                 syncLocalSettings()
                 refresh()
@@ -401,8 +171,10 @@ struct FileTreeView: View {
                 revealSelection(with: proxy)
             }
             .onChange(of: appState.allFiles) { _, _ in
+                // Skip full refresh during a move to prevent ScrollView jumping to top.
+                // presentMoveFile clears the relevant cache entries directly.
+                guard !isMoveInProgress else { return }
                 refresh()
-                revealSelection(with: proxy)
             }
             .onChange(of: appState.selectedFile) { _, newFile in
                 expandPath(to: newFile)
@@ -471,6 +243,303 @@ struct FileTreeView: View {
             } message: {
                 Text(errorMessage ?? "")
             }
+        }
+    }
+
+    // MARK: - Main Content (extracted to help the type checker)
+
+    @ViewBuilder
+    private var mainContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            headerSection
+            if dailyNotesEnabled, appState.rootURL != nil {
+                todayButton
+            }
+            if !appState.pinnedItems.isEmpty {
+                pinnedSection
+            }
+            sortControls
+            Rectangle()
+                .fill(SynapseTheme.divider)
+                .frame(height: 1)
+            ScrollView {
+                fileTreeScrollContent
+            }
+        }
+        .alert(
+            "File Already Exists",
+            isPresented: Binding(
+                get: { moveConflict != nil },
+                set: { if !$0 { moveConflict = nil } }
+            )
+        ) {
+            Button("Overwrite", role: .destructive) { confirmMoveWithOverwrite() }
+            Button("Cancel", role: .cancel) { moveConflict = nil }
+        } message: {
+            if let conflict = moveConflict {
+                Text("\"\(conflict.fileName)\" already exists in the destination folder. Do you want to replace it?")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var headerSection: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Library")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .tracking(1.8)
+                    .foregroundStyle(SynapseTheme.textMuted)
+                Text(appState.rootURL?.lastPathComponent ?? "Files")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(SynapseTheme.textPrimary)
+                HStack(spacing: 8) {
+                    TinyBadge(text: "\(appState.allFiles.count) notes")
+                    if !nodes.isEmpty {
+                        TinyBadge(text: "\(nodes.count) root items")
+                    }
+                }
+            }
+            Spacer()
+            HStack(spacing: 8) {
+                Menu {
+                    Button("New Note") { appState.presentRootNoteSheet(in: appState.rootURL) }
+                    Button("New Folder") { presentCreateFolder(in: appState.rootURL) }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(ChromeButtonStyle())
+                .help("Create")
+                Button(action: appState.refreshAllFiles) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(ChromeButtonStyle())
+                .help("Refresh")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var todayButton: some View {
+        Button(action: { appState.openTodayNote() }) {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .foregroundStyle(SynapseTheme.accent)
+                    .frame(width: 16)
+                Text("Today")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(SynapseTheme.textPrimary)
+                Spacer()
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(SynapseTheme.row)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .stroke(SynapseTheme.rowBorder, lineWidth: 1)
+                    }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 2)
+        .onHover { hovering in
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+    }
+
+    @ViewBuilder
+    private var pinnedSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Pinned")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .tracking(1.8)
+                .foregroundStyle(SynapseTheme.textMuted)
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+            ForEach(appState.pinnedItems) { item in
+                PinnedItemRow(item: item)
+            }
+        }
+        .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private var sortControls: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 0) {
+                ForEach([FileTreeMode.folder, .file], id: \.self) { mode in
+                    Button(action: {
+                        fileTreeMode = mode
+                        settings.fileTreeMode = mode
+                    }) {
+                        Image(systemName: mode == .folder ? "folder" : "list.bullet")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(fileTreeMode == mode ? SynapseTheme.textPrimary : SynapseTheme.textMuted)
+                            .frame(width: 28, height: 24)
+                            .background(fileTreeMode == mode ? SynapseTheme.row : Color.clear)
+                    }
+                    .buttonStyle(.plain)
+                    .help(mode == .folder ? "Folder View" : "File View")
+                }
+            }
+            .background(SynapseTheme.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(SynapseTheme.border, lineWidth: 1))
+
+            HStack(spacing: 0) {
+                ForEach(SortCriterion.allCases, id: \.self) { criterion in
+                    Button(action: {
+                        if appState.sortCriterion == criterion {
+                            appState.sortAscending.toggle()
+                        } else {
+                            appState.sortCriterion = criterion
+                            appState.sortAscending = true
+                        }
+                        refresh()
+                    }) {
+                        Text(criterion.rawValue)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(appState.sortCriterion == criterion ? SynapseTheme.textPrimary : SynapseTheme.textMuted)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(appState.sortCriterion == criterion ? SynapseTheme.row : Color.clear)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .stroke(appState.sortCriterion == criterion ? SynapseTheme.border : Color.clear, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .background(SynapseTheme.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            Button(action: {
+                appState.sortAscending.toggle()
+                refresh()
+            }) {
+                Image(systemName: appState.sortAscending ? "arrow.up" : "arrow.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(SynapseTheme.textSecondary)
+                    .frame(width: 28, height: 24)
+                    .background(SynapseTheme.panel)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(SynapseTheme.border, lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .help(appState.sortAscending ? "Ascending" : "Descending")
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Scroll Content (extracted to help the type checker)
+
+    @ViewBuilder
+    private var fileTreeScrollContent: some View {
+        if fileTreeMode == .file {
+            fileListContent
+        } else {
+            folderTreeContent
+        }
+    }
+
+    @ViewBuilder
+    private var fileListContent: some View {
+        let flatFiles = flatSortedFiles()
+        if flatFiles.isEmpty {
+            Text("No notes yet")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(SynapseTheme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 2) {
+                ForEach(flatFiles, id: \.self) { url in
+                    Button(action: { appState.openFile(url) }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 11))
+                                .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textMuted)
+                                .frame(width: 14)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(url.deletingPathExtension().lastPathComponent)
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundStyle(appState.selectedFile == url ? Color.white : SynapseTheme.textPrimary)
+                                    .lineLimit(1)
+                                Text(appState.relativePath(for: url))
+                                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                                    .foregroundStyle(appState.selectedFile == url ? Color.white.opacity(0.8) : SynapseTheme.textMuted)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, 6)
+                        .background(appState.selectedFile == url ? SynapseTheme.accent : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    }
+                    .onDrag {
+                        sidebarFileItemProvider(for: url)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    @ViewBuilder
+    private var folderTreeContent: some View {
+        if nodes.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("No notes yet")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SynapseTheme.textPrimary)
+                Text("Create a note or folder to start organizing your workspace.")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(SynapseTheme.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 6) {
+                RootDropTargetRow(
+                    vaultName: appState.rootURL?.lastPathComponent ?? "Root",
+                    isTargeted: dragOverFolderURL == appState.rootURL,
+                    onDrop: { providers in
+                        guard let root = appState.rootURL else { return false }
+                        handleDrop(providers: providers, toFolder: root)
+                        return true
+                    },
+                    setTargeted: { targeted in
+                        dragOverFolderURL = targeted ? appState.rootURL : nil
+                    }
+                )
+
+                ForEach(nodes) { node in
+                    FileNodeRow(
+                        node: node,
+                        depth: 0,
+                        expandedDirs: $expandedDirs,
+                        dragOverFolderURL: $dragOverFolderURL,
+                        loadChildren: { loadChildren(for: $0) },
+                        onCreateNote: { presentCreateNote(in: $0) },
+                        onCreateFolder: { presentCreateFolder(in: $0) },
+                        onRename: { presentRename(for: $0, isDirectory: $1) },
+                        onDelete: { presentDelete(for: $0, isDirectory: $1) },
+                        onMoveFile: { presentMoveFile(from: $0, toFolder: $1) }
+                    )
+                }
+            }
+            .padding(.vertical, 4)
         }
     }
 
@@ -661,6 +730,57 @@ struct FileTreeView: View {
             errorMessage = error.localizedDescription
         }
     }
+
+    // MARK: - Drag & Drop (File Tree, Issue #180)
+
+    /// Called by `FileNodeRow` when a file is dropped onto a folder (or by the root drop zone).
+    /// Extracts the file URL from the NSItemProvider list and kicks off a move.
+    func handleDrop(providers: [NSItemProvider], toFolder destinationFolder: URL) {
+        guard let provider = providers.first else { return }
+        provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
+            guard let fileURL = extractSidebarFileURL(from: item) else { return }
+            DispatchQueue.main.async {
+                presentMoveFile(from: fileURL, toFolder: destinationFolder)
+            }
+        }
+    }
+
+    /// Initiates a file move, showing a conflict alert if needed.
+    func presentMoveFile(from sourceURL: URL, toFolder destinationFolder: URL) {
+        isMoveInProgress = true
+        defer {
+            isMoveInProgress = false
+            // Clear the global drag flag so sidebar pane drops work again for
+            // non-file-tree drags.
+            isFileTreeDragActive = false
+        }
+        do {
+            try appState.moveFile(at: sourceURL, toFolder: destinationFolder)
+            // Invalidate only the two affected directories so they reload
+            // in-place without resetting the whole scroll position.
+            childrenCache[sourceURL.deletingLastPathComponent()] = nil
+            childrenCache[destinationFolder] = nil
+        } catch FileBrowserError.itemAlreadyExists {
+            moveConflict = FileMoveConflict(sourceURL: sourceURL, destinationFolder: destinationFolder)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Called when the user taps "Overwrite" in the conflict alert.
+    private func confirmMoveWithOverwrite() {
+        guard let conflict = moveConflict else { return }
+        moveConflict = nil
+        isMoveInProgress = true
+        defer { isMoveInProgress = false }
+        do {
+            try appState.moveFile(at: conflict.sourceURL, toFolder: conflict.destinationFolder, overwrite: true)
+            childrenCache[conflict.sourceURL.deletingLastPathComponent()] = nil
+            childrenCache[conflict.destinationFolder] = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }
 
 struct FileNodeRow: View {
@@ -668,15 +788,23 @@ struct FileNodeRow: View {
     let node: FileNode
     let depth: Int
     @Binding var expandedDirs: Set<URL>
+    /// Shared binding that tracks which folder is currently highlighted as a drag drop target.
+    @Binding var dragOverFolderURL: URL?
     /// Returns cached children or nil if loading is in progress.
     let loadChildren: (URL) -> [FileNode]?
     let onCreateNote: (URL) -> Void
     let onCreateFolder: (URL) -> Void
     let onRename: (URL, Bool) -> Void
     let onDelete: (URL, Bool) -> Void
+    /// Called when a file has been dropped onto a valid folder target.
+    let onMoveFile: (URL, URL) -> Void
+
+    /// Timer used to auto-expand a collapsed folder when hovering during a drag.
+    @State private var dragHoverExpandTimer: Timer? = nil
 
     private var isExpanded: Bool { expandedDirs.contains(node.url) }
     private var isSelected: Bool { appState.selectedFile == node.url }
+    private var isDragTarget: Bool { node.isDirectory && dragOverFolderURL == node.url }
     private var contextDirectory: URL { node.isDirectory ? node.url : node.url.deletingLastPathComponent() }
     private var isTemplatesDirectory: Bool { node.isDirectory && appState.isTemplatesDirectory(node.url) }
 
@@ -713,7 +841,15 @@ struct FileNodeRow: View {
             .padding(.horizontal, 8)
             .background {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(isSelected ? SynapseTheme.accentSoft : SynapseTheme.row)
+                    .fill(isDragTarget
+                          ? SynapseTheme.accent.opacity(0.18)
+                          : isSelected ? SynapseTheme.accentSoft : SynapseTheme.row)
+                    .overlay {
+                        if isDragTarget {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .stroke(SynapseTheme.accent, lineWidth: 1.5)
+                        }
+                    }
             }
             .contentShape(Rectangle())
             .onTapGesture(perform: handleTap)
@@ -725,6 +861,22 @@ struct FileNodeRow: View {
                 }
             }
             .modifier(FileNodeDragModifier(fileURL: node.isDirectory ? nil : node.url))
+            // Drop target: only folders accept drops
+            .modifier(FolderDropModifier(
+                isFolder: node.isDirectory,
+                folderURL: node.url,
+                dragOverFolderURL: $dragOverFolderURL,
+                dragHoverExpandTimer: $dragHoverExpandTimer,
+                expandedDirs: $expandedDirs,
+                onDropProviders: { providers, folder in
+                    guard let provider = providers.first else { return true }
+                    provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
+                        guard let fileURL = extractSidebarFileURL(from: item) else { return }
+                        DispatchQueue.main.async { onMoveFile(fileURL, folder) }
+                    }
+                    return true
+                }
+            ))
             .contextMenu {
                 Button("New Note") { appState.presentRootNoteSheet(in: contextDirectory) }
                 Button("New Folder") { onCreateFolder(contextDirectory) }
@@ -749,11 +901,13 @@ struct FileNodeRow: View {
                         node: child,
                         depth: depth + 1,
                         expandedDirs: $expandedDirs,
+                        dragOverFolderURL: $dragOverFolderURL,
                         loadChildren: loadChildren,
                         onCreateNote: onCreateNote,
                         onCreateFolder: onCreateFolder,
                         onRename: onRename,
-                        onDelete: onDelete
+                        onDelete: onDelete,
+                        onMoveFile: onMoveFile
                     )
                 }
             }
@@ -778,6 +932,48 @@ struct FileNodeRow: View {
     }
 }
 
+/// Root-level drop target rendered as the first row in the folder tree.
+/// Looks like a vault-name folder row. Always full-sized and in the view
+/// hierarchy so it can receive drag events. Highlights when targeted.
+private struct RootDropTargetRow: View {
+    let vaultName: String
+    let isTargeted: Bool
+    let onDrop: ([NSItemProvider]) -> Bool
+    let setTargeted: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .frame(width: 10)
+            Image(systemName: "folder.fill")
+                .foregroundStyle(SynapseTheme.accent)
+            Text(vaultName)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(SynapseTheme.textPrimary)
+            Spacer()
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(isTargeted ? SynapseTheme.accentSoft : SynapseTheme.row)
+        }
+        .contentShape(Rectangle())
+        .onDrop(
+            of: [.fileURL],
+            isTargeted: Binding(
+                get: { isTargeted },
+                set: setTargeted
+            ),
+            perform: onDrop
+        )
+        .padding(.horizontal, 2)
+    }
+}
+
 private struct FileNodeDragModifier: ViewModifier {
     let fileURL: URL?
 
@@ -787,6 +983,60 @@ private struct FileNodeDragModifier: ViewModifier {
             content.onDrag {
                 sidebarFileItemProvider(for: fileURL)
             }
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Folder Drop Modifier (Issue #180)
+/// Applies `onDrop` only to directory nodes. When a drag enters a collapsed folder,
+/// a timer fires after 0.6 s to auto-expand it so the user can target subfolders.
+private struct FolderDropModifier: ViewModifier {
+    let isFolder: Bool
+    let folderURL: URL
+    @Binding var dragOverFolderURL: URL?
+    @Binding var dragHoverExpandTimer: Timer?
+    @Binding var expandedDirs: Set<URL>
+    let onDropProviders: ([NSItemProvider], URL) -> Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isFolder {
+            content
+                .onDrop(
+                    of: [.fileURL],
+                    isTargeted: Binding(
+                        get: { dragOverFolderURL == folderURL },
+                        set: { targeted in
+                            // isTargeted setter is called on the main thread by SwiftUI
+                            if targeted {
+                                dragOverFolderURL = folderURL
+                                // Schedule auto-expand on the main RunLoop so the timer fires
+                                dragHoverExpandTimer?.invalidate()
+                                let url = folderURL
+                                let timer = Timer(timeInterval: 0.6, repeats: false) { _ in
+                                    DispatchQueue.main.async {
+                                        expandedDirs.insert(url)
+                                    }
+                                }
+                                RunLoop.main.add(timer, forMode: .common)
+                                dragHoverExpandTimer = timer
+                            } else {
+                                if dragOverFolderURL == folderURL {
+                                    dragOverFolderURL = nil
+                                }
+                                dragHoverExpandTimer?.invalidate()
+                                dragHoverExpandTimer = nil
+                            }
+                        }
+                    )
+                ) { providers in
+                    dragHoverExpandTimer?.invalidate()
+                    dragHoverExpandTimer = nil
+                    dragOverFolderURL = nil
+                    return onDropProviders(providers, folderURL)
+                }
         } else {
             content
         }
