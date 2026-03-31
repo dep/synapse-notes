@@ -208,7 +208,7 @@ When operating in a Synapse vault directory, read `.synapse/state.json` at the s
 - The file is transient runtime state and may not exist if Synapse is not running
 ````
 
-## Support
+## Support the Developer
 
 If Synapse saves you money on a notes app subscription or just sparks a little joy, a coffee goes a long way. ☕
 

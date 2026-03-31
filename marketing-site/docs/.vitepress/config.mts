@@ -21,6 +21,7 @@ export default defineConfig({
           { text: 'Settings', link: '/#settings' },
           { text: 'Keyboard Shortcuts', link: '/#keyboard-shortcuts' },
           { text: 'Context-Aware Assistance', link: '/#context-aware-assistance' },
+          { text: 'Support the Developer', link: '/#support-the-developer' },
           { text: 'Additional Documentation', link: '/#additional-documentation' }
         ]
       },
