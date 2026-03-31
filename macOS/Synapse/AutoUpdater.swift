@@ -143,18 +143,9 @@ class AutoUpdater: NSObject, ObservableObject {
     }
 
     private func copyApp(from mountPoint: String) throws {
-        let fm = FileManager.default
         let sourceURL = URL(fileURLWithPath: mountPoint).appendingPathComponent("Synapse.app")
         let destURL = URL(fileURLWithPath: "/Applications/Synapse.app")
-
-        guard fm.fileExists(atPath: sourceURL.path) else {
-            throw UpdateError.installFailed
-        }
-
-        if fm.fileExists(atPath: destURL.path) {
-            try fm.removeItem(at: destURL)
-        }
-        try fm.copyItem(at: sourceURL, to: destURL)
+        try SynapseAppInstaller.installBundle(from: sourceURL, to: destURL)
     }
 
     private func unmountDMG(at mountPoint: String) async {
@@ -240,4 +231,38 @@ enum UpdateError: Error {
     case downloadFailed
     case installFailed
     case unsupportedFormat
+}
+
+/// Copies `Synapse.app` into place without removing an existing install until the new bundle is on disk.
+/// Uses a same-volume staging name under the destination parent, then `replaceItemAt` for an atomic swap.
+enum SynapseAppInstaller {
+    static func installBundle(from sourceAppURL: URL, to destinationAppURL: URL) throws {
+        let fm = FileManager.default
+
+        guard fm.fileExists(atPath: sourceAppURL.path) else {
+            throw UpdateError.installFailed
+        }
+
+        let parent = destinationAppURL.deletingLastPathComponent()
+        let stagingName = ".Synapse.app.install-\(Process().processIdentifier)-\(UUID().uuidString.prefix(8))"
+        let stagingURL = parent.appendingPathComponent(stagingName)
+
+        try fm.copyItem(at: sourceAppURL, to: stagingURL)
+        defer {
+            if fm.fileExists(atPath: stagingURL.path) {
+                try? fm.removeItem(at: stagingURL)
+            }
+        }
+
+        if fm.fileExists(atPath: destinationAppURL.path) {
+            _ = try fm.replaceItemAt(
+                destinationAppURL,
+                withItemAt: stagingURL,
+                backupItemName: nil,
+                options: []
+            )
+        } else {
+            try fm.moveItem(at: stagingURL, to: destinationAppURL)
+        }
+    }
 }
