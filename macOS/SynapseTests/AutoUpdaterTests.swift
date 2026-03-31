@@ -87,4 +87,66 @@ final class AutoUpdaterTests: XCTestCase {
         let result = updater.isNewerVersion(latest: "abc", current: "1.0.0")
         XCTAssertFalse(result, "Invalid version should not be newer")
     }
+
+    // MARK: - SynapseAppInstaller (atomic install)
+
+    func testInstallBundleCopiesToEmptyDestination() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("synapse-install-test-\(UUID().uuidString)")
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let source = root.appendingPathComponent("Source.app")
+        let dest = root.appendingPathComponent("Dest.app")
+        try makeFakeAppBundle(at: source, marker: "fresh")
+
+        try SynapseAppInstaller.installBundle(from: source, to: dest)
+
+        XCTAssertTrue(fm.fileExists(atPath: dest.path))
+        XCTAssertEqual(try String(contentsOf: dest.appendingPathComponent("Contents/marker.txt")), "fresh")
+    }
+
+    func testInstallBundleReplacesExistingWithoutLeavingBrokenState() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("synapse-replace-test-\(UUID().uuidString)")
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let sourceV1 = root.appendingPathComponent("SourceV1.app")
+        let sourceV2 = root.appendingPathComponent("SourceV2.app")
+        let dest = root.appendingPathComponent("Dest.app")
+        try makeFakeAppBundle(at: sourceV1, marker: "v1")
+        try makeFakeAppBundle(at: sourceV2, marker: "v2")
+
+        try SynapseAppInstaller.installBundle(from: sourceV1, to: dest)
+        XCTAssertEqual(try String(contentsOf: dest.appendingPathComponent("Contents/marker.txt")), "v1")
+
+        try SynapseAppInstaller.installBundle(from: sourceV2, to: dest)
+        XCTAssertEqual(try String(contentsOf: dest.appendingPathComponent("Contents/marker.txt")), "v2")
+        let leftovers = try fm.contentsOfDirectory(atPath: root.path).filter { $0.hasPrefix(".Synapse.app.install") }
+        XCTAssertTrue(leftovers.isEmpty, "staging files should be removed: \(leftovers)")
+    }
+
+    func testInstallBundleMissingSourceLeavesDestinationIntact() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("synapse-fail-test-\(UUID().uuidString)")
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let missingSource = root.appendingPathComponent("Nope.app")
+        let dest = root.appendingPathComponent("Dest.app")
+        try makeFakeAppBundle(at: dest, marker: "keep")
+
+        XCTAssertThrowsError(try SynapseAppInstaller.installBundle(from: missingSource, to: dest)) { error in
+            XCTAssertEqual(error as? UpdateError, .installFailed)
+        }
+        XCTAssertEqual(try String(contentsOf: dest.appendingPathComponent("Contents/marker.txt")), "keep")
+    }
+
+    private func makeFakeAppBundle(at url: URL, marker: String) throws {
+        let fm = FileManager.default
+        let contents = url.appendingPathComponent("Contents")
+        try fm.createDirectory(at: contents, withIntermediateDirectories: true)
+        try marker.write(to: contents.appendingPathComponent("marker.txt"), atomically: true, encoding: .utf8)
+    }
 }
