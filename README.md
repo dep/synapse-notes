@@ -91,6 +91,12 @@ Or run tests in Xcode:
 2. Select the `Synapse` scheme
 3. Press `Cmd-U` to run all tests
 
+## Support
+
+If Synapse saves you money on a notes app subscription or just sparks a little joy, a coffee goes a long way. ☕
+
+[![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/dnnypck)
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
