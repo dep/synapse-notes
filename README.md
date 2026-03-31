@@ -1,6 +1,6 @@
 # Synapse
 
-A minimal macOS markdown editor with a built-in terminal, wiki links, quick open, and inline image previews.
+Synapse is a powerful Markdown-based knowledge management application exclusively built for macOS using SwiftUI. It's your second brain, backed by YOUR Git repository, and is deeply customizable.
 
 ♥️ Built with love by nerds _for_ nerds.
 
