@@ -6,9 +6,12 @@ A minimal macOS markdown editor with a built-in terminal, wiki links, quick open
 
 <img width="1569" height="1035" alt="image" src="https://github.com/user-attachments/assets/35484b4b-d0d0-4c4c-a4ec-79bdcd935978" />
 
-Docs: https://synapse-delta-nine.vercel.app/
+* Download: https://github.com/dep/synapse/releases/latest
+* Docs: https://synapse-delta-nine.vercel.app/
 
-## Project Structure
+## Developer stuff
+
+### Product Structure
 
 ```
 synapse/
@@ -21,7 +24,7 @@ synapse/
 └── ...                 # Shared resources
 ```
 
-## Requirements
+### Requirements
 
 - macOS 14+
 - Xcode 16+
@@ -34,7 +37,7 @@ Install `xcodegen` if needed:
 brew install xcodegen
 ```
 
-## Build And Run
+### Build And Run
 
 Preferred: run it entirely from the CLI.
 
@@ -64,7 +67,7 @@ cd macOS && xcodegen generate && xcodebuild -project "Synapse.xcodeproj" -scheme
 
 The app is built into Xcode DerivedData under the Debug products folder.
 
-## Run In Xcode
+### Run In Xcode
 
 If you prefer Xcode:
 
@@ -74,7 +77,7 @@ open macOS/Synapse.xcodeproj
 
 Then select the `Synapse` scheme and press `Cmd-R`.
 
-## Testing
+### Testing
 
 Run tests from the command line:
 
@@ -87,58 +90,3 @@ Or run tests in Xcode:
 1. Open the project: `open macOS/Synapse.xcodeproj`
 2. Select the `Synapse` scheme
 3. Press `Cmd-U` to run all tests
-
-The test suite includes:
-- Core `AppState` lifecycle tests
-- File and folder CRUD operations
-- Navigation history
-- Relative path formatting
-- Wiki-link and backlink resolution
-
-## Release Build And Notarization
-
-To create a shareable macOS build, use a Release archive signed with `Developer ID Application`, then notarize and staple it.
-
-Prerequisites:
-
-- A valid `Developer ID Application` certificate with private key installed in your login keychain
-- A configured notarization profile for `notarytool` (example: `Synapse-notary`)
-- `macOS/project.yml` must remain the source of truth for release signing settings; do not rely on Xcode-only UI changes because `xcodegen generate` will overwrite them
-
-Create a signed Release archive:
-
-```bash
-cd macOS && xcodegen generate && \
-xcodebuild archive \
-  -project "Synapse.xcodeproj" \
-  -scheme "Synapse" \
-  -configuration Release \
-  -destination "generic/platform=macOS" \
-  -archivePath "/tmp/Synapse.xcarchive"
-```
-
-Package the app for notarization:
-
-```bash
-ditto -c -k --keepParent \
-  "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app" \
-  "/tmp/Synapse.zip"
-```
-
-Submit, wait, and staple:
-
-```bash
-xcrun notarytool submit "/tmp/Synapse.zip" --keychain-profile "Synapse-notary" --wait && \
-xcrun stapler staple "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app" && \
-spctl --assess --type execute --verbose=4 "/tmp/Synapse.xcarchive/Products/Applications/Synapse.app"
-```
-
-Expected successful validation output includes:
-
-- `accepted`
-- `source=Notarized Developer ID`
-
-Artifacts:
-
-- notarized app: `/tmp/Synapse.xcarchive/Products/Applications/Synapse.app`
-- shareable zip: `/tmp/Synapse.zip`
