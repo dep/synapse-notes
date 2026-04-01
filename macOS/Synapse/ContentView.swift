@@ -40,6 +40,14 @@ func sidebarFileItemProvider(for fileURL: URL) -> NSItemProvider {
     return NSItemProvider(object: fileURL as NSURL)
 }
 
+/// Creates a drag provider for tabs that doesn't set `isFileTreeDragActive`.
+/// This allows tabs to be dragged to folders in the file tree for moving notes.
+func tabFileItemProvider(for fileURL: URL) -> NSItemProvider {
+    // Don't set isFileTreeDragActive - we want the FileTreeView to handle this drop
+    // and move the file to the target folder
+    return NSItemProvider(object: fileURL as NSURL)
+}
+
 let sidebarItemTokenPrefix = "synapse-sidebar-item:"
 
 private func sidebarPaneItemProvider(for item: SidebarPaneItem) -> NSItemProvider {
