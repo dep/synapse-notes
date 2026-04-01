@@ -90,6 +90,11 @@ struct TabItemView: View {
     }
 }
 
+// MARK: - Tab Drag Modifier
+/// Enables dragging tabs to folders in the file tree to move notes.
+/// Uses a separate provider that doesn't set isFileTreeDragActive,
+/// allowing FileTreeView to handle the drop as a file move operation.
+
 private struct TabDragModifier: ViewModifier {
     let fileURL: URL?
 
@@ -97,7 +102,10 @@ private struct TabDragModifier: ViewModifier {
     func body(content: Content) -> some View {
         if let fileURL {
             content.onDrag {
-                sidebarFileItemProvider(for: fileURL)
+                // Use tabFileItemProvider instead of sidebarFileItemProvider
+                // This allows dragging tabs to folders without triggering the
+                // isFileTreeDragActive flag that prevents file moves
+                tabFileItemProvider(for: fileURL)
             }
         } else {
             content
