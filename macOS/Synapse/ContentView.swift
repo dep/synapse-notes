@@ -1375,6 +1375,7 @@ struct SidebarPaneInContainer: View {
         case .builtIn(let builtInPane):
             switch builtInPane {
             case .files:    FileTreeView(settings: settings)
+            case .calendar: CalendarPaneView()
             case .tags:     TagsPaneView()
             case .links:    RelatedLinksPaneView()
             case .terminal: TerminalPaneView()

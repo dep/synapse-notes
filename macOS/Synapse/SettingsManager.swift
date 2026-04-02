@@ -4,6 +4,7 @@ import Yams
 
 enum SidebarPane: String, Codable, CaseIterable, Identifiable {
     case files = "files"
+    case calendar = "calendar"
     case tags = "tags"
     case links = "links"
     case terminal = "terminal"
@@ -15,6 +16,7 @@ enum SidebarPane: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .files: return "Files"
+        case .calendar: return "Calendar"
         case .tags: return "Tags"
         case .links: return "Related"
         case .terminal: return "Terminal"
@@ -199,7 +201,7 @@ enum FixedSidebar {
     static let right2ID = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
 
     static let all: [Sidebar] = [
-        Sidebar(id: leftID,   position: .left,  panes: [.builtIn(.files), .builtIn(.links)]),
+        Sidebar(id: leftID,   position: .left,  panes: [.builtIn(.calendar), .builtIn(.files), .builtIn(.links)]),
         Sidebar(id: right1ID, position: .right, panes: [.builtIn(.terminal), .builtIn(.tags)]),
         Sidebar(id: right2ID, position: .right, panes: [.builtIn(.browser)]),
     ]

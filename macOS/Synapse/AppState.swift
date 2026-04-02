@@ -62,11 +62,12 @@ struct TemplateRenameRequest: Identifiable {
 }
 
 // MARK: - Tab Item
-/// Represents an item that can be displayed in a tab - either a file or a tag
+/// Represents an item that can be displayed in a tab - either a file, tag, graph, or date view
 enum TabItem: Hashable {
     case file(URL)
     case tag(String)
     case graph
+    case date(Date)
 
     var displayName: String {
         switch self {
@@ -76,6 +77,10 @@ enum TabItem: Hashable {
             return "#\(tagName)"
         case .graph:
             return "Graph"
+        case .date(let date):
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            return formatter.string(from: date)
         }
     }
 
@@ -94,6 +99,11 @@ enum TabItem: Hashable {
         return false
     }
 
+    var isDate: Bool {
+        if case .date = self { return true }
+        return false
+    }
+
     var fileURL: URL? {
         if case .file(let url) = self { return url }
         return nil
@@ -101,6 +111,11 @@ enum TabItem: Hashable {
 
     var tagName: String? {
         if case .tag(let name) = self { return name }
+        return nil
+    }
+
+    var dateValue: Date? {
+        if case .date(let date) = self { return date }
         return nil
     }
 }
@@ -701,6 +716,15 @@ class AppState: ObservableObject {
             pendingCursorRange = nil
             pendingScrollOffsetY = nil
             pendingCursorTargetPaneIndex = nil
+        case .date:
+            // Date tab - clear file state (date view shows note lists, not a single file)
+            selectedFile = nil
+            fileContent = ""
+            isDirty = false
+            stopWatching()
+            pendingCursorRange = nil
+            pendingScrollOffsetY = nil
+            pendingCursorTargetPaneIndex = nil
         }
         
         // Write runtime state file
@@ -1227,6 +1251,58 @@ class AppState: ObservableObject {
             guard let content = try? String(contentsOf: url, encoding: .utf8) else { return false }
             let tags = extractTags(from: content)
             return tags.contains(normalizedTag)
+        }
+    }
+
+    /// Returns all notes created on a specific date.
+    /// Results are sorted descending by creation date (newest first).
+    func notesCreatedOnDate(_ date: Date) -> [URL] {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+
+        let matchingFiles = allFiles.filter { url in
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+                  let creationDate = attributes[.creationDate] as? Date else {
+                return false
+            }
+            let fileDay = calendar.startOfDay(for: creationDate)
+            return fileDay == targetDay
+        }
+
+        // Sort by creation date descending (newest first)
+        return matchingFiles.sorted { url1, url2 in
+            let date1 = (try? FileManager.default.attributesOfItem(atPath: url1.path)[.creationDate] as? Date) ?? Date.distantPast
+            let date2 = (try? FileManager.default.attributesOfItem(atPath: url2.path)[.creationDate] as? Date) ?? Date.distantPast
+            return date1 > date2
+        }
+    }
+
+    /// Returns all notes modified on a specific date (including notes modified after creation
+    /// on the same day they were created).
+    /// Results are sorted descending by modification date (newest first).
+    func notesModifiedOnDate(_ date: Date) -> [URL] {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+
+        let matchingFiles = allFiles.filter { url in
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+                  let creationDate = attributes[.creationDate] as? Date,
+                  let modificationDate = attributes[.modificationDate] as? Date else {
+                return false
+            }
+
+            let modificationDay = calendar.startOfDay(for: modificationDate)
+            
+            // Only count if modified on target day AND modification time is strictly after creation
+            // This includes notes modified later on the same day they were created
+            return modificationDay == targetDay && modificationDate > creationDate
+        }
+
+        // Sort by modification date descending (newest first)
+        return matchingFiles.sorted { url1, url2 in
+            let date1 = (try? FileManager.default.attributesOfItem(atPath: url1.path)[.modificationDate] as? Date) ?? Date.distantPast
+            let date2 = (try? FileManager.default.attributesOfItem(atPath: url2.path)[.modificationDate] as? Date) ?? Date.distantPast
+            return date1 > date2
         }
     }
 
@@ -2574,6 +2650,70 @@ class AppState: ObservableObject {
 
         // Update recency
         recordTabRecency(for: .tag(tag))
+    }
+
+    func openDate(_ date: Date) {
+        captureCurrentTabEditorState(in: activePaneIndex)
+
+        // Normalize date to start of day for consistent comparison
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: date)
+
+        // If this date is already open in a tab, just switch to it
+        if let existingIndex = tabs.firstIndex(of: .date(normalizedDate)) {
+            switchTab(to: existingIndex)
+            return
+        }
+
+        // Replace current tab or add new tab if none exists
+        if let activeTabIndex = activeTabIndex, tabs.indices.contains(activeTabIndex) {
+            tabs[activeTabIndex] = .date(normalizedDate)
+        } else {
+            tabs.append(.date(normalizedDate))
+            self.activeTabIndex = tabs.count - 1
+        }
+
+        // Clear file-related state since we're viewing a date
+        selectedFile = nil
+        fileContent = ""
+        isDirty = false
+        stopWatching()
+        pendingCursorRange = nil
+        pendingScrollOffsetY = nil
+        pendingCursorTargetPaneIndex = nil
+
+        // Update recency
+        recordTabRecency(for: .date(normalizedDate))
+    }
+
+    func openDateInNewTab(_ date: Date) {
+        captureCurrentTabEditorState(in: activePaneIndex)
+
+        // Normalize date to start of day for consistent comparison
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: date)
+
+        // If date already open in a tab, just switch to it
+        if let existingIndex = tabs.firstIndex(of: .date(normalizedDate)) {
+            switchTab(to: existingIndex)
+            return
+        }
+
+        // Add new date tab
+        tabs.append(.date(normalizedDate))
+        activeTabIndex = tabs.count - 1
+
+        // Clear file-related state since we're viewing a date
+        selectedFile = nil
+        fileContent = ""
+        isDirty = false
+        stopWatching()
+        pendingCursorRange = nil
+        pendingScrollOffsetY = nil
+        pendingCursorTargetPaneIndex = nil
+
+        // Update recency
+        recordTabRecency(for: .date(normalizedDate))
     }
 
     func closeTab(at index: Int) {

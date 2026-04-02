@@ -73,30 +73,30 @@ final class SettingsManagerMovePaneItemTests: XCTestCase {
     // MARK: - Same-sidebar moves (reordering)
 
     func test_movePaneItem_withinSameSidebar_movingDown_adjustsIndex() {
-        // left sidebar starts as [files, links].
-        // Moving 'files' (index 0) to index 2 (after 'links') should produce [links, files].
-        sut.movePaneItem(.builtIn(.files), toSidebar: FixedSidebar.leftID, at: 2)
+        // left sidebar starts as [calendar, files, links].
+        // Moving 'files' (index 1) to index 3 (after 'links') should produce [calendar, links, files].
+        sut.movePaneItem(.builtIn(.files), toSidebar: FixedSidebar.leftID, at: 3)
 
         let left = sut.sidebars.first { $0.id == FixedSidebar.leftID }!
-        XCTAssertEqual(left.panes.compactMap(\.builtInPane), [.links, .files],
-                       "Moving down within same sidebar should correctly reorder to [links, files]")
+        XCTAssertEqual(left.panes.compactMap(\.builtInPane), [.calendar, .links, .files],
+                       "Moving down within same sidebar should correctly reorder to [calendar, links, files]")
     }
 
     func test_movePaneItem_withinSameSidebar_movingUp_correctOrder() {
-        // left sidebar: [files, links].
-        // Moving 'links' (index 1) to index 0 should produce [links, files].
+        // left sidebar: [calendar, files, links].
+        // Moving 'links' (index 2) to index 0 should produce [links, calendar, files].
         sut.movePaneItem(.builtIn(.links), toSidebar: FixedSidebar.leftID, at: 0)
 
         let left = sut.sidebars.first { $0.id == FixedSidebar.leftID }!
-        XCTAssertEqual(left.panes.compactMap(\.builtInPane), [.links, .files],
-                       "Moving up within same sidebar should produce [links, files]")
+        XCTAssertEqual(left.panes.compactMap(\.builtInPane), [.links, .calendar, .files],
+                       "Moving up within same sidebar should produce [links, calendar, files]")
     }
 
     func test_movePaneItem_withinSameSidebar_sameSamePosition_noChange() {
-        // Moving 'files' to index 0 when it's already at index 0 should be a no-op.
+        // Moving 'calendar' to index 0 when it's already at index 0 should be a no-op.
         let before = sut.sidebars.first { $0.id == FixedSidebar.leftID }!.panes
 
-        sut.movePaneItem(.builtIn(.files), toSidebar: FixedSidebar.leftID, at: 0)
+        sut.movePaneItem(.builtIn(.calendar), toSidebar: FixedSidebar.leftID, at: 0)
 
         let after = sut.sidebars.first { $0.id == FixedSidebar.leftID }!.panes
         XCTAssertEqual(before, after, "Moving an item to its current position should be a no-op")

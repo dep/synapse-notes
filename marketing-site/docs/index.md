@@ -26,6 +26,8 @@ Once your vault is opened, consider configuring the following:
 
 ## Features
 
+![](images/calendar.png)
+
 Synapse packs a robust set of features to boost your productivity.
 
 ### Markdown Editor

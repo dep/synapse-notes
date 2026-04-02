@@ -167,6 +167,9 @@ func editorContent(for tab: TabItem?, paneIndex: Int) -> some View {
         } else if let tab, let tagName = tab.tagName {
             TagPageView(tag: tagName)
                 .background(SynapseTheme.editorShell)
+        } else if let tab, let date = tab.dateValue {
+            DatePageView(date: date)
+                .background(SynapseTheme.editorShell)
         } else {
             EditorView(paneIndex: paneIndex)
                 .background(SynapseTheme.editorShell)

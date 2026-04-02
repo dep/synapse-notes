@@ -68,14 +68,14 @@ final class SidebarPaneTitleTests: XCTestCase {
         }
     }
 
-    // MARK: - CaseIterable — exactly 6 known cases
+    // MARK: - CaseIterable — exactly 7 known cases
 
-    func test_allCases_containsExactlySixCases() {
-        XCTAssertEqual(SidebarPane.allCases.count, 6)
+    func test_allCases_containsExactlySevenCases() {
+        XCTAssertEqual(SidebarPane.allCases.count, 7)
     }
 
     func test_allCases_containsAllExpectedValues() {
-        let expected: [SidebarPane] = [.files, .tags, .links, .terminal, .browser, .graph]
+        let expected: [SidebarPane] = [.files, .calendar, .tags, .links, .terminal, .browser, .graph]
         for pane in expected {
             XCTAssertTrue(SidebarPane.allCases.contains(pane),
                 "allCases should contain .\(pane.rawValue)")

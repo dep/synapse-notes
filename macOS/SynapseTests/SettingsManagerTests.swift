@@ -366,7 +366,9 @@ final class SettingsManagerTests: XCTestCase {
     func test_removePane_removesPaneFromSidebar() {
         sut.removePane(.links, fromSidebar: FixedSidebar.leftID)
         let left = sut.sidebars.first { $0.id == FixedSidebar.leftID }
-        XCTAssertEqual(left?.panes, [.builtIn(.files)])
+        // Left sidebar now has [calendar, files, links] by default
+        // After removing links, should be [calendar, files]
+        XCTAssertEqual(left?.panes, [.builtIn(.calendar), .builtIn(.files)])
     }
 
     func test_assignPane_movesPaneToAnotherSidebar() {
