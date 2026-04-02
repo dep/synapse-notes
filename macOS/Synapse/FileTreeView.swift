@@ -161,6 +161,8 @@ struct FileTreeView: View {
     /// full `refresh()` that wipes `childrenCache` and jumps scroll. Each increment
     /// consumes one `onChange` delivery.
     @State private var pendingMoveRefreshSkips = 0
+    /// The folder URL for which the appearance picker sheet is being presented.
+    @State private var folderAppearanceTarget: URL? = nil
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -236,6 +238,7 @@ struct FileTreeView: View {
                     handleEditorSubmit(action: action, submittedName: submittedName, selectedFolder: selectedFolder)
                 }
             }
+            .appearancePickerSheet(target: $folderAppearanceTarget)
             .alert(
                 deleteTarget?.title ?? "Delete",
                 isPresented: Binding(
@@ -594,7 +597,8 @@ struct FileTreeView: View {
                                 dragOverFolderURL = targeted ? url : nil
                             },
                             onRename: { presentRename(for: url, isDirectory: true) },
-                            onDelete: { presentDelete(for: url, isDirectory: true) }
+                            onDelete: { presentDelete(for: url, isDirectory: true) },
+                            onCustomizeAppearance: { folderAppearanceTarget = url }
                         )
                     } else {
                         FlatFileRow(
@@ -890,6 +894,7 @@ struct FileNodeRow: View {
     let onDelete: (URL, Bool) -> Void
     /// Called when a file has been dropped onto a valid folder target.
     let onMoveFile: (URL, URL) -> Void
+    let onCustomizeAppearance: ((URL) -> Void)?
 
     /// Timer used to auto-expand a collapsed folder when hovering during a drag.
     @State private var dragHoverExpandTimer: Timer? = nil
@@ -906,12 +911,18 @@ struct FileNodeRow: View {
                 Spacer().frame(width: CGFloat(depth) * SynapseTheme.Layout.fileTreeIndentWidth)
 
                 if node.isDirectory {
+                    let nodeAppearance = appState.folderAppearance(for: node.url)
+                    let folderIconColor = nodeAppearance?.resolvedColor ?? SynapseTheme.accent
+                    let folderIconSymbol: String = {
+                        if isTemplatesDirectory { return "folder.badge.gearshape.fill" }
+                        return nodeAppearance?.resolvedSymbolName ?? "folder.fill"
+                    }()
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 8, weight: .bold))
                         .frame(width: 10)
                         .foregroundStyle(SynapseTheme.textMuted)
-                    Image(systemName: isTemplatesDirectory ? "folder.badge.gearshape.fill" : "folder.fill")
-                        .foregroundStyle(SynapseTheme.accent)
+                    Image(systemName: folderIconSymbol)
+                        .foregroundStyle(folderIconColor)
                 } else {
                     Spacer().frame(width: 10)
                     Image(systemName: node.isMarkdown ? "doc.text.fill" : "doc.text")
@@ -984,6 +995,10 @@ struct FileNodeRow: View {
                 } else {
                     Button("Pin") { appState.pinItem(node.url) }
                 }
+                if node.isDirectory {
+                    Divider()
+                    Button("Customize Appearance…") { onCustomizeAppearance?(node.url) }
+                }
                 Divider()
                 Button("Rename") { onRename(node.url, node.isDirectory) }
                 Button("Delete", role: .destructive) { onDelete(node.url, node.isDirectory) }
@@ -1001,7 +1016,8 @@ struct FileNodeRow: View {
                         onCreateFolder: onCreateFolder,
                         onRename: onRename,
                         onDelete: onDelete,
-                        onMoveFile: onMoveFile
+                        onMoveFile: onMoveFile,
+                        onCustomizeAppearance: onCustomizeAppearance
                     )
                 }
             }
@@ -1501,30 +1517,21 @@ private struct FlatFolderRow: View {
     let setDragTarget: (Bool) -> Void
     let onRename: () -> Void
     let onDelete: () -> Void
+    let onCustomizeAppearance: () -> Void
 
     var folderName: String { folderURL.lastPathComponent }
 
-    private var rowBackground: some View {
-        let color: Color = isDragTarget 
-            ? SynapseTheme.accent.opacity(0.18)
-            : (isSelected ? SynapseTheme.accentSoft : SynapseTheme.row)
-        return RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(color)
-    }
-
-    private var rowOverlay: some View {
-        Group {
-            if isDragTarget {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(SynapseTheme.accent, lineWidth: 1.5)
-            }
-        }
+    private var appearance: FolderAppearance? { appState.folderAppearance(for: folderURL) }
+    private var folderColor: Color { appearance?.resolvedColor ?? SynapseTheme.accent }
+    private var folderSymbol: String {
+        if let sym = appearance?.resolvedSymbolName { return sym }
+        return "folder.fill"
     }
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "folder.fill")
-                .foregroundStyle(SynapseTheme.accent)
+            Image(systemName: folderSymbol)
+                .foregroundStyle(folderColor)
             Text(folderName)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -1534,8 +1541,18 @@ private struct FlatFolderRow: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .background(rowBackground)
-        .overlay(rowOverlay)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isDragTarget
+                      ? SynapseTheme.accent.opacity(0.18)
+                      : (isSelected ? SynapseTheme.accentSoft : (appearance?.resolvedColor?.opacity(0.12) ?? SynapseTheme.row)))
+                .overlay {
+                    if isDragTarget {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(SynapseTheme.accent, lineWidth: 1.5)
+                    }
+                }
+        }
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         .onHover { hovering in
@@ -1561,6 +1578,8 @@ private struct FlatFolderRow: View {
             } else {
                 Button("Pin") { appState.pinItem(folderURL) }
             }
+            Divider()
+            Button("Customize Appearance…") { onCustomizeAppearance() }
             Divider()
             Button("Rename") { onRename() }
             Button("Delete", role: .destructive) { onDelete() }
@@ -1634,6 +1653,23 @@ private struct FlatFileRow: View {
             onCmdTap()
         } else {
             onTap()
+        }
+    }
+}
+
+// MARK: - Appearance Picker Sheet Modifier
+
+private extension View {
+    func appearancePickerSheet(target: Binding<URL?>) -> some View {
+        self.sheet(isPresented: Binding(
+            get: { target.wrappedValue != nil },
+            set: { if !$0 { target.wrappedValue = nil } }
+        )) {
+            if let url = target.wrappedValue {
+                FolderAppearancePicker(folderURL: url) {
+                    target.wrappedValue = nil
+                }
+            }
         }
     }
 }

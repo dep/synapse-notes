@@ -502,6 +502,32 @@ class AppState: ObservableObject {
         return settings.pinnedItems.contains { $0.isTag && $0.name == tagName && $0.matchesVaultPath(root.path) }
     }
 
+    // MARK: - Folder Appearance
+
+    /// Returns the current appearance for a folder, if one has been set.
+    func folderAppearance(for url: URL) -> FolderAppearance? {
+        let rel = relativePath(for: url)
+        return settings.folderAppearances.first { $0.relativePath == rel }
+    }
+
+    /// Saves (creates or replaces) a folder appearance.
+    func setFolderAppearance(_ appearance: FolderAppearance, for url: URL) {
+        let rel = relativePath(for: url)
+        var appearances = settings.folderAppearances
+        if let idx = appearances.firstIndex(where: { $0.relativePath == rel }) {
+            appearances[idx] = appearance
+        } else {
+            appearances.append(appearance)
+        }
+        settings.folderAppearances = appearances
+    }
+
+    /// Removes any custom appearance for a folder, reverting it to defaults.
+    func clearFolderAppearance(for url: URL) {
+        let rel = relativePath(for: url)
+        settings.folderAppearances.removeAll { $0.relativePath == rel }
+    }
+
     @objc private func handleAppTermination() {
         persistDirtyFileIfNeeded()
         // State file is NOT removed on quit - it's needed for "Previously open notes" restoration

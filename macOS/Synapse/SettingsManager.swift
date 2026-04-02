@@ -316,6 +316,11 @@ class SettingsManager: ObservableObject {
         didSet { save() }
     }
 
+    /// Per-folder background color and icon customizations, keyed by vault-relative path.
+    @Published var folderAppearances: [FolderAppearance] {
+        didSet { save() }
+    }
+
     // MARK: - Computed theme properties
 
     /// The resolved active theme. Falls back to Synapse (Dark) if the name is unknown.
@@ -569,6 +574,7 @@ class SettingsManager: ObservableObject {
         var respectGitignore: Bool?
         var activeThemeName: String?
         var customThemes: [AppTheme]?
+        var folderAppearances: [FolderAppearance]?
 
         init(
             onBootCommand: String,
@@ -593,7 +599,8 @@ class SettingsManager: ObservableObject {
             editorLineHeight: Double? = nil,
             respectGitignore: Bool? = nil,
             activeThemeName: String? = nil,
-            customThemes: [AppTheme]? = nil
+            customThemes: [AppTheme]? = nil,
+            folderAppearances: [FolderAppearance]? = nil
         ) {
             self.onBootCommand = onBootCommand
             self.fileExtensionFilter = fileExtensionFilter
@@ -618,6 +625,7 @@ class SettingsManager: ObservableObject {
             self.respectGitignore = respectGitignore
             self.activeThemeName = activeThemeName
             self.customThemes = customThemes
+            self.folderAppearances = folderAppearances
         }
 
         init(from decoder: Decoder) throws {
@@ -645,6 +653,7 @@ class SettingsManager: ObservableObject {
             respectGitignore = try container.decodeIfPresent(Bool.self, forKey: .respectGitignore)
             activeThemeName = try container.decodeIfPresent(String.self, forKey: .activeThemeName)
             customThemes = try container.decodeIfPresent([AppTheme].self, forKey: .customThemes)
+            folderAppearances = try container.decodeIfPresent([FolderAppearance].self, forKey: .folderAppearances)
         }
     }
 
@@ -743,6 +752,7 @@ class SettingsManager: ObservableObject {
         self.respectGitignore = true
         self.activeThemeName = "Synapse (Dark)"
         self.customThemes = []
+        self.folderAppearances = []
 
         applyLegacyConfig(Self.loadConfig(from: configPath))
         self.isInitializing = false
@@ -800,6 +810,7 @@ class SettingsManager: ObservableObject {
         self.respectGitignore = true
         self.activeThemeName = "Synapse (Dark)"
         self.customThemes = []
+        self.folderAppearances = []
 
         if let vaultRoot = vaultRoot {
             // Create .synapse folder and settings file if they don't exist
@@ -931,6 +942,7 @@ class SettingsManager: ObservableObject {
             respectGitignore = vaultConfig.respectGitignore ?? true
             activeThemeName = vaultConfig.activeThemeName ?? "Synapse (Dark)"
             customThemes = vaultConfig.customThemes ?? []
+            folderAppearances = vaultConfig.folderAppearances ?? []
             return
         }
 
@@ -956,6 +968,7 @@ class SettingsManager: ObservableObject {
         respectGitignore = true
         activeThemeName = "Synapse (Dark)"
         customThemes = []
+        folderAppearances = []
     }
 
     private func applyNoVaultDefaults() {
@@ -979,6 +992,7 @@ class SettingsManager: ObservableObject {
         editorFontSize = 15
         editorLineHeight = 1.6
         respectGitignore = true
+        folderAppearances = []
     }
 
     private func applyGlobalConfig(_ globalConfig: GlobalConfig?) {
@@ -1179,6 +1193,7 @@ class SettingsManager: ObservableObject {
         let respectGitignore: Bool
         let activeThemeName: String
         let customThemes: [AppTheme]
+        let folderAppearances: [FolderAppearance]
 
         init(from s: SettingsManager) {
             useLegacyMode         = s.useLegacyMode
@@ -1216,6 +1231,7 @@ class SettingsManager: ObservableObject {
             respectGitignore      = s.respectGitignore
             activeThemeName       = s.activeThemeName
             customThemes          = s.customThemes
+            folderAppearances     = s.folderAppearances
         }
 
         func write() {
@@ -1340,7 +1356,8 @@ class SettingsManager: ObservableObject {
                 editorLineHeight: editorLineHeight == 1.6 ? nil : editorLineHeight,
                 respectGitignore: respectGitignore ? nil : false,  // omit when true (default)
                 activeThemeName: activeThemeName == "Synapse (Dark)" ? nil : activeThemeName,
-                customThemes: customThemes.isEmpty ? nil : customThemes
+                customThemes: customThemes.isEmpty ? nil : customThemes,
+                folderAppearances: folderAppearances.isEmpty ? nil : folderAppearances
             )
             let notedDir = vaultRootURL.appendingPathComponent(".synapse")
             try? FileManager.default.createDirectory(at: notedDir, withIntermediateDirectories: true)
