@@ -223,7 +223,8 @@ private struct DayCell: View {
 
     private var textColor: Color {
         if isToday {
-            return SynapseTheme.accent
+            // Use white for today to ensure contrast against the accent badge
+            return Color.white
         }
         if !isInCurrentMonth {
             return SynapseTheme.textMuted.opacity(0.5)

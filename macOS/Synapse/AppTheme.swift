@@ -195,7 +195,7 @@ extension AppTheme {
             "text.secondary":       "#9DA7B3",
             "text.muted":           "#7D8590",
             "accent":               "#2F81F7",
-            "accent.soft":          "#1F6FEB",
+            "accent.soft":          "#0D4A9E",  // Darker blue for selected row background
             "border":               "#30363D",
             "divider":              "#21262D",
             "row":                  "#161B22",

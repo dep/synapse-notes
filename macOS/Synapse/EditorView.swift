@@ -1773,9 +1773,20 @@ extension LinkAwareTextView {
         }
         if let frontmatter = semanticStyles.frontmatter {
             if NSIntersectionRange(frontmatter.contentRange, scopeRange).length > 0 {
+                // Use a static/fixed line height for frontmatter that doesn't change with user settings
+                let frontmatterFont = NSFont.systemFont(ofSize: 11)
+                let naturalLineHeight = frontmatterFont.ascender - frontmatterFont.descender + frontmatterFont.leading
+                let staticLineHeightMultiple: CGFloat = 1.2
+                let desiredLineHeight = naturalLineHeight * staticLineHeightMultiple
+                let extraSpacing = max(0, desiredLineHeight - naturalLineHeight)
+                let frontmatterParagraphStyle = NSMutableParagraphStyle()
+                frontmatterParagraphStyle.minimumLineHeight = naturalLineHeight
+                frontmatterParagraphStyle.maximumLineHeight = naturalLineHeight
+                frontmatterParagraphStyle.lineSpacing = extraSpacing
                 storage.addAttributes([
-                    .font: NSFont.systemFont(ofSize: 11),
+                    .font: frontmatterFont,
                     .foregroundColor: SynapseTheme.editorMuted,
+                    .paragraphStyle: frontmatterParagraphStyle,
                 ], range: frontmatter.contentRange)
             }
             let openingFence = NSRange(location: frontmatter.range.location, length: min(3, frontmatter.range.length))

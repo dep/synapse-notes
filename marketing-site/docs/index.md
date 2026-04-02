@@ -41,6 +41,8 @@ Synapse packs a robust set of features to boost your productivity.
 - **Paste HTML as Markdown:** Copy content from any website and paste it directly into Synapse — it's automatically converted to clean Markdown.
 - **View History:** Access the View History button in the file editor to see previous versions of your note.
 
+![](images/customize.png)
+
 ### Navigation
 - **Tabs:** Cycle through your most recently used (MRU) tabs seamlessly.
 - **Split Panes:** Work efficiently by splitting your editor vertically or horizontally.
