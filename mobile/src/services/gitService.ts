@@ -877,11 +877,6 @@ export class GitService {
 
     const remoteState = await this.fetchGitHubApiRemoteState(metadata);
 
-    // Nothing changed since last sync — skip all file work
-    if (remoteState.commitSha === metadata.commitSha) {
-      return;
-    }
-
     const remoteBlobs = remoteState.tree.filter((entry) => entry.type === 'blob');
     const nextFiles: RepoMetadataFile['files'] = { ...metadata.files };
 
