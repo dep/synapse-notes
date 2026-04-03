@@ -111,10 +111,13 @@ enum SidebarPaneItem: Codable, Equatable, Hashable, Identifiable {
 
     var storageKey: String { id }
 
-    var maxHeight: CGFloat? {
+    /// Panes with a fixed height (not user-resizable vs neighbors).
+    var fixedPaneHeight: CGFloat? {
         guard case .builtIn(.calendar) = self else { return nil }
         return 280
     }
+
+    var maxHeight: CGFloat? { fixedPaneHeight }
 
     var builtInPane: SidebarPane? {
         guard case .builtIn(let pane) = self else { return nil }
@@ -466,6 +469,7 @@ class SettingsManager: ObservableObject {
     }
 
     static let defaultPaneHeights: [String: CGFloat] = [
+        "calendar": 280,
         "files":    400,
         "links":    200,
         "terminal": 300,

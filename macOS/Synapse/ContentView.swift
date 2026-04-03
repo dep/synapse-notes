@@ -1190,12 +1190,12 @@ struct DynamicSidebarView: View {
                         }
                     } else {
                         VStack(spacing: 0) {
+                            let paneHeights = layoutExpandedPaneHeights(total: geo.size.height)
                             ForEach(Array(sidebar.panes.enumerated()), id: \.element.id) { index, pane in
                                 let collapsed = settings.collapsedPanes.contains(pane.storageKey)
-                                let rawH = expandedHeight(for: pane, total: geo.size.height)
                                 let paneH = collapsed
                                     ? SidebarPaneWrapper.headerHeight
-                                    : pane.maxHeight.map { min($0, rawH) } ?? rawH
+                                    : paneHeights[index]
 
                                 SidebarPaneInContainer(pane: pane, sidebarId: sidebar.id, settings: settings)
                                     .frame(height: paneH)
@@ -1203,11 +1203,10 @@ struct DynamicSidebarView: View {
                                 if index < sidebar.panes.count - 1 {
                                     let next = sidebar.panes[index + 1]
                                     let eitherCollapsed = collapsed || settings.collapsedPanes.contains(next.storageKey)
-                                    ResizeDivider(disabled: eitherCollapsed, axis: .horizontal, onDragStart: {
-                                        dragStartPaneHeights = (
-                                            expandedHeight(for: pane, total: geo.size.height),
-                                            expandedHeight(for: next, total: geo.size.height)
-                                        )
+                                    let touchesFixedHeight = pane.fixedPaneHeight != nil || next.fixedPaneHeight != nil
+                                    ResizeDivider(disabled: eitherCollapsed || touchesFixedHeight, axis: .horizontal, onDragStart: {
+                                        let h = layoutExpandedPaneHeights(total: geo.size.height)
+                                        dragStartPaneHeights = (h[index], h[index + 1])
                                     }) { translation in
                                         let maxCur = pane.maxHeight ?? .infinity
                                         let maxNxt = next.maxHeight ?? .infinity
@@ -1261,18 +1260,52 @@ struct DynamicSidebarView: View {
         .padding(.horizontal, compact ? 4 : 0)
     }
 
-    private func expandedHeight(for pane: SidebarPaneItem, total: CGFloat) -> CGFloat {
-        let expanded = sidebar.panes.filter { !settings.collapsedPanes.contains($0.storageKey) }
-        let collapsedCount = sidebar.panes.count - expanded.count
-        let divSpace    = CGFloat(max(0, sidebar.panes.count - 1)) * 6
-        let collSpace   = CGFloat(collapsedCount) * SidebarPaneWrapper.headerHeight
-        let available   = max(0, total - divSpace - collSpace)
-        guard !expanded.isEmpty else { return SidebarPaneWrapper.headerHeight }
-        let totalStored = expanded.compactMap { settings.sidebarPaneHeights[$0.storageKey] }.reduce(0, +)
-        if totalStored > 0, let stored = settings.sidebarPaneHeights[pane.storageKey] {
-            return max(80, available * (stored / totalStored))
+    /// Vertical space for each sidebar pane. Calendar is fixed at 280px (clamped if the sidebar is shorter); flex panes share the remainder.
+    private func layoutExpandedPaneHeights(total: CGFloat) -> [CGFloat] {
+        let panes = sidebar.panes
+        let count = panes.count
+        var heights = [CGFloat](repeating: SidebarPaneWrapper.headerHeight, count: count)
+        let divSpace = CGFloat(max(0, count - 1)) * 6
+
+        var collapsedUsed: CGFloat = 0
+        for (i, pane) in panes.enumerated() {
+            if settings.collapsedPanes.contains(pane.storageKey) {
+                heights[i] = SidebarPaneWrapper.headerHeight
+                collapsedUsed += SidebarPaneWrapper.headerHeight
+            }
         }
-        return max(80, available / CGFloat(expanded.count))
+
+        let expandedIndices = panes.indices.filter { !settings.collapsedPanes.contains(panes[$0].storageKey) }
+        guard !expandedIndices.isEmpty else { return heights }
+
+        var pool = max(0, total - divSpace - collapsedUsed)
+
+        for i in expandedIndices {
+            if let fixed = panes[i].fixedPaneHeight {
+                let assigned = min(fixed, pool)
+                heights[i] = max(SidebarPaneWrapper.headerHeight, assigned)
+                pool -= heights[i]
+            }
+        }
+
+        let flexIndices = expandedIndices.filter { panes[$0].fixedPaneHeight == nil }
+        guard !flexIndices.isEmpty else { return heights }
+
+        let flexPool = max(0, pool)
+        let flexStoredTotal = flexIndices.compactMap { settings.sidebarPaneHeights[panes[$0].storageKey] }.reduce(0, +)
+        if flexStoredTotal > 0 {
+            for i in flexIndices {
+                let stored = settings.sidebarPaneHeights[panes[i].storageKey] ?? 0
+                heights[i] = max(80, flexPool * (stored / flexStoredTotal))
+            }
+        } else {
+            let each = max(80, flexPool / CGFloat(flexIndices.count))
+            for i in flexIndices {
+                heights[i] = each
+            }
+        }
+
+        return heights
     }
 
     private func insertDroppedItem(providers: [NSItemProvider]) -> Bool {
