@@ -34,7 +34,6 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>(undefined);
   const [repositoryPath, setRepositoryPath] = useState<string | null>(null);
-  const [hasOpenedDailyNote, setHasOpenedDailyNote] = useState(false);
   const [isTemplatePickerVisible, setIsTemplatePickerVisible] = useState(false);
   const [isNewFolderDialogVisible, setIsNewFolderDialogVisible] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -69,29 +68,6 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
 
     loadPinnedItems();
   }, [repositoryPath]);
-
-  // Open daily note on startup if enabled
-  useEffect(() => {
-    const openDailyNoteOnStartup = async () => {
-      if (hasOpenedDailyNote || !repositoryPath) return;
-      
-      const shouldOpen = await DailyNoteService.getDailyNoteStatus();
-      if (shouldOpen) {
-        try {
-          const result = await DailyNoteService.openTodayNote(repositoryPath);
-          if (result.notePath) {
-            setActiveFilePath(result.notePath);
-            navigation.navigate('Editor', { filePath: result.notePath });
-          }
-        } catch (error) {
-          console.error('Failed to open daily note on startup:', error);
-        }
-      }
-      setHasOpenedDailyNote(true);
-    };
-
-    openDailyNoteOnStartup();
-  }, [repositoryPath, hasOpenedDailyNote, navigation]);
 
   // Open drawer when coming back from editor with openDrawer param
   useEffect(() => {

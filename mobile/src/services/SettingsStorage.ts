@@ -4,7 +4,6 @@ export interface DailyNoteSettings {
   dailyNotesEnabled: boolean;
   dailyNotesFolder: string;
   dailyNotesTemplate: string;
-  dailyNotesOpenOnStartup: boolean;
 }
 
 export interface FileBrowserSettings {
@@ -16,7 +15,6 @@ const STORAGE_KEYS = {
   DAILY_NOTES_ENABLED: 'dailyNotesEnabled',
   DAILY_NOTES_FOLDER: 'dailyNotesFolder',
   DAILY_NOTES_TEMPLATE: 'dailyNotesTemplate',
-  DAILY_NOTES_OPEN_ON_STARTUP: 'dailyNotesOpenOnStartup',
   FILE_EXTENSION_FILTER: 'fileExtensionFilter',
   HIDDEN_FILE_FOLDER_FILTER: 'hiddenFileFolderFilter',
   SHARE_DEFAULT_FOLDER: 'shareDefaultFolder',
@@ -26,7 +24,6 @@ const DEFAULTS = {
   dailyNotesEnabled: false,
   dailyNotesFolder: 'daily',
   dailyNotesTemplate: '',
-  dailyNotesOpenOnStartup: false,
   fileExtensionFilter: '*.md, *.txt',
   hiddenFileFolderFilter: '',
   shareDefaultFolder: '',
@@ -63,30 +60,18 @@ export class SettingsStorage {
     await AsyncStorage.setItem(STORAGE_KEYS.DAILY_NOTES_TEMPLATE, template);
   }
 
-  // dailyNotesOpenOnStartup
-  static async getDailyNotesOpenOnStartup(): Promise<boolean> {
-    const value = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_NOTES_OPEN_ON_STARTUP);
-    return value === 'true';
-  }
-
-  static async setDailyNotesOpenOnStartup(openOnStartup: boolean): Promise<void> {
-    await AsyncStorage.setItem(STORAGE_KEYS.DAILY_NOTES_OPEN_ON_STARTUP, openOnStartup ? 'true' : 'false');
-  }
-
   // Get all daily note settings at once
   static async getAllDailyNoteSettings(): Promise<DailyNoteSettings> {
-    const [enabled, folder, template, openOnStartup] = await Promise.all([
+    const [enabled, folder, template] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEYS.DAILY_NOTES_ENABLED),
       AsyncStorage.getItem(STORAGE_KEYS.DAILY_NOTES_FOLDER),
       AsyncStorage.getItem(STORAGE_KEYS.DAILY_NOTES_TEMPLATE),
-      AsyncStorage.getItem(STORAGE_KEYS.DAILY_NOTES_OPEN_ON_STARTUP),
     ]);
 
     return {
       dailyNotesEnabled: enabled === 'true',
       dailyNotesFolder: folder ?? DEFAULTS.dailyNotesFolder,
       dailyNotesTemplate: template ?? DEFAULTS.dailyNotesTemplate,
-      dailyNotesOpenOnStartup: openOnStartup === 'true',
     };
   }
 

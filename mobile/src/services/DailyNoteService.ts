@@ -161,10 +161,4 @@ export class DailyNoteService {
     return { content, cursorPosition };
   }
 
-  // Check if daily notes should auto-open on startup
-  static async getDailyNoteStatus(): Promise<boolean> {
-    const enabled = await SettingsStorage.getDailyNotesEnabled();
-    const openOnStartup = await SettingsStorage.getDailyNotesOpenOnStartup();
-    return enabled && openOnStartup;
-  }
 }

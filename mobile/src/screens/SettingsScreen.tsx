@@ -20,7 +20,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   // Daily Note settings
   const [dailyNotesEnabled, setDailyNotesEnabled] = useState(false);
-  const [dailyNotesOpenOnStartup, setDailyNotesOpenOnStartup] = useState(false);
   const [dailyNotesFolder, setDailyNotesFolder] = useState('daily');
   const [dailyNotesTemplate, setDailyNotesTemplate] = useState('');
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -54,7 +53,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     try {
       const settings = await SettingsStorage.getAllDailyNoteSettings();
       setDailyNotesEnabled(settings.dailyNotesEnabled);
-      setDailyNotesOpenOnStartup(settings.dailyNotesOpenOnStartup);
       setDailyNotesFolder(settings.dailyNotesFolder);
       setDailyNotesTemplate(settings.dailyNotesTemplate);
     } catch (error) {
@@ -67,11 +65,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const handleDailyNotesToggle = async (enabled: boolean) => {
     setDailyNotesEnabled(enabled);
     await SettingsStorage.setDailyNotesEnabled(enabled);
-  };
-
-  const handleOpenOnStartupToggle = async (enabled: boolean) => {
-    setDailyNotesOpenOnStartup(enabled);
-    await SettingsStorage.setDailyNotesOpenOnStartup(enabled);
   };
 
   const handleFolderChange = async (folder: string) => {
@@ -346,27 +339,6 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
 
             {dailyNotesEnabled && (
               <>
-                <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-
-                {/* Open on Startup Toggle */}
-                <View style={styles.settingRow}>
-                  <Text style={[styles.settingLabel, { color: theme.colors.text }]}>
-                    Open on Startup
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.toggle,
-                      { backgroundColor: dailyNotesOpenOnStartup ? theme.colors.primary : theme.colors.border }
-                    ]}
-                    onPress={() => handleOpenOnStartupToggle(!dailyNotesOpenOnStartup)}
-                    disabled={isLoadingSettings}
-                  >
-                    <Text style={[styles.toggleText, { color: theme.colors.background }]}>
-                      {dailyNotesOpenOnStartup ? 'ON' : 'OFF'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
                 <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
                 {/* Daily Notes Folder Input */}
