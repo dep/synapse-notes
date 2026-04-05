@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Synapse",
-    "slug": "mobile",
+    "slug": "synapse",
     "version": "1.0.0",
     "scheme": "synapse",
     "orientation": "portrait",
@@ -40,12 +40,20 @@
             "NSExtensionActivationSupportsWebPageWithMaxCount": 1
           },
           "iosShareExtensionName": "Save to Synapse",
-          "androidIntentFilters": ["text/*"],
+          "androidIntentFilters": [
+            "text/*"
+          ],
           "androidMainActivityAttributes": {
             "android:launchMode": "singleTask"
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "450e6d9d-9cb8-4549-a43a-f9f06ab17eb5"
+      }
+    },
+    "owner": "dnnypck"
   }
 }
