@@ -4,7 +4,7 @@ Synapse is a powerful Markdown-based knowledge management application exclusivel
 
 ♥️ Built with love by nerds _for_ nerds.
 
-### [Download now](https://github.com/dep/synapse/releases/latest) | [Read the docs](https://synapse-delta-nine.vercel.app/)
+### [Download now](https://github.com/dep/synapse/releases/latest) | [Read the docs](https://synapsenotes.app/)
 
 <img width="1569" height="1035" alt="image" src="https://github.com/user-attachments/assets/35484b4b-d0d0-4c4c-a4ec-79bdcd935978" />
 
