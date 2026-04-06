@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       macos: ${{ steps.filter.outputs.macos }}
+      mobile: ${{ steps.filter.outputs.mobile }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,6 +24,9 @@ jobs:
           filters: |
             macos:
               - 'macOS/**'
+              - '.github/workflows/tests.yml'
+            mobile:
+              - 'mobile/**'
               - '.github/workflows/tests.yml'
 
   unit-tests:
@@ -87,6 +91,8 @@ jobs:
 
   mobile-tests:
     name: Mobile Tests
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
 
     steps:
