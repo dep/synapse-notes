@@ -63,11 +63,45 @@ struct CommandPaletteView: View {
 
     private let blankTemplateURL = URL(fileURLWithPath: "/__Synapse_blank_template")
 
-    private var results: [URL] {
-        let files = sourceFiles
+    // MARK: - Results
+
+    private var results: [CommandPaletteResult] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmedQuery.isEmpty else {
+        switch appState.commandPaletteMode {
+        case .files, .wikiLink:
+            return combinedResults(for: trimmedQuery)
+        case .templates:
+            return fileResults(for: trimmedQuery)
+        case .tags:
+            return tagResults(for: trimmedQuery)
+        }
+    }
+
+    /// Returns both files and tags in a single search
+    private func combinedResults(for query: String) -> [CommandPaletteResult] {
+        let files = fileResults(for: query)
+        let tags = tagResults(for: query, limit: 5) // Show top 5 tags
+
+        // If there's a query, interleave results: files first, then tags
+        // If empty, show recent files and recent tags
+        if query.isEmpty {
+            // Get recent tags and convert to results
+            let recentTags = appState.recentTags.map { tag -> CommandPaletteResult in
+                let count = appState.allTags()[tag] ?? 0
+                return CommandPaletteResult.tag(name: tag, count: count)
+            }
+            return files + recentTags
+        }
+
+        // Combine: files first, then tags at the bottom
+        return files + tags
+    }
+
+    private func fileResults(for query: String) -> [CommandPaletteResult] {
+        let files = sourceFiles
+
+        guard !query.isEmpty else {
             let recent = appState.commandPaletteMode == .files ? appState.recentFiles : []
             var finalResults: [URL]
             if !recent.isEmpty {
@@ -78,10 +112,10 @@ struct CommandPaletteView: View {
             if appState.commandPaletteMode == .templates {
                 finalResults.insert(blankTemplateURL, at: 0)
             }
-            return finalResults
+            return finalResults.map { CommandPaletteResult.file(url: $0) }
         }
 
-        let needle = trimmedQuery.lowercased()
+        let needle = query.lowercased()
 
         let scoredResults: [(url: URL, score: Int)] = files
             .compactMap { url -> (url: URL, score: Int)? in
@@ -104,7 +138,49 @@ struct CommandPaletteView: View {
             finalResults.insert(blankTemplateURL, at: 0)
         }
 
-        return finalResults
+        return finalResults.map { CommandPaletteResult.file(url: $0) }
+    }
+
+    private func tagResults(for query: String, limit: Int? = nil) -> [CommandPaletteResult] {
+        let allTags = appState.allTags()
+        let trimmedSearch = query.trimmingCharacters(in: .whitespaces).lowercased()
+
+        // When empty and in tags mode, show all tags sorted alphabetically
+        if trimmedSearch.isEmpty && appState.commandPaletteMode == .tags {
+            return allTags
+                .sorted { $0.key < $1.key }
+                .map { CommandPaletteResult.tag(name: $0.key, count: $0.value) }
+        }
+
+        // When empty in files/wikiLink mode, don't show tags (avoid clutter)
+        if trimmedSearch.isEmpty {
+            return []
+        }
+
+        // Check if the query itself is a tag (starts with #) or just a search term
+        let searchTerm = trimmedSearch.hasPrefix("#") ? String(trimmedSearch.dropFirst()) : trimmedSearch
+
+        // Score and filter tags
+        let scoredTags: [(name: String, count: Int, score: Int)] = allTags
+            .compactMap { name, count -> (name: String, count: Int, score: Int)? in
+                let lowerName = name.lowercased()
+                var score = 0
+
+                if lowerName == searchTerm { score += 200 }
+                else if lowerName.hasPrefix(searchTerm) { score += 100 }
+                else if lowerName.contains(searchTerm) { score += 60 }
+
+                guard score > 0 else { return nil }
+                return (name, count, score)
+            }
+            .sorted { $0.score > $1.score }
+
+        let results = scoredTags.map { CommandPaletteResult.tag(name: $0.name, count: $0.count) }
+
+        if let limit = limit {
+            return Array(results.prefix(limit))
+        }
+        return results
     }
 
     private var sourceFiles: [URL] {
@@ -113,44 +189,62 @@ struct CommandPaletteView: View {
             return appState.allProjectFiles
         case .templates:
             return appState.availableTemplates()
+        case .tags:
+            return []
         }
     }
 
     private var searchPlaceholder: String {
         switch appState.commandPaletteMode {
         case .files:
-            return "Open any file in the workspace"
+            return "Search files, notes, and tags..."
         case .templates:
             return "Choose a template for the new note"
         case .wikiLink:
             return "Insert a wiki link"
+        case .tags:
+            return "Search tags..."
         }
     }
 
     private var resultsBadgeText: String {
+        let fileCount = results.filter { if case .file = $0 { return true }; return false }.count
+        let tagCount = results.filter { if case .tag = $0 { return true }; return false }.count
+
         switch appState.commandPaletteMode {
-        case .files, .wikiLink:
-            return "\(results.count) matches"
+        case .files:
+            if tagCount > 0 {
+                return "\(fileCount) files, \(tagCount) tags"
+            }
+            return "\(fileCount) matches"
         case .templates:
-            return "\(results.count) templates"
+            return "\(fileCount) templates"
+        case .wikiLink:
+            return "\(fileCount) matches"
+        case .tags:
+            return "\(tagCount) tags"
         }
     }
 
     private var emptyTitle: String {
         switch appState.commandPaletteMode {
         case .files, .wikiLink:
-            return "No matching files"
+            return "No matching files or tags"
         case .templates:
             return "No matching templates"
+        case .tags:
+            return "No matching tags"
         }
     }
 
     private var emptyMessage: String {
         switch appState.commandPaletteMode {
         case .files, .wikiLink:
-            return "Try a file name, path fragment, or extension."
+            return "Try a file name, tag name, or path fragment."
         case .templates:
             return "Try a template name or path fragment."
+        case .tags:
+            return "Try a tag name."
         }
     }
 
@@ -245,28 +339,12 @@ struct CommandPaletteView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 6)
                     } else {
-                        ForEach(Array(results.enumerated()), id: \.offset) { index, url in
+                        ForEach(Array(results.enumerated()), id: \.offset) { index, result in
                             Button {
                                 selectedIndex = index
-                                openResult(url)
+                                openResult(result)
                             } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: fileIcon(for: url))
-                                        .foregroundStyle(SynapseTheme.accent)
-                                        .frame(width: 16)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(primaryLabel(for: url))
-                                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(index == selectedIndex ? Color.white : SynapseTheme.textPrimary)
-                                            .lineLimit(1)
-                                        Text(secondaryLabel(for: url))
-                                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                                            .foregroundStyle(index == selectedIndex ? Color.white.opacity(0.82) : SynapseTheme.textSecondary)
-                                            .lineLimit(1)
-                                    }
-                                    Spacer()
-                                }
-                                .paletteRow(selected: index == selectedIndex)
+                                resultRow(for: result, at: index)
                             }
                             .buttonStyle(.plain)
                             .id(index)
@@ -281,12 +359,62 @@ struct CommandPaletteView: View {
         }
     }
 
+    @ViewBuilder
+    private func resultRow(for result: CommandPaletteResult, at index: Int) -> some View {
+        switch result {
+        case .file(let url):
+            fileRow(for: url, at: index)
+        case .tag(let name, let count):
+            tagRow(for: name, count: count, at: index)
+        }
+    }
+
+    private func fileRow(for url: URL, at index: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: fileIcon(for: url))
+                .foregroundStyle(SynapseTheme.accent)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(primaryLabel(for: url))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(index == selectedIndex ? Color.white : SynapseTheme.textPrimary)
+                    .lineLimit(1)
+                Text(secondaryLabel(for: url))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(index == selectedIndex ? Color.white.opacity(0.82) : SynapseTheme.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .paletteRow(selected: index == selectedIndex)
+    }
+
+    private func tagRow(for name: String, count: Int, at index: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "number")
+                .foregroundStyle(SynapseTheme.accent)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("#\(name)")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(index == selectedIndex ? Color.white : SynapseTheme.textPrimary)
+                    .lineLimit(1)
+                Text("\(count) note\(count == 1 ? "" : "s")")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(index == selectedIndex ? Color.white.opacity(0.82) : SynapseTheme.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .paletteRow(selected: index == selectedIndex)
+    }
+
     private func openTopResult() {
         guard let result = selectedResult else { return }
         openResult(result)
     }
 
-    private var selectedResult: URL? {
+    private var selectedResult: CommandPaletteResult? {
         guard results.indices.contains(selectedIndex) else { return results.first }
         return results[selectedIndex]
     }
@@ -341,7 +469,16 @@ struct CommandPaletteView: View {
         }
     }
 
-    private func openResult(_ url: URL) {
+    private func openResult(_ result: CommandPaletteResult) {
+        switch result {
+        case .file(let url):
+            openFileResult(url)
+        case .tag(let name, _):
+            openTagResult(name)
+        }
+    }
+
+    private func openFileResult(_ url: URL) {
         switch appState.commandPaletteMode {
         case .files:
             appState.openFile(url)
@@ -354,7 +491,15 @@ struct CommandPaletteView: View {
             appState.isNewNotePromptRequested = true
         case .wikiLink:
             appState.handleWikiLinkSelection(fileURL: url, cursorPosition: 0)
+        case .tags:
+            // Shouldn't happen, but fallback to opening file
+            appState.openFile(url)
         }
+    }
+
+    private func openTagResult(_ tag: String) {
+        appState.dismissCommandPalette()
+        appState.openTagInNewTab(tag)
     }
 
     private func primaryLabel(for url: URL) -> String {
@@ -369,5 +514,21 @@ struct CommandPaletteView: View {
             return "Blank note"
         }
         return appState.relativePath(for: url)
+    }
+}
+
+// MARK: - Result Types
+
+enum CommandPaletteResult: Identifiable {
+    case file(url: URL)
+    case tag(name: String, count: Int)
+
+    var id: String {
+        switch self {
+        case .file(let url):
+            return "file:\(url.absoluteString)"
+        case .tag(let name, _):
+            return "tag:\(name)"
+        }
     }
 }

@@ -86,33 +86,12 @@ describe('SettingsStorage', () => {
     });
   });
 
-  describe('dailyNotesOpenOnStartup', () => {
-    it('should default to false', async () => {
-      mockedGetItem.mockResolvedValue(null);
-      
-      const openOnStartup = await SettingsStorage.getDailyNotesOpenOnStartup();
-      
-      expect(openOnStartup).toBe(false);
-    });
-
-    it('should persist and retrieve value', async () => {
-      await SettingsStorage.setDailyNotesOpenOnStartup(true);
-      mockedGetItem.mockResolvedValue('true');
-      
-      const openOnStartup = await SettingsStorage.getDailyNotesOpenOnStartup();
-      
-      expect(mockedSetItem).toHaveBeenCalledWith('dailyNotesOpenOnStartup', 'true');
-      expect(openOnStartup).toBe(true);
-    });
-  });
-
   describe('getAllDailyNoteSettings', () => {
     it('should return all settings as an object', async () => {
       mockedGetItem
         .mockResolvedValueOnce('true')  // dailyNotesEnabled
         .mockResolvedValueOnce('journal')  // dailyNotesFolder
-        .mockResolvedValueOnce('template.md')  // dailyNotesTemplate
-        .mockResolvedValueOnce('true');  // dailyNotesOpenOnStartup
+        .mockResolvedValueOnce('template.md');  // dailyNotesTemplate
       
       const settings: DailyNoteSettings = await SettingsStorage.getAllDailyNoteSettings();
       
@@ -120,7 +99,6 @@ describe('SettingsStorage', () => {
         dailyNotesEnabled: true,
         dailyNotesFolder: 'journal',
         dailyNotesTemplate: 'template.md',
-        dailyNotesOpenOnStartup: true,
       });
     });
 
@@ -133,7 +111,6 @@ describe('SettingsStorage', () => {
         dailyNotesEnabled: false,
         dailyNotesFolder: 'daily',
         dailyNotesTemplate: '',
-        dailyNotesOpenOnStartup: false,
       });
     });
   });

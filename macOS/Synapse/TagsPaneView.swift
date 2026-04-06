@@ -197,7 +197,7 @@ struct TagPageView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(notes, id: \.self) { url in
-                            TagPageNoteRow(url: url, appState: appState)
+                            TagPageNoteRow(url: url, tag: tag, appState: appState)
                         }
                     }
                     .padding(16)
@@ -211,8 +211,10 @@ struct TagPageView: View {
 
 struct TagPageNoteRow: View {
     let url: URL
+    let tag: String
     @ObservedObject var appState: AppState
     @State private var isHovered = false
+    @State private var tagContext: String?
 
     var body: some View {
         HStack(spacing: 10) {
@@ -224,7 +226,9 @@ struct TagPageNoteRow: View {
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(SynapseTheme.textPrimary)
                     .lineLimit(1)
-                Text(appState.relativePath(for: url))
+                
+                // Show tag context instead of file path
+                Text(tagContext ?? appState.relativePath(for: url))
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(SynapseTheme.textMuted)
                     .lineLimit(1)
@@ -257,6 +261,9 @@ struct TagPageNoteRow: View {
                 NSCursor.pop()
             }
         }
+        .onAppear {
+            loadTagContext()
+        }
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onEnded { _ in
@@ -269,5 +276,37 @@ struct TagPageNoteRow: View {
                     }
                 }
         )
+    }
+    
+    private func loadTagContext() {
+        // Load the file and find the line containing the tag
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let content = try? String(contentsOf: url, encoding: .utf8),
+               let context = findTagContext(in: content, tag: tag) {
+                DispatchQueue.main.async {
+                    self.tagContext = context
+                }
+            }
+        }
+    }
+    
+    private func findTagContext(in content: String, tag: String) -> String? {
+        let normalizedTag = tag.lowercased()
+        let lines = content.components(separatedBy: .newlines)
+        
+        for line in lines {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            // Skip empty lines
+            guard !trimmedLine.isEmpty else { continue }
+            
+            // Check if this line contains the tag (case-insensitive)
+            let lowercasedLine = trimmedLine.lowercased()
+            if lowercasedLine.contains("#\(normalizedTag)") {
+                // Found a line with the tag - return the full line with tag visible
+                return trimmedLine
+            }
+        }
+        
+        return nil
     }
 }
