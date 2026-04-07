@@ -934,11 +934,29 @@ export class GitService {
       if (previousEntry) {
         nextFiles[blob.path] = previousEntry;
       } else {
-        nextFiles[blob.path] = {
-          sha: blob.sha,
-          mode: blob.mode,
-          type: blob.mode === '120000' ? 'symlink' : 'blob',
-        };
+        // Tracked on remote but missing from metadata (corrupt/partial index, or files
+        // added outside the app). Never record remote blob.sha without verifying bytes —
+        // otherwise we'd advance commitSha while falsely marking this path as matching
+        // the remote tip; the next sync would skip uploading real local edits and could
+        // replace the remote tree with stale content.
+        const localContentBase64 = await FileSystem.readAsStringAsync(toExpoUri(targetPath), {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const localHash = await this.computeBlobSha(localContentBase64);
+
+        if (localHash === blob.sha) {
+          nextFiles[blob.path] = {
+            sha: blob.sha,
+            mode: blob.mode,
+            type: blob.mode === '120000' ? 'symlink' : 'blob',
+          };
+        } else {
+          nextFiles[blob.path] = {
+            sha: localHash,
+            mode: blob.mode,
+            type: blob.mode === '120000' ? 'symlink' : 'blob',
+          };
+        }
       }
     }));
 
