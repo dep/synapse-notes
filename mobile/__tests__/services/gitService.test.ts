@@ -912,6 +912,71 @@ describe('GitService', () => {
         expect.objectContaining({ sha: 'blob-new', mode: '100644', type: 'blob' })
       );
     });
+
+    it('should record local blob hash when a tracked file exists locally but metadata omits it and bytes differ from remote', async () => {
+      const localPath = 'file:///mock/documents/vault/repo';
+      const metadata = {
+        version: 1,
+        transport: 'github-api',
+        repoUrl: 'https://github.com/test/repo',
+        owner: 'test',
+        repo: 'repo',
+        branch: 'main',
+        commitSha: 'remote-tip-commit',
+        treeSha: 'tree-sha-1',
+        files: {
+          'README.md': { sha: 'blob-readme', mode: '100644', type: 'blob' },
+        },
+      };
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+        JSON.stringify({ ['https://github.com/test/repo']: { username: 'token', token: 'ghp_testtoken123' } })
+      );
+
+      (FileSystem.getInfoAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return { exists: true, isDirectory: false, size: 0 };
+        if (path === 'file:///mock/documents/vault/repo/README.md') return { exists: true, isDirectory: false, size: 0 };
+        if (path === 'file:///mock/documents/vault/repo/NEW.md') return { exists: true, isDirectory: false, size: 0 };
+        return { exists: false, isDirectory: false, size: 0 };
+      });
+
+      (FileSystem.readAsStringAsync as jest.Mock).mockImplementation(async (path: string, options?: any) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return JSON.stringify(metadata);
+        if (path === 'file:///mock/documents/vault/repo/NEW.md' && options?.encoding === 'base64') {
+          return 'TE9DQUwgT05MWSBORVcK';
+        }
+        return '';
+      });
+
+      (git.hashBlob as jest.Mock).mockResolvedValueOnce({ oid: 'local-new-sha' });
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'remote-tip-commit' } }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ tree: { sha: 'tree-sha-2' } }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            tree: [
+              { path: 'README.md', type: 'blob', mode: '100644', sha: 'blob-readme' },
+              { path: 'NEW.md', type: 'blob', mode: '100644', sha: 'blob-remote-new' },
+            ],
+          }),
+        });
+
+      await GitService.refreshRemote(localPath);
+
+      const blobFetchCalls = mockFetch.mock.calls.filter((call: any[]) => call[0].includes('/git/blobs/'));
+      expect(blobFetchCalls).toHaveLength(0);
+
+      const metaWrite = (FileSystem.writeAsStringAsync as jest.Mock).mock.calls.find(
+        (call: string[]) => call[0] === 'file:///mock/documents/vault/repo/.synapse/repo.json'
+      );
+      expect(metaWrite).toBeDefined();
+      const saved = JSON.parse(metaWrite![1] as string);
+      expect(saved.commitSha).toBe('remote-tip-commit');
+      expect(saved.files['NEW.md'].sha).toBe('local-new-sha');
+      expect(saved.files['NEW.md'].sha).not.toBe('blob-remote-new');
+    });
   });
 
   describe('Error Handling', () => {
