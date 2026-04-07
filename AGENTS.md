@@ -72,12 +72,10 @@ Read these optional files if present:
 ---
 
 ## Task Management
-1. **Plan First**: Replace the contents of `.agents/TASKS.md` with a detailed plan of the task at hand.
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `.agents/TASKS.md`
-6. **Capture Lessons**: Update `.agents/LEARNING_LOG.md` (if available) after corrections
+1. **Verify Plan**: Check in before starting implementation
+2. **Track Progress**: Mark items complete as you go
+3. **Explain Changes**: High-level summary at each step
+4. **Capture Lessons**: Update `.agents/LEARNING_LOG.md` (if available) after corrections
 
 ---
 

@@ -19,23 +19,23 @@ Build and install a standalone Android APK with embedded JavaScript bundle. This
 ### Build release APK with embedded bundle
 
 ```bash
-cd mobile/android && ./gradlew assembleRelease
+cd <android app location> && ./gradlew assembleRelease
 ```
 
-Output: `mobile/android/app/build/outputs/apk/release/app-release.apk`
+Output: `<android app location>/app/build/outputs/apk/release/app-release.apk`
 
 This builds a **release APK with JavaScript bundle embedded** (no Metro required).
 
 ### Install via USB
 
 ```bash
-adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
+adb install -r <android app location>/app/build/outputs/apk/release/app-release.apk
 ```
 
 ### Launch the app
 
 ```bash
-adb shell monkey -p com.dnnypck.synapse -c android.intent.category.LAUNCHER 1
+adb shell monkey -p com.dnnypck.<app-name> -c android.intent.category.LAUNCHER 1
 ```
 
 Or launch manually from your app drawer.
@@ -44,7 +44,7 @@ Or launch manually from your app drawer.
 
 1. Copy the APK to your device:
    ```bash
-   cp mobile/android/app/build/outputs/apk/release/app-release.apk ~/Downloads/<AppName>-dev.apk
+   cp <android app location>/app/build/outputs/apk/release/app-release.apk ~/Downloads/<AppName>-dev.apk
    ```
 
 2. Transfer to your phone via:
@@ -60,10 +60,10 @@ Or launch manually from your app drawer.
 Build, install, and launch:
 
 ```bash
-cd mobile/android && \
+cd <android app location> && \
   ./gradlew assembleRelease && \
   adb install -r app/build/outputs/apk/release/app-release.apk && \
-  adb shell monkey -p com.dnnypck.synapse -c android.intent.category.LAUNCHER 1
+  adb shell monkey -p com.dnnypck.<app-name> -c android.intent.category.LAUNCHER 1
 ```
 
 ## Step-by-Step
@@ -71,7 +71,7 @@ cd mobile/android && \
 ### 1. Build the release APK
 
 ```bash
-cd mobile/android && ./gradlew assembleRelease
+cd <android app location> && ./gradlew assembleRelease
 ```
 
 This task automatically:
@@ -79,7 +79,7 @@ This task automatically:
 - Embeds the bundle into the APK
 - Builds a signed release APK
 
-Output: `mobile/android/app/build/outputs/apk/release/app-release.apk`
+Output: `<android app location>/app/build/outputs/apk/release/app-release.apk`
 
 **Note**: The APK is already signed with your debug keystore and ready to install. No additional signing step needed.
 
@@ -94,7 +94,7 @@ adb devices
 
 Install the APK:
 ```bash
-adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
+adb install -r <android app location>/app/build/outputs/apk/release/app-release.apk
 ```
 
 `-r` reinstalls over an existing version. Remove `-r` for fresh install.
@@ -103,7 +103,7 @@ adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
 
 1. Copy APK to an easy location:
    ```bash
-   cp mobile/android/app/build/outputs/apk/release/app-release.apk ~/Downloads/
+   cp <android app location>/app/build/outputs/apk/release/app-release.apk ~/Downloads/
    ```
 
 2. Transfer to your device via email, cloud storage, or file sharing
@@ -115,7 +115,7 @@ adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
 
 **USB-connected:**
 ```bash
-adb shell monkey -p com.dnnypck.synapse -c android.intent.category.LAUNCHER 1
+adb shell monkey -p com.dnnypck.<app-name> -c android.intent.category.LAUNCHER 1
 ```
 
 **Any device:**
@@ -143,7 +143,7 @@ BUILD SUCCESSFUL in 24s
 
 **APK location:**
 ```
-mobile/android/app/build/outputs/apk/release/app-release.apk
+<android app location>/app/build/outputs/apk/release/app-release.apk
 ```
 
 **USB install:**
@@ -156,7 +156,7 @@ Success
 
 ## Artifacts
 
-- Release APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`
+- Release APK: `<android app location>/app/build/outputs/apk/release/app-release.apk`
   - Size: ~70-75MB (includes embedded JS bundle)
   - Signed: Yes (debug keystore)
   - Standalone: Yes (no Metro required)
@@ -165,7 +165,7 @@ Success
 
 **"Unable to load script" error when launching:**
 - You built a debug APK (`assembleDebug`) instead of release
-- Solution: Run `cd mobile/android && ./gradlew assembleRelease`
+- Solution: Run `cd <android app location> && ./gradlew assembleRelease`
 
 **Device not found:**
 - Make sure USB debugging is enabled in Developer Options
@@ -178,7 +178,7 @@ Success
 - Try `adb install -r -d` to allow downgrade
 
 **"App not installed" error:**
-- Try uninstalling the old version first: `adb uninstall com.dnnypck.synapse`
+- Try uninstalling the old version first: `adb uninstall com.dnnypck.<app-name>`
 - Or use `-r` flag to reinstall: `adb install -r app-release.apk`
 
 ## Alternative: EAS Build
@@ -186,7 +186,7 @@ Success
 If you prefer using Expo Application Services (EAS) for cloud builds:
 
 ```bash
-cd mobile && npx eas build --platform android --profile preview --local
+cd <android app location> && npx eas build --platform android --profile preview --local
 ```
 
 This requires:
