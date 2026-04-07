@@ -1309,18 +1309,28 @@ class AppState: ObservableObject {
 
     /// Returns all notes that contain a specific tag (case-insensitive).
     /// Reads from the in-memory content cache (no disk I/O).
+    /// Results are sorted descending by creation date (newest first).
     func notesWithTag(_ tag: String) -> [URL] {
         let normalizedTag = tag.lowercased()
+        let matchingFiles: [URL]
         if !noteContentCache.isEmpty {
-            return noteContentCache.compactMap { url, entry in
+            matchingFiles = noteContentCache.compactMap { url, entry in
                 entry.tags.contains(normalizedTag) ? url : nil
             }
+        } else {
+            // Fallback: scan from disk.
+            matchingFiles = allFiles.filter { url in
+                guard let content = try? String(contentsOf: url, encoding: .utf8) else { return false }
+                let tags = extractTags(from: content)
+                return tags.contains(normalizedTag)
+            }
         }
-        // Fallback: scan from disk.
-        return allFiles.filter { url in
-            guard let content = try? String(contentsOf: url, encoding: .utf8) else { return false }
-            let tags = extractTags(from: content)
-            return tags.contains(normalizedTag)
+        
+        // Sort by creation date descending (newest first)
+        return matchingFiles.sorted { url1, url2 in
+            let date1 = (try? FileManager.default.attributesOfItem(atPath: url1.path)[.creationDate] as? Date) ?? Date.distantPast
+            let date2 = (try? FileManager.default.attributesOfItem(atPath: url2.path)[.creationDate] as? Date) ?? Date.distantPast
+            return date1 > date2
         }
     }
 
