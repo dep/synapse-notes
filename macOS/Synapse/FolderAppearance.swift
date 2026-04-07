@@ -15,6 +15,7 @@ extension FolderColor {
         FolderColor(id: "rose",      label: "Rose",      color: Color(hex: "#F4ACAC")!),
         FolderColor(id: "peach",     label: "Peach",     color: Color(hex: "#F4C4A4")!),
         FolderColor(id: "honey",     label: "Honey",     color: Color(hex: "#F4DFA4")!),
+        FolderColor(id: "amber",     label: "Amber",     color: Color(hex: "#F4DCA4")!),
         FolderColor(id: "sage",      label: "Sage",      color: Color(hex: "#B4E4B4")!),
         FolderColor(id: "mint",      label: "Mint",      color: Color(hex: "#B4F4D4")!),
         FolderColor(id: "teal",      label: "Teal",      color: Color(hex: "#A4D4E4")!),
