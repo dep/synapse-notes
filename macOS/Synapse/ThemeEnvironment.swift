@@ -55,7 +55,6 @@ final class ThemeEnvironment: ObservableObject {
     var divider: Color { theme.swiftUIColor(for: "divider") ?? SynapseTheme.divider }
     var row: Color { theme.swiftUIColor(for: "row") ?? SynapseTheme.row }
     var success: Color { theme.swiftUIColor(for: "success") ?? SynapseTheme.success }
-    var error: Color { theme.swiftUIColor(for: "error") ?? SynapseTheme.error }
 
     // NSColor variants for AppKit/editor use
     var nsEditorBackground: NSColor {
@@ -94,8 +93,5 @@ final class ThemeEnvironment: ObservableObject {
     }
     var nsError: NSColor {
         theme.nsColor(for: "error") ?? SynapseTheme.nsError
-    }
-    var nsAccent: NSColor {
-        theme.nsColor(for: "accent") ?? NSColor(SynapseTheme.accent)
     }
 }

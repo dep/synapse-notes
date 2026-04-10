@@ -2,7 +2,6 @@ import Foundation
 
 struct MarkdownPreviewSemanticHiding {
     let hiddenRanges: [NSRange]
-    let placeholderRanges: [NSRange]
 
     static func make(from source: String, isEditable: Bool, parser: MarkdownDocumentParser = MarkdownDocumentParser()) -> MarkdownPreviewSemanticHiding {
         make(from: parser.parse(source), isEditable: isEditable)
@@ -11,7 +10,6 @@ struct MarkdownPreviewSemanticHiding {
     static func make(from document: MarkdownDocument, isEditable: Bool) -> MarkdownPreviewSemanticHiding {
         let nsSource = document.source as NSString
         var hiddenRanges: [NSRange] = []
-        var placeholderRanges: [NSRange] = []
 
         for block in document.blocks {
             switch block.kind {
@@ -52,13 +50,6 @@ struct MarkdownPreviewSemanticHiding {
                     if let first = lineRanges.first { hiddenRanges.append(first) }
                     if lineRanges.count > 1, let last = lineRanges.last { hiddenRanges.append(last) }
                 }
-            case .taskListItem:
-                if isEditable {
-                    let prefixLength = max(0, block.contentRange.location - block.range.location)
-                    if prefixLength > 0 {
-                        placeholderRanges.append(NSRange(location: block.range.location, length: prefixLength))
-                    }
-                }
             default:
                 break
             }
@@ -93,8 +84,7 @@ struct MarkdownPreviewSemanticHiding {
         }
 
         return MarkdownPreviewSemanticHiding(
-            hiddenRanges: dedupe(hiddenRanges),
-            placeholderRanges: dedupe(placeholderRanges)
+            hiddenRanges: dedupe(hiddenRanges)
         )
     }
 

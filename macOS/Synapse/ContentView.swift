@@ -146,7 +146,6 @@ func extractSidebarFileURL(from item: Any?) -> URL? {
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var autoUpdater: AutoUpdater
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var keyEventMonitor: Any?
     @State private var leftSidebarWidth: CGFloat = SynapseTheme.Layout.minLeftSidebarWidth
     @State private var rightSidebarPrimaryWidth: CGFloat = SynapseTheme.Layout.minRightSidebarWidth + 100
@@ -397,7 +396,7 @@ struct ContentView: View {
                 .environmentObject(appState)
         }
         .sheet(item: $appState.pendingTemplateRename) { (request: TemplateRenameRequest) in
-            TemplateRenameSheet(request: request)
+            TemplateRenameSheet()
                 .environmentObject(appState)
         }
         .onChange(of: autoUpdater.updateAvailable) { available in
@@ -610,7 +609,6 @@ struct ContentView: View {
 private struct SidebarSlotView: View {
     let sidebarID: UUID
     @ObservedObject var settings: SettingsManager
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     let expandedWidth: CGFloat
 
     private let collapsedRailWidth: CGFloat = 28
@@ -809,7 +807,6 @@ private struct GitSyncPopover: View {
 
 private struct TemplateRenameSheet: View {
     @EnvironmentObject var appState: AppState
-    let request: TemplateRenameRequest
 
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
@@ -1094,7 +1091,6 @@ enum SidebarPaneWrapper {
 struct DynamicSidebarView: View {
     let sidebar: Sidebar
     @ObservedObject var settings: SettingsManager
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var isDropTarget = false
     // Captured at vertical pane drag start for absolute-position resizing
     @State private var dragStartPaneHeights: (CGFloat, CGFloat) = (0, 0)
@@ -1342,7 +1338,6 @@ struct SidebarPaneInContainer: View {
     let pane: SidebarPaneItem
     let sidebarId: UUID
     let settings: SettingsManager   // plain ref — no observation
-    @EnvironmentObject var themeEnv: ThemeEnvironment
 
     @State private var isCollapsed: Bool = false
     @State private var headerHovered: Bool = false

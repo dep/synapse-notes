@@ -30,19 +30,6 @@ final class GitHubReleaseDecodingTests: XCTestCase {
         XCTAssertEqual(release.tagName, "v2.1.0")
     }
 
-    func test_release_decodesName() throws {
-        let json = """
-        {
-            "tag_name": "v1.0.0",
-            "name": "Initial Release",
-            "assets": []
-        }
-        """.data(using: .utf8)!
-
-        let release = try decoder.decode(GitHubRelease.self, from: json)
-        XCTAssertEqual(release.name, "Initial Release")
-    }
-
     func test_release_decodesEmptyAssetsArray() throws {
         let json = """
         {
@@ -181,12 +168,12 @@ final class GitHubReleaseDecodingTests: XCTestCase {
     // MARK: - UpdateError enum
 
     func test_updateError_casesExist() {
-        let errors: [UpdateError] = [.downloadFailed, .installFailed, .unsupportedFormat]
-        XCTAssertEqual(errors.count, 3)
+        let errors: [UpdateError] = [.installFailed]
+        XCTAssertEqual(errors.count, 1)
     }
 
     func test_updateError_isError() {
-        let e: Error = UpdateError.downloadFailed
+        let e: Error = UpdateError.installFailed
         XCTAssertNotNil(e)
     }
 }

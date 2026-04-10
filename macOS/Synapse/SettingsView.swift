@@ -15,7 +15,6 @@ extension View {
 struct SettingsView: View {
     @AppStorage(kGitSSHAuthSock) private var sshAuthSock: String = ""
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     @ObservedObject var settings: SettingsManager
     @State private var isDetecting = false
     @State private var detectError: String?

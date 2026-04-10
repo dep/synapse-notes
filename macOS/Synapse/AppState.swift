@@ -301,7 +301,6 @@ class AppState: ObservableObject {
     private(set) var scanGeneration: Int = 0
     /// Pending debounce work item for the DispatchSource file watcher.
     private var scanDebounceWorkItem: DispatchWorkItem?
-    private let machineName: String = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
 
     // MARK: - Content Cache (Issue #144)
     /// Per-file content cache keyed by standardized file URL.
@@ -427,37 +426,6 @@ class AppState: ObservableObject {
         }
 
         return SettingsManager()
-    }
-
-    /// Saves the current vault path to the global settings for auto-restore on next launch
-    private func saveCurrentVaultPath() {
-        guard let rootURL = rootURL else { return }
-        let path = rootURL.path
-        
-        // Add to the beginning of vaultPaths (most recent first)
-        var paths = settings.vaultPaths
-        // Remove if already exists to avoid duplicates
-        paths.removeAll { $0 == path }
-        // Insert at the beginning
-        paths.insert(path, at: 0)
-        // Keep only the most recent 10 vaults
-        if paths.count > 10 {
-            paths = Array(paths.prefix(10))
-        }
-        settings.vaultPaths = paths
-    }
-    
-    /// Opens the most recently used vault if available
-    /// Returns true if a vault was opened, false otherwise
-    func openLastVaultIfAvailable() -> Bool {
-        guard let lastVaultPath = settings.vaultPaths.first,
-              FileManager.default.fileExists(atPath: lastVaultPath) else {
-            return false
-        }
-        
-        let url = URL(fileURLWithPath: lastVaultPath)
-        openFolder(url)
-        return true
     }
 
     /// Returns all pinned items that exist in the current vault
@@ -721,7 +689,7 @@ class AppState: ObservableObject {
         }
     }
 
-    private func activateTab(at index: Int, updateRecency: Bool = true, resetCycle: Bool = true) {
+    private func activateTab(at index: Int, updateRecency: Bool = true) {
         guard index >= 0 && index < tabs.count else { return }
 
         if isDirty {
@@ -961,22 +929,15 @@ class AppState: ObservableObject {
         }
 
         // If nesting is not allowed, convert any embedded notes in the content to plain text
-        if !allowNesting {
-            content = disableNestedEmbeds(in: content)
+        if !allowNesting, let regex = AppState.embedRegex {
+            content = regex.stringByReplacingMatches(
+                in: content,
+                range: NSRange(location: 0, length: (content as NSString).length),
+                withTemplate: "[[$1]]"
+            )
         }
 
         return content
-    }
-
-    /// Converts embed syntax (![[...]]) to plain text ([[...]]) to disable nesting
-    private func disableNestedEmbeds(in content: String) -> String {
-        guard let regex = AppState.embedRegex else { return content }
-        // Replace all ![[...]] with [[...]] (removing the ! to make it a regular wiki-link)
-        return regex.stringByReplacingMatches(
-            in: content,
-            range: NSRange(location: 0, length: (content as NSString).length),
-            withTemplate: "[[$1]]"
-        )
     }
 
     private func wikiLinks(in text: String) -> [String] {

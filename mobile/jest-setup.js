@@ -64,10 +64,23 @@ jest.mock('react-native', () => {
     Image: mockComponent('Image'),
     TouchableOpacity: mockComponent('TouchableOpacity'),
     ScrollView: mockComponent('ScrollView'),
+    FlatList: React.forwardRef(({ data, renderItem, ListEmptyComponent, ...props }, ref) => {
+      // FlatList mock that actually renders items
+      return React.createElement('FlatList', { ref, ...props }, 
+        data?.map((item, index) => {
+          const element = renderItem({ item, index });
+          return React.cloneElement(element, { key: item?.key || item?.path || index });
+        }) || ListEmptyComponent
+      );
+    }),
     Modal: mockComponent('Modal'),
     TextInput: mockComponent('TextInput'),
     ActivityIndicator: mockComponent('ActivityIndicator'),
     KeyboardAvoidingView: mockComponent('KeyboardAvoidingView'),
+    Image: mockComponent('Image'),
+    Alert: {
+      alert: jest.fn(),
+    },
     BackHandler: {
       addEventListener: jest.fn(() => ({ remove: jest.fn() })),
       removeEventListener: jest.fn(),

@@ -53,7 +53,7 @@ enum GitError: LocalizedError, Equatable {
     }
 
     /// Translates raw git stderr into a structured, user-friendly error.
-    static func from(stderr: String, stdout: String, operation: String) -> GitError {
+    static func from(stderr: String, stdout: String, _: String) -> GitError {
         let text = stderr.isEmpty ? stdout : stderr
         let lower = text.lowercased()
 
@@ -318,7 +318,7 @@ final class GitService {
         let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
 
         if process.terminationStatus != 0 {
-            throw GitError.from(stderr: err, stdout: out, operation: operation)
+            throw GitError.from(stderr: err, stdout: out, operation)
         }
         return out
     }

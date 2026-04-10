@@ -2,7 +2,6 @@ import SwiftUI
 
 struct FolderPickerView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var isCloneSheetPresented = false
 
     var body: some View {

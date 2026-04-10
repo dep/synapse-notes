@@ -140,14 +140,6 @@ extension Array where Element == SidebarPaneItem {
     }
 }
 
-func == (lhs: [SidebarPaneItem], rhs: [SidebarPane]) -> Bool {
-    lhs == rhs.map(SidebarPaneItem.builtIn)
-}
-
-func == (lhs: [SidebarPane], rhs: [SidebarPaneItem]) -> Bool {
-    rhs == lhs
-}
-
 /// Position of a sidebar container (left or right side of the window)
 enum SidebarPosition: String, Codable, CaseIterable {
     case left = "left"
@@ -523,7 +515,6 @@ class SettingsManager: ObservableObject {
         var editorFontSize: Int?
         var editorLineHeight: Double?
         var respectGitignore: Bool?
-        var lastNoteFolderPerVault: [String: String]?
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -554,7 +545,6 @@ class SettingsManager: ObservableObject {
             editorFontSize = try container.decodeIfPresent(Int.self, forKey: .editorFontSize)
             editorLineHeight = try container.decodeIfPresent(Double.self, forKey: .editorLineHeight)
             respectGitignore = try container.decodeIfPresent(Bool.self, forKey: .respectGitignore)
-            lastNoteFolderPerVault = try container.decodeIfPresent([String: String].self, forKey: .lastNoteFolderPerVault)
         }
     }
 

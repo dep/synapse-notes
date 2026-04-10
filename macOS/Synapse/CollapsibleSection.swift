@@ -205,10 +205,6 @@ class CollapsibleStateManager {
         return seenFiles.contains(file.path)
     }
 
-    func getCollapsedSections(in file: URL) -> Set<String> {
-        return state[file.path] ?? Set()
-    }
-
     func clearState(for file: URL) {
         state.removeValue(forKey: file.path)
         seenFiles.remove(file.path)

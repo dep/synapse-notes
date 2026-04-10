@@ -49,7 +49,6 @@ struct FileSearchResult: Identifiable {
 
  struct FindBar: View {
      @EnvironmentObject var appState: AppState
-     @EnvironmentObject var themeEnv: ThemeEnvironment
      @FocusState private var isFieldFocused: Bool
 
     var body: some View {
@@ -155,7 +154,6 @@ struct FileSearchResult: Identifiable {
 
 struct AllFilesSearchView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var query: String = ""
     @State private var results: [FileSearchResult] = []
     @State private var selectedIndex: Int = -1
@@ -359,10 +357,13 @@ struct AllFilesSearchView: View {
         let files = appState.allFiles.filter { candidates.contains($0) }
         let cacheSnapshot = appState.noteContentCache
 
-        let workItem = DispatchWorkItem { [weak appState] in
+        var workItem: DispatchWorkItem!
+        workItem = DispatchWorkItem { [weak appState] in
             let needle = q.lowercased()
             var found: [FileSearchResult] = []
             for url in files {
+                // Bail out early if a newer search has been scheduled.
+                if workItem.isCancelled { return }
                 // Prefer cached content to avoid disk I/O on every keystroke.
                 let content: String
                 if let cached = cacheSnapshot[url] {
@@ -398,8 +399,8 @@ struct AllFilesSearchView: View {
                 return $0.lineNumber < $1.lineNumber
             }
             DispatchQueue.main.async {
-                // Only update if this search wasn't cancelled
-                guard appState != nil else { return }
+                // Only update if this search wasn't superseded by a newer one
+                guard appState != nil, !workItem.isCancelled else { return }
                 self.results = found
                 self.isSearching = false
             }

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct RelatedLinksPaneView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
 
     // Cached result — only recomputed when selectedFile changes, not on every keystroke
     @State private var relationships: NoteLinkRelationships? = nil

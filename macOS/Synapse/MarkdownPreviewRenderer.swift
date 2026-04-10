@@ -178,8 +178,6 @@ struct MarkdownPreviewRenderer {
     private struct ListItem {
         let indent: Int
         let html: String
-        let isTask: Bool
-        let charOffset: Int
     }
 
     private func renderList(startingAt start: Int, in document: MarkdownDocument, kind: ListRenderKind) -> (String, Int) {
@@ -191,17 +189,17 @@ struct MarkdownPreviewRenderer {
             switch (kind, block.kind) {
             case let (.unordered, .unorderedListItem(indent)):
                 let content = renderInlineText(in: document.source, range: block.contentRange, tokens: block.inlineTokens)
-                rawItems.append(ListItem(indent: indent, html: "<li>\(content)</li>", isTask: false, charOffset: block.range.location))
+                rawItems.append(ListItem(indent: indent, html: "<li>\(content)</li>"))
             case let (.ordered, .orderedListItem(indent, _)):
                 let content = renderInlineText(in: document.source, range: block.contentRange, tokens: block.inlineTokens)
-                rawItems.append(ListItem(indent: indent, html: "<li>\(content)</li>", isTask: false, charOffset: block.range.location))
+                rawItems.append(ListItem(indent: indent, html: "<li>\(content)</li>"))
             case let (.task, .taskListItem(indent, isChecked)):
                 let content = renderInlineText(in: document.source, range: block.contentRange, tokens: block.inlineTokens)
                 let checked = isChecked ? " checked" : ""
                 // The [ ] / [x] marker starts at indent + 2 within the block (after "- ")
                 let markerOffset = block.range.location + indent + 2
                 let checkboxHTML = "<input type=\"checkbox\"\(checked) data-offset=\"\(markerOffset)\" onclick=\"window.webkit.messageHandlers.toggleCheckbox.postMessage(\(markerOffset))\">"
-                rawItems.append(ListItem(indent: indent, html: "<li class=\"task-item\">\(checkboxHTML) <span>\(content)</span></li>", isTask: true, charOffset: markerOffset))
+                rawItems.append(ListItem(indent: indent, html: "<li class=\"task-item\">\(checkboxHTML) <span>\(content)</span></li>"))
             default:
                 return (buildNestedList(items: rawItems, kind: kind), index)
             }

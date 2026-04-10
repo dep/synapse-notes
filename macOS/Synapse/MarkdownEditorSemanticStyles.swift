@@ -14,7 +14,6 @@ struct MarkdownEditorSemanticStyles {
 
     struct Callout: Equatable {
         let range: NSRange
-        let headerRange: NSRange
         let markerRange: NSRange
         let titleRange: NSRange?
         let kind: String
@@ -56,7 +55,7 @@ struct MarkdownEditorSemanticStyles {
             case .blockquote:
                 blockquotes.append(block.range)
                 if let callout = MarkdownCalloutDetector.detect(in: block, source: document.source) {
-                    callouts.append(Callout(range: callout.blockRange, headerRange: callout.headerRange, markerRange: callout.markerRange, titleRange: callout.titleRange, kind: callout.kind))
+                    callouts.append(Callout(range: callout.blockRange, markerRange: callout.markerRange, titleRange: callout.titleRange, kind: callout.kind))
                 }
             case .fencedCodeBlock:
                 codeBlocks.append(block.range)

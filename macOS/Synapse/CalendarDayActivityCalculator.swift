@@ -111,11 +111,3 @@ protocol NoteActivityProviding {
     var modified: Date { get }
 }
 
-// MARK: - URL Helpers
-
-extension URL {
-    /// Helper for creating file URLs with a more explicit label.
-    static func file(urlPath: String) -> URL {
-        URL(fileURLWithPath: urlPath)
-    }
-}

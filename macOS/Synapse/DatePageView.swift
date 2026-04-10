@@ -6,8 +6,6 @@ struct DatePageView: View {
     @EnvironmentObject var appState: AppState
     let date: Date
 
-    private let calendar = Calendar.current
-
     private var createdNotes: [URL] {
         appState.notesCreatedOnDate(date)
     }

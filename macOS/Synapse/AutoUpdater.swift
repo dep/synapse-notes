@@ -217,7 +217,6 @@ class AutoUpdater: NSObject, ObservableObject {
 
 struct GitHubRelease: Codable {
     let tagName: String
-    let name: String
     let assets: [GitHubAsset]
 }
 
@@ -228,9 +227,7 @@ struct GitHubAsset: Codable {
 }
 
 enum UpdateError: Error {
-    case downloadFailed
     case installFailed
-    case unsupportedFormat
 }
 
 /// Copies `Synapse.app` into place without removing an existing install until the new bundle is on disk.
