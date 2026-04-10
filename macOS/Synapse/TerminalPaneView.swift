@@ -26,17 +26,11 @@ struct LocalTerminalView: NSViewRepresentable {
         )
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            let escaped = workingDirectory.replacingOccurrences(of: " ", with: "\\ ")
-
-            // Use on-boot command if set, otherwise just cd to project
-            let commandToRun: String
-            if let customCommand = onBootCommand, !customCommand.isEmpty {
-                commandToRun = "cd \(escaped) && \(customCommand)"
-            } else {
-                commandToRun = "cd \(escaped)"
-            }
-
-            terminal.send(txt: commandToRun + "\n")
+            let command = TerminalBootCommand.initialShellCommand(
+                workingDirectory: workingDirectory,
+                onBootCommand: onBootCommand
+            )
+            terminal.send(txt: command)
 
             // Re-trigger setFrameSize after the initial SwiftUI layout pass so
             // SwiftTerm's processSizeChange runs with the real bounds and sends

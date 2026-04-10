@@ -22,15 +22,11 @@ struct DatePageView: View {
     }
 
     private var dateTitle: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        DatePageFormatting.isoTitle(for: date)
     }
 
     private var dateSubtitle: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: date)
+        DatePageFormatting.mediumSubtitle(for: date)
     }
 
     var body: some View {

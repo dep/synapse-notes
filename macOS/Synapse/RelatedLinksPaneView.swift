@@ -88,7 +88,7 @@ struct RelatedLinksPaneView: View {
     }
 
     private var titleText: String {
-        appState.selectedFile?.deletingPathExtension().lastPathComponent ?? "Related Notes"
+        RelatedLinksTitleText.title(selectedFile: appState.selectedFile)
     }
 
     @ViewBuilder

@@ -9,9 +9,7 @@ struct TagsPaneView: View {
     @State private var cachedTags: [String: Int] = [:]
 
     var filteredTags: [(key: String, value: Int)] {
-        let all = cachedTags.sorted { $0.key < $1.key }
-        guard !query.isEmpty else { return all }
-        return all.filter { $0.key.localizedCaseInsensitiveContains(query) }
+        TagsPaneFiltering.filteredTags(cache: cachedTags, query: query)
     }
 
     var body: some View {

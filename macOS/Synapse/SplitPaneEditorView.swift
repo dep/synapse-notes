@@ -162,15 +162,16 @@ struct InactivePaneTabBar: View {
 @ViewBuilder
 func editorContent(for tab: TabItem?, paneIndex: Int) -> some View {
     Group {
-        if let tab, tab.isGraph {
+        switch EditorTabRouter.contentKind(for: tab) {
+        case .globalGraph:
             GlobalGraphView()
-        } else if let tab, let tagName = tab.tagName {
+        case .tagPage(let tagName):
             TagPageView(tag: tagName)
                 .background(SynapseTheme.editorShell)
-        } else if let tab, let date = tab.dateValue {
+        case .datePage(let date):
             DatePageView(date: date)
                 .background(SynapseTheme.editorShell)
-        } else {
+        case .editor:
             EditorView(paneIndex: paneIndex)
                 .background(SynapseTheme.editorShell)
         }
