@@ -192,19 +192,27 @@ export function HomeScreen({ navigation, route }: HomeScreenProps) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+      <FileDrawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        onFileSelect={handleFileSelect}
+        onNewNote={handleNewNote}
+        onNewFolder={handleNewFolder}
+        onTodayNote={handleTodayNote}
+        vaultPath={repositoryPath}
+        repoName={repoName}
+        activeFilePath={activeFilePath}
+        showHamburger={false}
+      />
       {/* Header with Hamburger Menu */}
       <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <FileDrawer
-          isOpen={isDrawerOpen}
-          onClose={handleCloseDrawer}
-          onFileSelect={handleFileSelect}
-          onNewNote={handleNewNote}
-          onNewFolder={handleNewFolder}
-          onTodayNote={handleTodayNote}
-          vaultPath={repositoryPath}
-          repoName={repoName}
-          activeFilePath={activeFilePath}
-        />
+        <TouchableOpacity
+          style={styles.hamburgerButton}
+          onPress={() => setIsDrawerOpen(true)}
+          testID="hamburger-button"
+        >
+          <MaterialIcons name="menu" size={28} color={theme.colors.text} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           Synapse
         </Text>
@@ -367,6 +375,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
+  },
+  hamburgerButton: {
+    padding: 4,
+    marginRight: 4,
   },
   headerTitle: {
     flex: 1,

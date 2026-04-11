@@ -5,7 +5,7 @@ import SwiftUI
 /// A named pastel color that looks good in both light and dark themes.
 struct FolderColor: Identifiable, Equatable {
     let id: String          // key stored in settings
-    let label: String
+    let label: String       // display name
     let color: Color
 }
 
@@ -36,40 +36,39 @@ extension FolderColor {
 /// A named SF Symbol outline icon for folders.
 struct FolderIcon: Identifiable, Equatable {
     let id: String          // key stored in settings
-    let label: String
     let symbolName: String  // SF Symbol name
 }
 
 extension FolderIcon {
     /// Outlined SF Symbols available for folder customization.
     static let set: [FolderIcon] = [
-        FolderIcon(id: "star",        label: "Star",        symbolName: "star"),
-        FolderIcon(id: "heart",       label: "Heart",       symbolName: "heart"),
-        FolderIcon(id: "bookmark",    label: "Bookmark",    symbolName: "bookmark"),
-        FolderIcon(id: "tag",         label: "Tag",         symbolName: "tag"),
-        FolderIcon(id: "bolt",        label: "Bolt",        symbolName: "bolt"),
-        FolderIcon(id: "flame",       label: "Flame",       symbolName: "flame"),
-        FolderIcon(id: "leaf",        label: "Leaf",        symbolName: "leaf"),
-        FolderIcon(id: "moon",        label: "Moon",        symbolName: "moon"),
-        FolderIcon(id: "sun",         label: "Sun",         symbolName: "sun.max"),
-        FolderIcon(id: "cloud",       label: "Cloud",       symbolName: "cloud"),
-        FolderIcon(id: "drop",        label: "Drop",        symbolName: "drop"),
-        FolderIcon(id: "atom",        label: "Atom",        symbolName: "atom"),
-        FolderIcon(id: "briefcase",   label: "Briefcase",   symbolName: "briefcase"),
-        FolderIcon(id: "camera",      label: "Camera",      symbolName: "camera"),
-        FolderIcon(id: "music",       label: "Music",       symbolName: "music.note"),
-        FolderIcon(id: "book",        label: "Book",        symbolName: "book.closed"),
-        FolderIcon(id: "pencil",      label: "Pencil",      symbolName: "pencil"),
-        FolderIcon(id: "lightbulb",   label: "Lightbulb",   symbolName: "lightbulb"),
-        FolderIcon(id: "brain",       label: "Brain",       symbolName: "brain"),
-        FolderIcon(id: "chart",       label: "Chart",       symbolName: "chart.bar"),
-        FolderIcon(id: "robot",       label: "Robot",       symbolName: "cpu"),
-        FolderIcon(id: "mobile",      label: "Mobile",      symbolName: "iphone"),
-        FolderIcon(id: "people",      label: "People",      symbolName: "person.2"),
-        FolderIcon(id: "person",      label: "Person",      symbolName: "person"),
-        FolderIcon(id: "calendar",    label: "Calendar",    symbolName: "calendar"),
-        FolderIcon(id: "chat",        label: "Chat bubble", symbolName: "bubble.left"),
-        FolderIcon(id: "wrench",      label: "Wrench",      symbolName: "wrench"),
+        FolderIcon(id: "star",        symbolName: "star"),
+        FolderIcon(id: "heart",       symbolName: "heart"),
+        FolderIcon(id: "bookmark",    symbolName: "bookmark"),
+        FolderIcon(id: "tag",         symbolName: "tag"),
+        FolderIcon(id: "bolt",        symbolName: "bolt"),
+        FolderIcon(id: "flame",       symbolName: "flame"),
+        FolderIcon(id: "leaf",        symbolName: "leaf"),
+        FolderIcon(id: "moon",        symbolName: "moon"),
+        FolderIcon(id: "sun",         symbolName: "sun.max"),
+        FolderIcon(id: "cloud",       symbolName: "cloud"),
+        FolderIcon(id: "drop",        symbolName: "drop"),
+        FolderIcon(id: "atom",        symbolName: "atom"),
+        FolderIcon(id: "briefcase",   symbolName: "briefcase"),
+        FolderIcon(id: "camera",      symbolName: "camera"),
+        FolderIcon(id: "music",       symbolName: "music.note"),
+        FolderIcon(id: "book",        symbolName: "book.closed"),
+        FolderIcon(id: "pencil",      symbolName: "pencil"),
+        FolderIcon(id: "lightbulb",   symbolName: "lightbulb"),
+        FolderIcon(id: "brain",       symbolName: "brain"),
+        FolderIcon(id: "chart",       symbolName: "chart.bar"),
+        FolderIcon(id: "robot",       symbolName: "cpu"),
+        FolderIcon(id: "mobile",      symbolName: "iphone"),
+        FolderIcon(id: "people",      symbolName: "person.2"),
+        FolderIcon(id: "person",      symbolName: "person"),
+        FolderIcon(id: "calendar",    symbolName: "calendar"),
+        FolderIcon(id: "chat",        symbolName: "bubble.left"),
+        FolderIcon(id: "wrench",      symbolName: "wrench"),
     ]
 
     static func icon(for id: String) -> FolderIcon? {

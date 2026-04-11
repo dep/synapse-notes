@@ -57,7 +57,6 @@ struct LocalTerminalView: NSViewRepresentable {
 
 struct TerminalPaneView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
 
     var body: some View {
         VStack(spacing: 10) {

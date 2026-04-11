@@ -20,7 +20,6 @@ enum SynapseTheme {
     static let _accent         = Color(red: 0.28, green: 0.66, blue: 0.98)
     static let _accentSoft     = Color(red: 0.20, green: 0.48, blue: 0.89)
     static let _success        = Color(red: 0.37, green: 0.83, blue: 0.60)
-    static let _error          = Color(red: 0.95, green: 0.30, blue: 0.30)
 
     // MARK: - Dynamic accessors (delegate to ThemeEnvironment.shared when available)
 
@@ -39,7 +38,6 @@ enum SynapseTheme {
     static var accent:        Color { ThemeEnvironment.shared?.accent        ?? _accent }
     static var accentSoft:    Color { ThemeEnvironment.shared?.accentSoft    ?? _accentSoft }
     static var success:       Color { ThemeEnvironment.shared?.success       ?? _success }
-    static var error:         Color { ThemeEnvironment.shared?.error         ?? _error }
 
     // MARK: - NSColor / AppKit values (dynamic)
 

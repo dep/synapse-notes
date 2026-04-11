@@ -25,6 +25,7 @@ import { subscribeToRepositoryRefresh } from '../services/repositoryEvents';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useFocusEffect } from '@react-navigation/native';
+import { FileDrawer } from '../components/FileDrawer';
 
 const getRelativePath = (root: string, filePath: string) => {
   const normalizedRoot = FileSystemService.normalizeUri(root).replace(/\/+$/, '');
@@ -249,7 +250,11 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   
   // Navigation history for back button support
   const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
-  
+
+  // Drawer state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [repositoryPath, setRepositoryPath] = useState<string>('');
+
   // In-file search state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -298,6 +303,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
   useEffect(() => {
     void loadFile();
     void loadFileHistory();
+    OnboardingStorage.getActiveRepositoryPath().then(p => setRepositoryPath(p ?? ''));
   }, [filePath, loadFileHistory]);
 
   useFocusEffect(
@@ -647,7 +653,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
             style: 'destructive',
             onPress: () => {
               setHasChanges(false);
-              navigation.navigate('Home', { openDrawer: true });
+              setIsDrawerOpen(true);
             },
           },
           {
@@ -655,7 +661,7 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
             style: 'default',
             onPress: async () => {
               await handleSave();
-              navigation.navigate('Home', { openDrawer: true });
+              setIsDrawerOpen(true);
             },
           },
         ]
@@ -685,8 +691,8 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
           return true;
         }
         
-        // No history, go to home
-        navigation.navigate('Home', { openDrawer: true });
+        // No history, open drawer instead of navigating away
+        setIsDrawerOpen(true);
         return true;
       };
 
@@ -1062,12 +1068,35 @@ export function EditorScreen({ route, navigation }: EditorScreenProps) {
 
   return (
     <SafeAreaView testID="editor-container" style={[styles.container, { backgroundColor: theme.colors.background }]} edges={['top', 'left', 'right']}>
+      <FileDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onFileSelect={(path) => {
+          if (path) {
+            setNavigationHistory(prev => [...prev, filePath]);
+            navigation.navigate('Editor', { filePath: path });
+          }
+          setIsDrawerOpen(false);
+        }}
+        onNewNote={() => {
+          setIsDrawerOpen(false);
+          navigation.navigate('Home', {});
+        }}
+        onNewFolder={() => setIsDrawerOpen(false)}
+        onTodayNote={() => {
+          setIsDrawerOpen(false);
+          navigation.navigate('Home', {});
+        }}
+        vaultPath={repositoryPath}
+        activeFilePath={filePath}
+        showHamburger={false}
+      />
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}> 
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         {/* Hamburger Menu Button */}
         <TouchableOpacity
           style={styles.menuButton}
-          onPress={() => navigation.navigate('Home', { openDrawer: true })}
+          onPress={() => setIsDrawerOpen(true)}
           testID="hamburger-menu-button"
         >
           <MaterialIcons name="menu" size={28} color={theme.colors.text} />

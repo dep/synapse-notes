@@ -8,35 +8,35 @@ final class GitErrorTests: XCTestCase {
     // MARK: - GitError.from() SSH authentication
 
     func test_from_permissionDenied_returnsSshAuthFailed() {
-        let err = GitError.from(stderr: "Permission denied (publickey).", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "Permission denied (publickey).", stdout: "", "Push")
         XCTAssertEqual(err, .sshAuthFailed)
     }
 
     func test_from_publickey_returnsSshAuthFailed() {
-        let err = GitError.from(stderr: "git@github.com: Permission denied (publickey).", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "git@github.com: Permission denied (publickey).", stdout: "", "Push")
         XCTAssertEqual(err, .sshAuthFailed)
     }
 
     func test_from_signingFailed_returnsSshAuthFailed() {
-        let err = GitError.from(stderr: "error: signing failed: No identities found", stdout: "", operation: "Commit")
+        let err = GitError.from(stderr: "error: signing failed: No identities found", stdout: "", "Commit")
         XCTAssertEqual(err, .sshAuthFailed)
     }
 
     func test_from_noIdentities_returnsSshAuthFailed() {
-        let err = GitError.from(stderr: "Error connecting to agent: No identities found", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "Error connecting to agent: No identities found", stdout: "", "Push")
         XCTAssertEqual(err, .sshAuthFailed)
     }
 
     // MARK: - GitError.from() SSH host key
 
     func test_from_hostKeyVerificationFailed_returnsSshHostUnknown() {
-        let err = GitError.from(stderr: "Host key verification failed.", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "Host key verification failed.", stdout: "", "Push")
         if case .sshHostUnknown = err { return }
         XCTFail("Expected .sshHostUnknown, got \(err)")
     }
 
     func test_from_hostKeyContents_returnsSshHostUnknown() {
-        let err = GitError.from(stderr: "ECDSA host key for github.com has changed", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "ECDSA host key for github.com has changed", stdout: "", "Push")
         if case .sshHostUnknown = err { return }
         XCTFail("Expected .sshHostUnknown, got \(err)")
     }
@@ -44,7 +44,7 @@ final class GitErrorTests: XCTestCase {
     // MARK: - GitError.from() network errors
 
     func test_from_couldNotResolveHostname_returnsCommandFailed_networkMessage() {
-        let err = GitError.from(stderr: "Could not resolve hostname github.com: nodename nor servname provided", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "Could not resolve hostname github.com: nodename nor servname provided", stdout: "", "Push")
         if case .commandFailed(let msg) = err {
             XCTAssertTrue(msg.contains("reach the remote"), "Expected network message, got: \(msg)")
         } else {
@@ -53,7 +53,7 @@ final class GitErrorTests: XCTestCase {
     }
 
     func test_from_nameOrServiceNotKnown_returnsCommandFailed_networkMessage() {
-        let err = GitError.from(stderr: "ssh: Could not resolve hostname: Name or service not known", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "ssh: Could not resolve hostname: Name or service not known", stdout: "", "Push")
         if case .commandFailed(let msg) = err {
             XCTAssertTrue(msg.contains("reach the remote"), "Expected network message, got: \(msg)")
         } else {
@@ -64,7 +64,7 @@ final class GitErrorTests: XCTestCase {
     // MARK: - GitError.from() repository not found
 
     func test_from_repositoryNotFound_returnsCommandFailed_notFoundMessage() {
-        let err = GitError.from(stderr: "ERROR: Repository not found.", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "ERROR: Repository not found.", stdout: "", "Push")
         if case .commandFailed(let msg) = err {
             XCTAssertTrue(msg.contains("not found"), "Expected 'not found' message, got: \(msg)")
         } else {
@@ -75,7 +75,7 @@ final class GitErrorTests: XCTestCase {
     // MARK: - GitError.from() push rejected
 
     func test_from_rejected_returnsCommandFailed_rejectedMessage() {
-        let err = GitError.from(stderr: "! [rejected] main -> main (non-fast-forward)", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "! [rejected] main -> main (non-fast-forward)", stdout: "", "Push")
         if case .commandFailed(let msg) = err {
             XCTAssertTrue(msg.contains("rejected") || msg.contains("Pull"), "Expected rejection message, got: \(msg)")
         } else {
@@ -84,7 +84,7 @@ final class GitErrorTests: XCTestCase {
     }
 
     func test_from_nonFastForward_returnsCommandFailed() {
-        let err = GitError.from(stderr: "Updates were rejected because the tip of your current branch is behind", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "Updates were rejected because the tip of your current branch is behind", stdout: "", "Push")
         if case .commandFailed = err { return }
         XCTFail("Expected .commandFailed, got \(err)")
     }
@@ -92,12 +92,12 @@ final class GitErrorTests: XCTestCase {
     // MARK: - GitError.from() fallback behaviour
 
     func test_from_emptyStderr_usesStdout() {
-        let err = GitError.from(stderr: "", stdout: "Permission denied (publickey).", operation: "Push")
+        let err = GitError.from(stderr: "", stdout: "Permission denied (publickey).", "Push")
         XCTAssertEqual(err, .sshAuthFailed)
     }
 
     func test_from_unknownError_returnsCommandFailedWithMessage() {
-        let err = GitError.from(stderr: "Some unknown git error occurred", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "Some unknown git error occurred", stdout: "", "Push")
         if case .commandFailed(let msg) = err {
             XCTAssertEqual(msg, "Some unknown git error occurred")
         } else {
@@ -106,12 +106,12 @@ final class GitErrorTests: XCTestCase {
     }
 
     func test_from_bothEmpty_returnsCommandFailed_genericMessage() {
-        let err = GitError.from(stderr: "", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "", stdout: "", "Push")
         XCTAssertEqual(err, .commandFailed("Git command failed."))
     }
 
     func test_from_whitespaceOnly_returnsCommandFailed_genericMessage() {
-        let err = GitError.from(stderr: "   \n  ", stdout: "", operation: "Push")
+        let err = GitError.from(stderr: "   \n  ", stdout: "", "Push")
         XCTAssertEqual(err, .commandFailed("Git command failed."))
     }
 

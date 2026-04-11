@@ -2,7 +2,6 @@ import SwiftUI
 
 struct TagsPaneView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     @State private var query = ""
 
     // Cached tag counts — only recomputed when the vault file list changes, not on every keystroke

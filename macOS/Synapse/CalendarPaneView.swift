@@ -7,14 +7,11 @@ import SwiftUI
 /// - Clicking a day opens a tab showing notes from that day
 struct CalendarPaneView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
 
     @State private var currentMonth: Date = Date()
     @State private var activityCalculator = CalendarDayActivityCalculator()
 
     private let calendar = Calendar.current
-    private let maxBadgeSize: CGFloat = 18
-    private let minBadgeSize: CGFloat = 4
 
     var body: some View {
         VStack(spacing: 0) {

@@ -180,7 +180,6 @@ func activatePaneOnReadOnlyInteraction(isEditable: Bool, onActivatePane: (() -> 
 
 struct EditorView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     var paneIndex: Int = 0
 
     /// When set, renders in read-only mode using these values instead of live appState.
@@ -237,7 +236,6 @@ struct EditorView: View {
                                 fontSize: appState.settings.editorFontSize,
                                 lineHeight: appState.settings.editorLineHeight,
                                 currentFileURL: displayFile,
-                                onOpenFile: { url in appState.openFile(url) },
                                 onResolveWikilink: { destination in
                                     let match = appState.allFiles.first { url in
                                         url.deletingPathExtension().lastPathComponent.lowercased() == destination
@@ -1577,45 +1575,6 @@ extension LinkAwareTextView {
         storage.endEditing()
     }
 
-    /// Unhides the [[/]] delimiters (and any alias prefix) of the wikilink that
-    /// contains the cursor, so the user can see and edit the raw syntax.
-    func revealWikilinkAtCursor() {
-        revealSemanticInlineMarkdownAtCursor()
-    }
-
-    /// Unhides the full `![caption](url)` token containing the cursor so the
-    /// user can see and edit the raw image markdown syntax.
-    func revealImageEmbedAtCursor() {
-        guard let storage = textStorage else { return }
-        let cursor = selectedRange().location
-        guard cursor != NSNotFound else { return }
-        let nsText = storage.string as NSString
-        let len = nsText.length
-        guard len > 0 else { return }
-
-        // Search the whole string for image embed tokens and check if cursor is inside one
-        guard let regex = try? NSRegularExpression(pattern: #"!\[[^\]]*\]\([^)]+\)"#) else { return }
-        let fullRange = NSRange(location: 0, length: len)
-        let matches = regex.matches(in: storage.string, range: fullRange)
-
-        for match in matches {
-            let range = match.range
-            // Cursor is "inside" if it's within or adjacent to the token
-            let extendedRange = NSRange(location: max(0, range.location - 1),
-                                        length: range.length + 2)
-            if NSLocationInRange(cursor, extendedRange) || cursor == NSMaxRange(range) {
-                let visibleAttrs: [NSAttributedString.Key: Any] = [
-                    .font: MarkdownTheme.body,
-                    .foregroundColor: MarkdownTheme.dimColor,
-                ]
-                storage.beginEditing()
-                storage.addAttributes(visibleAttrs, range: range)
-                storage.endEditing()
-                return
-            }
-        }
-    }
-
     func applyMarkdownStyling(document: MarkdownDocument? = nil, refreshPlan: MarkdownEditorRefreshPlan = .fullDocument, deferRedraw: Bool = false) {
         guard let storage = textStorage else { return }
         let fullRange = NSRange(location: 0, length: storage.length)
@@ -1899,10 +1858,9 @@ extension LinkAwareTextView {
 
     // Compiled-once regex cache keyed by "pattern|options.rawValue"
     private static var regexCache: [String: NSRegularExpression] = [:]
-    private static let markdownLinkRegex = try? NSRegularExpression(pattern: "(?<!!)\\[([^\\]]+)\\]\\(([^)]+)\\)")
     private static let bareURLRegex = try? NSRegularExpression(pattern: #"https?://[^"]+?(?=[\s)\]>]|$)"#)
 
-    private func applyRegex(_ pattern: String, to text: NSString, storage: NSTextStorage, options: NSRegularExpression.Options = [], searchRange: NSRange? = nil, apply: (NSRange) -> Void) {
+    private func applyRegex(_ pattern: String, to text: NSString, storage _: NSTextStorage, options: NSRegularExpression.Options = [], searchRange: NSRange? = nil, apply: (NSRange) -> Void) {
         let cacheKey = "\(pattern)|\(options.rawValue)"
         let regex: NSRegularExpression
         if let cached = LinkAwareTextView.regexCache[cacheKey] {
@@ -2202,13 +2160,7 @@ class LinkAwareTextView: NSTextView {
     private var eventMonitor: Any?
     private var inlineImageViews: [String: NSImageView] = [:]
     private var inlineVideoViews: [String: YouTubePreviewView] = [:]
-    private var animatedInlineImageKeys: Set<String> = []
     private var isPrettifyingTable = false
-    private var failedInlineImageKeys: Set<String> = []
-    private var loadingInlineImageKeys: Set<String> = []
-    private var loadingYouTubeMetadataKeys: Set<String> = []
-    private var cachedYouTubeMatches: [InlineYouTubeMatch] = []
-    private var lastYouTubeScanText: String = ""
 
     // MARK: - Collapsible sections
     private let collapsibleParser = CollapsibleSectionParser()
@@ -2219,13 +2171,7 @@ class LinkAwareTextView: NSTextView {
     // MARK: - Embedded Notes (for side panel)
     private static let embedRegex = try? NSRegularExpression(pattern: #"!\[\[([^\]]+)\]\]"#)
 
-    private static let inlineImageCache = NSCache<NSString, NSImage>()
     private static let inlineImageRegex = try? NSRegularExpression(pattern: #"!\[([^\]]*)\]\((.+?)\)"#, options: [])
-    private static let youtubeThumbnailCache = NSCache<NSString, NSImage>()
-    private static var youtubeTitleCache: [String: String] = [:]
-    private static let youtubeDetector: NSDataDetector? = {
-        try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-    }()
 
     /// Extends code-block background fills to the full container width.
     /// NSAttributedString's .backgroundColor only covers the glyph bounds for that run.
@@ -2515,11 +2461,6 @@ class LinkAwareTextView: NSTextView {
         }
     }
 
-    func removeCommandKObserver() {
-        if let obs = commandKObserver { NotificationCenter.default.removeObserver(obs) }
-        commandKObserver = nil
-    }
-
     // MARK: - Search highlight support
 
     private var searchObserver: Any?
@@ -2546,13 +2487,6 @@ class LinkAwareTextView: NSTextView {
         ) { [weak self] _ in
             self?.clearSearchHighlights()
         }
-    }
-
-    func removeSearchObservers() {
-        if let obs = searchObserver { NotificationCenter.default.removeObserver(obs) }
-        if let obs = searchClearObserver { NotificationCenter.default.removeObserver(obs) }
-        searchObserver = nil
-        searchClearObserver = nil
     }
 
     private func applySearchHighlights(query: String, focusIndex: Int) {
@@ -2954,89 +2888,6 @@ class LinkAwareTextView: NSTextView {
         dismissCompletion()
     }
 
-    private func fuzzyScore(query: String, candidate: String) -> Int? {
-        let q = query
-            .components(separatedBy: .newlines).joined()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let separators = CharacterSet(charactersIn: "-_. /\\:")
-        let words = candidate.lowercased().components(separatedBy: separators).filter { !$0.isEmpty }
-        let strippedCandidate = words.joined()
-        let strippedQuery = q.components(separatedBy: separators).joined()
-        guard !strippedQuery.isEmpty else { return 0 }
-
-        func compact(_ value: String) -> String {
-            value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-                .unicodeScalars
-                .filter { CharacterSet.alphanumerics.contains($0) }
-                .map(String.init)
-                .joined()
-        }
-
-        let compactQuery = compact(strippedQuery)
-        let compactCandidate = compact(strippedCandidate)
-        guard !compactQuery.isEmpty else { return 0 }
-
-        var qi = compactQuery.startIndex
-        var score = 0
-        var lastMatchIdx: String.Index? = nil
-
-        for ci in compactCandidate.indices {
-            guard qi < compactQuery.endIndex else { break }
-            if compactCandidate[ci] == compactQuery[qi] {
-                if let last = lastMatchIdx, compactCandidate.index(after: last) == ci { score += 10 }
-                score += 1
-                lastMatchIdx = ci
-                qi = compactQuery.index(after: qi)
-            }
-        }
-        guard qi == compactQuery.endIndex else { return nil }
-
-        // Bonus for word-level matches
-        for word in words {
-            if word.hasPrefix(strippedQuery) { score += 20 }
-            else if word.contains(strippedQuery) { score += 12 }
-        }
-
-        // Strongly prefer exact middle-substring matches for fuzzyfinder-like behavior.
-        if let range = compactCandidate.range(of: compactQuery) {
-            let start = compactCandidate.distance(from: compactCandidate.startIndex, to: range.lowerBound)
-            score += 40
-            score += max(0, 8 - start)
-        }
-
-        return score
-    }
-
-    private func showCompletion(query: String) {
-        let cleanedQuery = query.components(separatedBy: .newlines).joined().trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if completionPopover == nil {
-            let vc = CompletionViewController()
-            vc.onSelect = { [weak self] url in self?.insertLink(url) }
-            completionVC = vc
-            let popover = NSPopover()
-            popover.contentViewController = vc
-            popover.behavior = .applicationDefined
-            popover.contentSize = NSSize(width: 420, height: 260)
-            completionPopover = popover
-
-            eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-                self?.dismissCompletion()
-                return event
-            }
-        }
-
-        let filteredCount = completionVC?.update(files: allFiles, query: cleanedQuery) ?? 0
-        debugLog("filtered=\(filteredCount) for query='\(cleanedQuery)'")
-        if filteredCount == 0 { dismissCompletion(); return }
-
-        if completionPopover?.isShown == false {
-            guard let rect = rectForCaret() else { return }
-            completionPopover?.show(relativeTo: rect, of: self, preferredEdge: .maxY)
-            completionVC?.focusSearchField()
-        }
-    }
-
     func dismissCompletion() {
         completionPopover?.close()
         completionPopover = nil
@@ -3131,19 +2982,6 @@ class LinkAwareTextView: NSTextView {
         return true
     }
 
-    private func rectForCaret() -> NSRect? {
-        let range = selectedRange()
-        guard range.location != NSNotFound,
-              let layoutManager = layoutManager,
-              let container = textContainer else { return nil }
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: container)
-        rect.origin.x += textContainerOrigin.x
-        rect.origin.y += textContainerOrigin.y
-        return rect
-    }
-
-
     func refreshInlineImagePreviews() {
         // Inline image previews disabled - images now only show in sidebar
         // This function is kept for compatibility but does nothing
@@ -3232,140 +3070,6 @@ class LinkAwareTextView: NSTextView {
         }
     }
 
-    func inlinePreviewHeight(for source: String) -> CGFloat {
-        guard let resolvedURL = resolvedInlineImageURL(for: source) else { return 0 }
-        let key = resolvedURL.absoluteString
-
-        if failedInlineImageKeys.contains(key) {
-            return 0
-        }
-
-        if let image = Self.inlineImageCache.object(forKey: key as NSString) {
-            let availableWidth = max(120, bounds.width - textContainerInset.width * 2 - 20)
-            let maxPreviewWidth = min(availableWidth, 520)
-            return scaledInlineImageSize(for: image, maxWidth: maxPreviewWidth).height + 12
-        }
-
-        return 140
-    }
-
-    func inlineYouTubeMatches() -> [InlineYouTubeMatch] {
-        cachedYouTubeMatches = []
-        lastYouTubeScanText = string
-        return []
-    }
-
-    func inlineYouTubePreviewHeight(maxWidth: CGFloat) -> CGFloat {
-        let width = min(maxWidth, 520)
-        let height = max(170, min(320, width * 9 / 16))
-        return height + 12
-    }
-
-    private func placeInlineImage(_ image: NSImage, for match: InlineImageMatch, layoutManager: NSLayoutManager, textContainer: NSTextContainer, maxWidth: CGFloat) {
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: match.paragraphRange, actualCharacterRange: nil)
-        var paragraphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        paragraphRect.origin.x += textContainerOrigin.x
-        paragraphRect.origin.y += textContainerOrigin.y
-
-        let size = scaledInlineImageSize(for: image, maxWidth: maxWidth)
-        let frame = NSRect(x: textContainerOrigin.x + 14, y: paragraphRect.maxY + 8, width: size.width, height: size.height)
-
-        let imageView = inlineImageViews[match.id] ?? {
-            let view = NSImageView()
-            view.imageScaling = .scaleProportionallyUpOrDown
-            view.canDrawSubviewsIntoLayer = true
-            view.wantsLayer = true
-            view.layer?.cornerRadius = 4
-            view.layer?.masksToBounds = true
-            view.layer?.borderWidth = 1
-            view.layer?.borderColor = NSColor(SynapseTheme.border).cgColor
-            view.layer?.backgroundColor = SynapseTheme.editorCodeBackground.cgColor
-            addSubview(view)
-            inlineImageViews[match.id] = view
-            return view
-        }()
-
-        imageView.image = image
-        imageView.animates = animatedInlineImageKeys.contains((resolvedInlineImageURL(for: match.source)?.absoluteString) ?? "")
-        imageView.frame = frame
-    }
-
-    private func placeInlineVideo(for match: InlineYouTubeMatch, layoutManager: NSLayoutManager, textContainer: NSTextContainer, maxWidth: CGFloat) {
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: match.paragraphRange, actualCharacterRange: nil)
-        var paragraphRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        paragraphRect.origin.x += textContainerOrigin.x
-        paragraphRect.origin.y += textContainerOrigin.y
-
-        let width = min(maxWidth, 520)
-        let height = max(170, min(320, width * 9 / 16))
-        let frame = NSRect(x: textContainerOrigin.x + 14, y: paragraphRect.maxY + 8, width: width, height: height)
-
-        let previewView = inlineVideoViews[match.id] ?? {
-            let view = YouTubePreviewView()
-            addSubview(view)
-            inlineVideoViews[match.id] = view
-            return view
-        }()
-
-        let title = Self.youtubeTitleCache[match.videoID] ?? "YouTube video"
-        let thumbnail = Self.youtubeThumbnailCache.object(forKey: match.videoID as NSString)
-        previewView.configure(title: title, subtitle: match.sourceURL.absoluteString, thumbnail: thumbnail, url: match.sourceURL)
-        previewView.frame = frame
-
-        if thumbnail == nil {
-            loadYouTubeThumbnail(for: match.videoID)
-        }
-
-        if Self.youtubeTitleCache[match.videoID] == nil {
-            loadYouTubeTitle(for: match)
-        }
-    }
-
-    private func loadInlineImage(from url: URL, cacheKey: NSString, maxPixelSize: CGFloat) {
-        let key = cacheKey as String
-        guard !loadingInlineImageKeys.contains(key), !failedInlineImageKeys.contains(key), Self.inlineImageCache.object(forKey: cacheKey) == nil else { return }
-        loadingInlineImageKeys.insert(key)
-
-        if url.isFileURL {
-            if let asset = inlinePreviewAsset(fromFileURL: url, maxPixelSize: maxPixelSize) {
-                Self.inlineImageCache.setObject(asset.image, forKey: cacheKey)
-                if asset.preservesAnimation {
-                    animatedInlineImageKeys.insert(key)
-                } else {
-                    animatedInlineImageKeys.remove(key)
-                }
-            } else {
-                failedInlineImageKeys.insert(key)
-            }
-            loadingInlineImageKeys.remove(key)
-            applyMarkdownStyling()
-            return
-        }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 20
-
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
-            guard let self else { return }
-            DispatchQueue.main.async {
-                defer { self.loadingInlineImageKeys.remove(key) }
-
-                let isImageResponse = (response?.mimeType?.hasPrefix("image/") ?? true)
-                if isImageResponse, let data, let asset = self.inlinePreviewAsset(from: data, maxPixelSize: maxPixelSize) {
-                    Self.inlineImageCache.setObject(asset.image, forKey: cacheKey)
-                    if asset.preservesAnimation {
-                        self.animatedInlineImageKeys.insert(key)
-                    } else {
-                        self.animatedInlineImageKeys.remove(key)
-                    }
-                } else {
-                    self.failedInlineImageKeys.insert(key)
-                }
-                self.applyMarkdownStyling()
-            }
-        }.resume()
-    }
-
     struct InlinePreviewAsset {
         let image: NSImage
         let imageDataType: NSPasteboard.PasteboardType
@@ -3395,16 +3099,6 @@ class LinkAwareTextView: NSTextView {
         return nil
     }
 
-    private func downsampledImage(fromFileURL url: URL, maxPixelSize: CGFloat) -> NSImage? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        return downsampledImage(from: source, maxPixelSize: maxPixelSize)
-    }
-
-    private func downsampledImage(from data: Data, maxPixelSize: CGFloat) -> NSImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        return downsampledImage(from: source, maxPixelSize: maxPixelSize)
-    }
-
     private func downsampledImage(from source: CGImageSource, maxPixelSize: CGFloat) -> NSImage? {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -3419,122 +3113,6 @@ class LinkAwareTextView: NSTextView {
 
         let image = NSImage(cgImage: cgImage, size: .zero)
         return image.size.width > 0 || image.size.height > 0 ? image : nil
-    }
-
-    private func resolvedInlineImageURL(for source: String) -> URL? {
-        let cleanedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanedSource.isEmpty else { return nil }
-
-        if cleanedSource.hasPrefix("http://") || cleanedSource.hasPrefix("https://") || cleanedSource.hasPrefix("file://") {
-            return URL(string: cleanedSource)
-        }
-
-        // Decode percent-encoding so paths like "image%20(32).png" resolve correctly
-        let decodedSource = cleanedSource.removingPercentEncoding ?? cleanedSource
-
-        if decodedSource.hasPrefix("/") {
-            return URL(fileURLWithPath: decodedSource)
-        }
-
-        guard let currentFileURL else { return nil }
-        return URL(fileURLWithPath: decodedSource, relativeTo: currentFileURL.deletingLastPathComponent()).standardizedFileURL
-    }
-
-    private func youtubeVideoID(from url: URL) -> String? {
-        guard let host = url.host?.lowercased() else { return nil }
-
-        if host == "youtu.be" {
-            let id = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            return id.isEmpty ? nil : id
-        }
-
-        if host.contains("youtube.com") || host.contains("youtube-nocookie.com") {
-            let path = url.path.lowercased()
-
-            if path == "/watch" || path == "/watch/" {
-                return URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                    .queryItems?
-                    .first(where: { $0.name == "v" })?
-                    .value
-            }
-
-            if path.hasPrefix("/embed/") || path.hasPrefix("/shorts/") || path.hasPrefix("/live/") {
-                let parts = url.pathComponents.filter { $0 != "/" }
-                return parts.last
-            }
-        }
-
-        return nil
-    }
-
-    private func loadYouTubeThumbnail(for videoID: String) {
-        let cacheKey = videoID as NSString
-        guard Self.youtubeThumbnailCache.object(forKey: cacheKey) == nil else { return }
-
-        let urlStrings = [
-            "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg",
-            "https://i.ytimg.com/vi/\(videoID)/mqdefault.jpg",
-        ]
-
-        loadFirstAvailableImage(from: urlStrings, cacheKey: cacheKey)
-    }
-
-    private func loadFirstAvailableImage(from urlStrings: [String], cacheKey: NSString) {
-        guard let first = urlStrings.first, let url = URL(string: first) else { return }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 15
-
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
-            guard let self else { return }
-            DispatchQueue.main.async {
-                let isImageResponse = (response?.mimeType?.hasPrefix("image/") ?? true)
-                if isImageResponse, let data, let image = self.downsampledImage(from: data, maxPixelSize: 1200) ?? NSImage(data: data) {
-                    Self.youtubeThumbnailCache.setObject(image, forKey: cacheKey)
-                    self.refreshInlineImagePreviews()
-                } else if urlStrings.count > 1 {
-                    self.loadFirstAvailableImage(from: Array(urlStrings.dropFirst()), cacheKey: cacheKey)
-                }
-            }
-        }.resume()
-    }
-
-    private func loadYouTubeTitle(for match: InlineYouTubeMatch) {
-        guard !loadingYouTubeMetadataKeys.contains(match.videoID) else { return }
-        loadingYouTubeMetadataKeys.insert(match.videoID)
-
-        guard var components = URLComponents(string: "https://www.youtube.com/oembed") else {
-            loadingYouTubeMetadataKeys.remove(match.videoID)
-            return
-        }
-
-        components.queryItems = [
-            URLQueryItem(name: "url", value: match.sourceURL.absoluteString),
-            URLQueryItem(name: "format", value: "json"),
-        ]
-
-        guard let url = components.url else {
-            loadingYouTubeMetadataKeys.remove(match.videoID)
-            return
-        }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 15
-
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
-            guard let self else { return }
-            DispatchQueue.main.async {
-                defer { self.loadingYouTubeMetadataKeys.remove(match.videoID) }
-
-                guard let data,
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let title = json["title"] as? String,
-                      !title.isEmpty else { return }
-
-                Self.youtubeTitleCache[match.videoID] = title
-                self.refreshInlineImagePreviews()
-            }
-        }.resume()
     }
 
     // MARK: - Image paste handling
@@ -3681,11 +3259,6 @@ class LinkAwareTextView: NSTextView {
         return nil
     }
 
-    /// Handles image paste: saves to .images folder and inserts markdown
-    func handleImagePaste(image: NSImage) {
-        handleImagePaste(asset: PastedImageAsset(image: image, originalData: nil, fileExtension: "png"))
-    }
-
     private func handleImagePaste(asset: PastedImageAsset) {
         guard let currentFileURL = currentFileURL else {
             // No current file, fall back to regular paste (but images can't be pasted without a file context)
@@ -3742,14 +3315,6 @@ class LinkAwareTextView: NSTextView {
             replaceCharacters(in: currentRange, with: markdown)
             didChangeText()
         }
-    }
-
-    private func scaledInlineImageSize(for image: NSImage, maxWidth: CGFloat) -> NSSize {
-        let originalSize = image.size.width > 0 && image.size.height > 0 ? image.size : NSSize(width: maxWidth, height: 180)
-        let width = min(maxWidth, originalSize.width)
-        let scale = width / max(originalSize.width, 1)
-        let height = max(80, min(420, originalSize.height * scale))
-        return NSSize(width: width, height: height)
     }
 
     // MARK: - HTML to Markdown Conversion
@@ -4058,13 +3623,6 @@ struct InlineEmbedMatch {
     let noteURL: URL?
 }
 
-struct InlineYouTubeMatch {
-    let id: String
-    let paragraphRange: NSRange
-    let videoID: String
-    let sourceURL: URL
-}
-
 // MARK: - Embedded Notes Data Model
 
 /// Information about an embedded note for the side panel
@@ -4254,9 +3812,6 @@ struct EmbeddedNotesPanel: NSViewRepresentable {
                 } else {
                     imageView = EmbeddedImageView()
                     imageView.identifier = NSUserInterfaceItemIdentifier(embed.id)
-                    imageView.onOpenImage = { url, openInNewTab in
-                        onOpenFile(url, openInNewTab)
-                    }
                     imageView.onScrollToMarkdown = { [range = embed.range] in
                         onScrollToEmbed?(range)
                     }
@@ -4503,7 +4058,6 @@ final class EmbeddedImageView: NSView {
     private let openButton = NSButton()
     private var targetURL: URL?
     private var isSelected: Bool = false
-    var onOpenImage: ((URL, Bool) -> Void)?
     var onScrollToMarkdown: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
@@ -4644,11 +4198,6 @@ final class EmbeddedImageView: NSView {
         let viewer = ImageViewerWindowController(imageURL: targetURL, caption: captionField.stringValue.isEmpty ? nil : captionField.stringValue)
         imageViewerController = viewer // retain strongly so it isn't deallocated before image loads
         viewer.showFullScreen()
-    }
-
-    @objc private func openImageInNewTab() {
-        // Also use modal for Cmd+click
-        openImage()
     }
 
     private func setup() {
@@ -5003,14 +4552,6 @@ final class YouTubePreviewView: NSView {
         setup()
     }
 
-    func configure(title: String, subtitle: String, thumbnail: NSImage?, url: URL) {
-        targetURL = url
-        titleField.stringValue = title
-        subtitleField.stringValue = subtitle
-        thumbnailView.image = thumbnail
-        overlay.isHidden = thumbnail != nil
-    }
-
     override func layout() {
         super.layout()
         wantsLayer = true
@@ -5133,19 +4674,6 @@ class CompletionViewController: NSViewController {
             container.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             scrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 160),
         ])
-    }
-
-    @discardableResult
-    func update(files: [URL], query: String) -> Int {
-        self.allFiles = files
-        if searchField.stringValue != query { searchField.stringValue = query }
-        applyFilter()
-        return filteredFiles.count
-    }
-
-    func focusSearchField() {
-        view.window?.makeFirstResponder(searchField)
-        searchField.currentEditor()?.selectedRange = NSRange(location: searchField.stringValue.count, length: 0)
     }
 
     @objc private func searchChanged() {
@@ -5306,9 +4834,6 @@ struct CodeBlockMatch: Equatable {
 
 extension LinkAwareTextView {
 
-    /// Dictionary to track code block copy buttons keyed by their ID
-    private var codeBlockCopyButtonsKey: String { "codeBlockCopyButtons" }
-
     var codeBlockCopyButtons: [String: NSButton] {
         get {
             (objc_getAssociatedObject(self, &CodeBlockCopyButtonAssociatedKeys.buttons) as? [String: NSButton]) ?? [:]
@@ -5462,7 +4987,6 @@ struct MarkdownPreviewView: NSViewRepresentable {
     let fontSize: Int
     let lineHeight: Double
     var currentFileURL: URL? = nil
-    var onOpenFile: ((URL) -> Void)? = nil
     var onResolveWikilink: ((String) -> Void)? = nil
     var onToggleCheckbox: ((Int) -> Void)? = nil
 
@@ -5748,129 +5272,5 @@ struct MarkdownPreviewView: NSViewRepresentable {
         </body>
         </html>
         """
-    }
-    
-    private func convertTableBlockToHTML(_ lines: [String]) -> String {
-        guard lines.count >= 2 else { return lines.joined(separator: "\n") }
-
-        var html = "<table>"
-        let headerCells = parseTableRow(lines[0])
-        html += "<thead><tr>"
-        for cell in headerCells { html += "<th>\(cell)</th>" }
-        html += "</tr></thead>"
-
-        if lines.count > 2 {
-            html += "<tbody>"
-            for i in 2..<lines.count {
-                let cells = parseTableRow(lines[i])
-                html += "<tr>"
-                for cell in cells { html += "<td>\(cell)</td>" }
-                html += "</tr>"
-            }
-            html += "</tbody>"
-        }
-
-        html += "</table>"
-        return html
-    }
-
-    private func parseTableRow(_ line: String) -> [String] {
-        var trimmed = line.trimmingCharacters(in: .whitespaces)
-        if trimmed.hasPrefix("|") { trimmed = String(trimmed.dropFirst()) }
-        if trimmed.hasSuffix("|") { trimmed = String(trimmed.dropLast()) }
-        return trimmed.components(separatedBy: "|").map { inline($0.trimmingCharacters(in: .whitespaces)) }
-    }
-
-    private func convertCodeBlockToHTML(_ lines: [String]) -> String {
-        guard lines.count >= 2 else { return lines.joined(separator: "\n") }
-        let escaped = escapeHTML(lines[1..<(lines.count - 1)].joined(separator: "\n"))
-        return "<pre><code>\(escaped)</code></pre>"
-    }
-
-    private func convertLineToHTML(_ line: String) -> String {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-        if trimmed.isEmpty { return "<p></p>" }
-        if trimmed.hasPrefix("# ") { return "<h1>\(inline(String(trimmed.dropFirst(2))))</h1>" }
-        if trimmed.hasPrefix("## ") { return "<h2>\(inline(String(trimmed.dropFirst(3))))</h2>" }
-        if trimmed.hasPrefix("### ") { return "<h3>\(inline(String(trimmed.dropFirst(4))))</h3>" }
-        if trimmed.hasPrefix("#### ") { return "<h4>\(inline(String(trimmed.dropFirst(5))))</h4>" }
-        if trimmed.hasPrefix("##### ") { return "<h5>\(inline(String(trimmed.dropFirst(6))))</h5>" }
-        if trimmed.hasPrefix("###### ") { return "<h6>\(inline(String(trimmed.dropFirst(7))))</h6>" }
-        if trimmed == "---" || trimmed == "***" || trimmed == "___" { return "<hr>" }
-        if trimmed.hasPrefix("> ") { return "<blockquote>\(inline(String(trimmed.dropFirst(2))))</blockquote>" }
-        return "<p>\(inline(line))</p>"
-    }
-
-    // Applies inline markdown (bold, italic, code, strikethrough) after HTML-escaping plain text segments.
-    private func inline(_ text: String) -> String {
-        var result = ""
-        var i = text.startIndex
-
-        while i < text.endIndex {
-            // Inline code — escape content, no further formatting inside
-            if text[i] == "`" {
-                let after = text.index(after: i)
-                if let end = text[after...].firstIndex(of: "`") {
-                    result += "<code>\(escapeHTML(String(text[after..<end])))</code>"
-                    i = text.index(after: end)
-                    continue
-                }
-            }
-            // Bold+italic ***
-            if text[i...].hasPrefix("***"), let end = text[text.index(i, offsetBy: 3)...].range(of: "***") {
-                let content = String(text[text.index(i, offsetBy: 3)..<end.lowerBound])
-                result += "<strong><em>\(escapeHTML(content))</em></strong>"
-                i = end.upperBound
-                continue
-            }
-            // Bold ** or __
-            if text[i...].hasPrefix("**"), let end = text[text.index(i, offsetBy: 2)...].range(of: "**") {
-                let content = String(text[text.index(i, offsetBy: 2)..<end.lowerBound])
-                result += "<strong>\(escapeHTML(content))</strong>"
-                i = end.upperBound
-                continue
-            }
-            if text[i...].hasPrefix("__"), let end = text[text.index(i, offsetBy: 2)...].range(of: "__") {
-                let content = String(text[text.index(i, offsetBy: 2)..<end.lowerBound])
-                result += "<strong>\(escapeHTML(content))</strong>"
-                i = end.upperBound
-                continue
-            }
-            // Strikethrough ~~
-            if text[i...].hasPrefix("~~"), let end = text[text.index(i, offsetBy: 2)...].range(of: "~~") {
-                let content = String(text[text.index(i, offsetBy: 2)..<end.lowerBound])
-                result += "<del>\(escapeHTML(content))</del>"
-                i = end.upperBound
-                continue
-            }
-            // Italic * or _
-            if text[i] == "*" || text[i] == "_" {
-                let marker = String(text[i])
-                let after = text.index(after: i)
-                if let end = text[after...].range(of: marker) {
-                    let content = String(text[after..<end.lowerBound])
-                    result += "<em>\(escapeHTML(content))</em>"
-                    i = end.upperBound
-                    continue
-                }
-            }
-            // Plain character
-            switch text[i] {
-            case "&": result += "&amp;"
-            case "<": result += "&lt;"
-            case ">": result += "&gt;"
-            default: result.append(text[i])
-            }
-            i = text.index(after: i)
-        }
-        return result
-    }
-    
-    private func escapeHTML(_ text: String) -> String {
-        return text
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
     }
 }

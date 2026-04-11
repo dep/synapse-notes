@@ -133,7 +133,6 @@ private struct FileMoveConflict: Identifiable {
 
 struct FileTreeView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var themeEnv: ThemeEnvironment
     let settings: SettingsManager
     @State private var isPinnedSectionCollapsed = false
     @State private var nodes: [FileNode] = []
@@ -656,26 +655,6 @@ struct FileTreeView: View {
         // Intentionally NOT calling expandPath to preserve current scroll position
     }
 
-    /// Returns cached children for a directory, or kicks off an async load and returns nil.
-    /// On cache hit this is instant; on miss, the directory is scanned off the main thread
-    /// and the cache is populated when done (triggering a re-render).
-    func loadChildren(for url: URL) -> [FileNode]? {
-        if let cached = childrenCache[url] {
-            return cached
-        }
-        // Capture sort settings before leaving the main thread
-        let criterion = appState.sortCriterion
-        let ascending = appState.sortAscending
-        let settingsRef = settings
-        DispatchQueue.global(qos: .userInitiated).async {
-            let children = buildFileTreeLevel(at: url, sortCriterion: criterion, ascending: ascending, settings: settingsRef)
-            DispatchQueue.main.async {
-                childrenCache[url] = children
-            }
-        }
-        return nil
-    }
-
     private func syncLocalSettings() {
         fileTreeMode = settings.fileTreeMode
         dailyNotesEnabled = settings.dailyNotesEnabled
@@ -1034,48 +1013,6 @@ struct FileNodeRow: View {
                 appState.openFile(node.url)
             }
         }
-    }
-}
-
-/// Root-level drop target rendered as the first row in the folder tree.
-/// Looks like a vault-name folder row. Always full-sized and in the view
-/// hierarchy so it can receive drag events. Highlights when targeted.
-private struct RootDropTargetRow: View {
-    let vaultName: String
-    let isTargeted: Bool
-    let onDrop: ([NSItemProvider]) -> Bool
-    let setTargeted: (Bool) -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "chevron.down")
-                .font(.caption2)
-                .frame(width: 10)
-            Image(systemName: "folder.fill")
-                .foregroundStyle(SynapseTheme.accent)
-            Text(vaultName)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(SynapseTheme.textPrimary)
-            Spacer()
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 8)
-        .background {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(isTargeted ? SynapseTheme.accentSoft : SynapseTheme.row)
-        }
-        .contentShape(Rectangle())
-        .onDrop(
-            of: [.fileURL],
-            isTargeted: Binding(
-                get: { isTargeted },
-                set: setTargeted
-            ),
-            perform: onDrop
-        )
-        .padding(.horizontal, 2)
     }
 }
 

@@ -2,7 +2,6 @@ import AppKit
 import Foundation
 
 struct MarkdownTaskCheckboxHit: Equatable {
-    let itemRange: NSRange
     let markerRange: NSRange
     let isChecked: Bool
 
@@ -15,7 +14,7 @@ struct MarkdownTaskCheckboxInteraction {
             guard case let .taskListItem(indent, isChecked) = block.kind else { return nil }
             let markerOffset = indent + 2
             let markerRange = NSRange(location: block.range.location + markerOffset, length: 3)
-            return MarkdownTaskCheckboxHit(itemRange: block.range, markerRange: markerRange, isChecked: isChecked)
+            return MarkdownTaskCheckboxHit(markerRange: markerRange, isChecked: isChecked)
         }
     }
 

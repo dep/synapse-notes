@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,12 @@ import {
   Modal,
   Animated,
   Dimensions,
-  ScrollView,
-  StatusBar,
+  FlatList,
   ActivityIndicator,
   Alert,
   TextInput,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeContext';
@@ -34,6 +34,7 @@ interface FileDrawerProps {
   vaultPath: string;
   repoName?: string;
   activeFilePath?: string;
+  showHamburger?: boolean;
 }
 
 type ViewMode = 'tree' | 'flat';
@@ -43,6 +44,167 @@ const STORAGE_KEYS = {
   viewMode: '@filedrawer_viewmode',
   sortOption: '@filedrawer_sortoption',
 };
+
+// Flat row type used by FlatList for tree mode virtualization
+type TreeRow = { node: FileNode; level: number };
+
+// ─── Memoized row components ───────────────────────────────────────────────
+
+interface FolderRowProps {
+  node: FileNode;
+  level: number;
+  isExpanded: boolean;
+  isLoading: boolean;
+  templatesDirectory: string;
+  theme: any;
+  onPress: (path: string, hasLoadedChildren: boolean) => void;
+  onLongPress: (node: FileNode) => void;
+}
+
+const FolderRow = React.memo(({
+  node, level, isExpanded, isLoading, templatesDirectory, theme, onPress, onLongPress,
+}: FolderRowProps) => {
+  const isTemplatesFolder = node.name === templatesDirectory;
+  return (
+    <View>
+      <TouchableOpacity
+        style={[styles.folderItem, { paddingLeft: 16 + level * 16 }]}
+        onPress={() => onPress(node.path, Array.isArray(node.children))}
+        onLongPress={() => onLongPress(node)}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={theme.colors.text} style={styles.folderIcon} />
+        ) : (
+          <MaterialIcons
+            name={isExpanded ? 'folder-open' : 'folder'}
+            size={22}
+            color="#f59e0b"
+            style={styles.folderIcon}
+          />
+        )}
+        <Text
+          style={[styles.folderName, { color: theme.colors.text }, isLoading && { opacity: 0.7 }]}
+          numberOfLines={1}
+        >
+          {node.name}
+        </Text>
+        {isTemplatesFolder && (
+          <View style={[styles.templatesChip, { backgroundColor: theme.colors.primary + '20' }]}>
+            <Text style={[styles.templatesChipText, { color: theme.colors.primary }]}>
+              templates
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+});
+
+interface FileRowProps {
+  node: FileNode;
+  level: number;
+  isActive: boolean;
+  theme: any;
+  onPress: (path: string) => void;
+  onLongPress: (node: FileNode) => void;
+}
+
+const FileRow = React.memo(({ node, level, isActive, theme, onPress, onLongPress }: FileRowProps) => (
+  <TouchableOpacity
+    style={[
+      styles.fileItem,
+      { paddingLeft: 16 + level * 16 },
+      isActive && { backgroundColor: theme.colors.primary + '20' },
+    ]}
+    onPress={() => onPress(node.path)}
+    onLongPress={() => onLongPress(node)}
+    testID={isActive ? 'file-item-active' : undefined}
+  >
+    <MaterialIcons
+      name="insert-drive-file"
+      size={20}
+      color={isActive ? theme.colors.primary : theme.colors.text}
+      style={styles.fileIcon}
+    />
+    <Text
+      style={[
+        styles.fileName,
+        { color: theme.colors.text },
+        isActive && { color: theme.colors.primary, fontWeight: '600' },
+      ]}
+      numberOfLines={1}
+    >
+      {node.name}
+    </Text>
+  </TouchableOpacity>
+));
+
+interface PinnedRowProps {
+  item: PinnedItem;
+  isActive: boolean;
+  theme: any;
+  onPress: (item: PinnedItem) => void;
+  onLongPress: (item: PinnedItem) => void;
+}
+
+const PinnedRow = React.memo(({ item, isActive, theme, onPress, onLongPress }: PinnedRowProps) => (
+  <TouchableOpacity
+    style={[styles.pinnedItem, isActive && { backgroundColor: theme.colors.primary + '20' }]}
+    onPress={() => onPress(item)}
+    onLongPress={() => onLongPress(item)}
+  >
+    <MaterialIcons
+      name={item.isFolder ? 'folder' : 'push-pin'}
+      size={18}
+      color={isActive ? theme.colors.primary : item.isFolder ? '#f59e0b' : theme.colors.text + '80'}
+      style={styles.pinnedIcon}
+    />
+    <Text
+      style={[
+        styles.pinnedName,
+        { color: theme.colors.text },
+        isActive && { color: theme.colors.primary, fontWeight: '600' },
+      ]}
+      numberOfLines={1}
+    >
+      {item.name}
+    </Text>
+  </TouchableOpacity>
+));
+
+interface SearchResultRowProps {
+  result: { file: FileNode; lineNumber: number; lineText: string; matchIndex: number };
+  index: number;
+  isActive: boolean;
+  theme: any;
+  onPress: (path: string) => void;
+}
+
+const SearchResultRow = React.memo(({ result, index, isActive, theme, onPress }: SearchResultRowProps) => (
+  <TouchableOpacity
+    style={[
+      styles.searchResultItem,
+      { borderBottomColor: theme.colors.border },
+      isActive && styles.searchResultItemActive,
+    ]}
+    onPress={() => onPress(result.file.path)}
+    testID={`search-result-${index}`}
+  >
+    <View style={styles.searchResultHeader}>
+      <MaterialIcons name="description" size={16} color={theme.colors.primary} />
+      <Text style={[styles.searchResultFileName, { color: theme.colors.text }]} numberOfLines={1}>
+        {result.file.name.replace(/\.md$/, '')}
+      </Text>
+      <Text style={[styles.searchResultLineNumber, { color: theme.colors.text + '50' }]}>
+        Line {result.lineNumber}
+      </Text>
+    </View>
+    <Text style={[styles.searchResultPreview, { color: theme.colors.text + '80' }]} numberOfLines={2}>
+      {result.lineText}
+    </Text>
+  </TouchableOpacity>
+));
 
 export function FileDrawer({
   isOpen: initialIsOpen,
@@ -54,8 +216,10 @@ export function FileDrawer({
   vaultPath,
   repoName,
   activeFilePath,
+  showHamburger = true,
 }: FileDrawerProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [isOpen, setIsOpen] = useState(initialIsOpen);
   const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [sortOption, setSortOption] = useState<SortOption>('name-asc');
@@ -322,8 +486,24 @@ export function FileDrawer({
     }));
   }, [sortOption]);
 
-  const getSortedFiles = useCallback(() => sortFiles(files), [files, sortFiles]);
-  const getSortedFlatFiles = useCallback(() => sortFiles(flatFiles), [flatFiles, sortFiles]);
+  const sortedFiles = useMemo(() => sortFiles(files), [files, sortFiles]);
+  const sortedFlatFiles = useMemo(() => sortFiles(flatFiles), [flatFiles, sortFiles]);
+
+  // Flatten the nested tree into a single array for FlatList virtualization.
+  // Only includes folders that are currently expanded.
+  const flattenTree = useCallback((nodes: FileNode[], level: number = 0): TreeRow[] => {
+    const rows: TreeRow[] = [];
+    for (const node of nodes) {
+      rows.push({ node, level });
+      if (node.isDirectory && expandedFolders.has(node.path) && node.children) {
+        rows.push(...flattenTree(node.children, level + 1));
+      }
+    }
+    return rows;
+  }, [expandedFolders]);
+
+  const treeRows = useMemo(() => flattenTree(sortedFiles), [sortedFiles, flattenTree]);
+  const flatRows = useMemo<TreeRow[]>(() => sortedFlatFiles.map(node => ({ node, level: 0 })), [sortedFlatFiles]);
 
   // Manual search execution
   const handleSearch = useCallback(async () => {
@@ -386,19 +566,19 @@ export function FileDrawer({
     setIsSearching(false);
   };
 
-  const openDrawer = () => {
+  const openDrawer = useCallback(() => {
     setIsOpen(true);
-  };
+  }, []);
 
-  const closeDrawer = () => {
+  const closeDrawer = useCallback(() => {
     setIsOpen(false);
     onClose();
-  };
+  }, [onClose]);
 
-  const handleFileSelect = (path: string) => {
+  const handleFileSelect = useCallback((path: string) => {
     onFileSelect(path);
     closeDrawer();
-  };
+  }, [onFileSelect, closeDrawer]);
 
   const handleNewNote = () => {
     setFiles([]);
@@ -439,7 +619,7 @@ export function FileDrawer({
     }
   };
 
-  const showPinContextMenu = async (node: FileNode) => {
+  const showPinContextMenu = useCallback(async (node: FileNode) => {
     const isPinned = await PinningStorage.isPinned(node.path, vaultPath);
     
     const buttons: any[] = [
@@ -480,9 +660,9 @@ export function FileDrawer({
       undefined,
       buttons
     );
-  };
+  }, [vaultPath, handlePinItem, handleUnpinItem, handleFileSelect]);
 
-  const handleDeleteFile = (node: FileNode) => {
+  const handleDeleteFile = useCallback((node: FileNode) => {
     Alert.alert(
       'Delete File?',
       `Are you sure you want to delete "${node.name}"? This action cannot be undone.`,
@@ -530,9 +710,9 @@ export function FileDrawer({
         },
       ]
     );
-  };
+  }, [activeFilePath, onFileSelect, loadRootFiles, loadPinnedItems]);
 
-  const toggleFolder = async (path: string, hasLoadedChildren: boolean) => {
+  const toggleFolder = useCallback(async (path: string, hasLoadedChildren: boolean) => {
     const isExpanding = !expandedFolders.has(path);
     
     if (isExpanding && !hasLoadedChildren) {
@@ -556,214 +736,106 @@ export function FileDrawer({
       }
       return newSet;
     });
-  };
+  }, [expandedFolders, fileFilters, updateNodeChildren]);
 
-  const toggleViewMode = () => {
+  const toggleViewMode = useCallback(() => {
     const next = viewMode === 'tree' ? 'flat' : 'tree';
     if (next === 'flat' && flatFiles.length === 0) {
       loadFlatFiles();
     }
     setViewMode(next);
-  };
+  }, [viewMode, flatFiles.length, loadFlatFiles]);
 
-  const renderFileItem = (node: FileNode, level: number = 0) => {
-    const isActive = node.path === activeFilePath;
-    const isExpanded = expandedFolders.has(node.path);
-
+  // FlatList renderItem for the virtualized file tree / flat list
+  const renderTreeRow = useCallback(({ item }: { item: TreeRow }) => {
+    const { node, level } = item;
     if (node.isDirectory) {
-      const isLoadingFolder = loadingFolder === node.path;
-      const isTemplatesFolder = node.name === templatesDirectory;
-      
       return (
-        <View key={node.path}>
-          <TouchableOpacity
-            style={[
-              styles.folderItem,
-              { paddingLeft: 16 + level * 16 },
-            ]}
-            onPress={() => toggleFolder(node.path, Array.isArray(node.children))}
-            onLongPress={() => showPinContextMenu(node)}
-            disabled={isLoadingFolder}
-          >
-            {isLoadingFolder ? (
-              <ActivityIndicator 
-                size="small" 
-                color={theme.colors.text} 
-                style={styles.folderIcon} 
-              />
-            ) : (
-              <MaterialIcons
-                name={isExpanded ? 'folder-open' : 'folder'}
-                size={22}
-                color="#f59e0b"
-                style={styles.folderIcon}
-              />
-            )}
-            <Text
-              style={[
-                styles.folderName, 
-                { color: theme.colors.text },
-                isLoadingFolder && { opacity: 0.7 }
-              ]}
-              numberOfLines={1}
-            >
-              {node.name}
-            </Text>
-            {isTemplatesFolder && (
-              <View style={[styles.templatesChip, { backgroundColor: theme.colors.primary + '20' }]}>
-                <Text style={[styles.templatesChipText, { color: theme.colors.primary }]}>
-                  templates
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          {isExpanded && node.children && (
-            <View>
-              {node.children.map(child => renderFileItem(child, level + 1))}
-            </View>
-          )}
-        </View>
+        <FolderRow
+          node={node}
+          level={level}
+          isExpanded={expandedFolders.has(node.path)}
+          isLoading={loadingFolder === node.path}
+          templatesDirectory={templatesDirectory}
+          theme={theme}
+          onPress={toggleFolder}
+          onLongPress={showPinContextMenu}
+        />
       );
     }
-
     return (
-      <TouchableOpacity
-        key={node.path}
-        style={[
-          styles.fileItem,
-          { paddingLeft: 16 + level * 16 },
-          isActive && { backgroundColor: theme.colors.primary + '20' },
-        ]}
-        onPress={() => handleFileSelect(node.path)}
-        onLongPress={() => showPinContextMenu(node)}
-        testID={isActive ? 'file-item-active' : undefined}
-      >
-        <MaterialIcons
-          name="insert-drive-file"
-          size={20}
-          color={isActive ? theme.colors.primary : theme.colors.text}
-          style={styles.fileIcon}
-        />
-        <Text
-          style={[
-            styles.fileName,
-            { color: theme.colors.text },
-            isActive && { color: theme.colors.primary, fontWeight: '600' },
-          ]}
-          numberOfLines={1}
-        >
-          {node.name}
-        </Text>
-      </TouchableOpacity>
+      <FileRow
+        node={node}
+        level={level}
+        isActive={node.path === activeFilePath}
+        theme={theme}
+        onPress={handleFileSelect}
+        onLongPress={showPinContextMenu}
+      />
     );
-  };
+  }, [expandedFolders, loadingFolder, templatesDirectory, theme, toggleFolder, showPinContextMenu, activeFilePath, handleFileSelect]);
 
-  const renderFlatList = () => {
-    return flatFiles.map(node => (
-      <TouchableOpacity
-        key={node.path}
-        style={[
-          styles.fileItem,
-          node.path === activeFilePath && { backgroundColor: theme.colors.primary + '20' },
-        ]}
-        onPress={() => handleFileSelect(node.path)}
-        testID={node.path === activeFilePath ? 'file-item-active' : undefined}
-      >
-        <MaterialIcons
-          name="insert-drive-file"
-          size={20}
-          color={node.path === activeFilePath ? theme.colors.primary : theme.colors.text}
-          style={styles.fileIcon}
-        />
-        <Text
-          style={[
-            styles.fileName,
-            { color: theme.colors.text },
-            node.path === activeFilePath && { color: theme.colors.primary, fontWeight: '600' },
-          ]}
-          numberOfLines={1}
-        >
-          {node.name}
-        </Text>
-      </TouchableOpacity>
-    ));
-  };
+  const handlePinnedPress = useCallback((item: PinnedItem) => {
+    if (item.isFolder) {
+      toggleFolder(item.path, false);
+    } else {
+      handleFileSelect(item.path);
+    }
+  }, [toggleFolder, handleFileSelect]);
 
-  const renderPinnedItem = (item: PinnedItem) => {
-    const isActive = item.path === activeFilePath;
-    
-    return (
-      <TouchableOpacity
-        key={item.id}
-        style={[
-          styles.pinnedItem,
-          isActive && { backgroundColor: theme.colors.primary + '20' },
-        ]}
-        onPress={() => {
-          if (item.isFolder) {
-            // For folders, expand them in the tree view
-            toggleFolder(item.path, false);
-          } else {
-            handleFileSelect(item.path);
-          }
-        }}
-        onLongPress={() => {
-          Alert.alert(
-            item.name,
-            undefined,
-            [
-              {
-                text: 'Unpin',
-                onPress: () => handleUnpinItem(item.path),
-              },
-              {
-                text: 'Open',
-                onPress: () => {
-                  if (item.isFolder) {
-                    toggleFolder(item.path, false);
-                  } else {
-                    handleFileSelect(item.path);
-                  }
-                },
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel',
-              },
-            ]
-          );
-        }}
-      >
-        <MaterialIcons
-          name={item.isFolder ? 'folder' : 'push-pin'}
-          size={18}
-          color={isActive ? theme.colors.primary : item.isFolder ? '#f59e0b' : theme.colors.text + '80'}
-          style={styles.pinnedIcon}
-        />
-        <Text
-          style={[
-            styles.pinnedName,
-            { color: theme.colors.text },
-            isActive && { color: theme.colors.primary, fontWeight: '600' },
-          ]}
-          numberOfLines={1}
-        >
-          {item.name}
-        </Text>
-      </TouchableOpacity>
+  const handlePinnedLongPress = useCallback((item: PinnedItem) => {
+    Alert.alert(
+      item.name,
+      undefined,
+      [
+        { text: 'Unpin', onPress: () => handleUnpinItem(item.path) },
+        {
+          text: 'Open',
+          onPress: () => {
+            if (item.isFolder) {
+              toggleFolder(item.path, false);
+            } else {
+              handleFileSelect(item.path);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
     );
-  };
+  }, [toggleFolder, handleFileSelect, handleUnpinItem]);
+
+  const renderPinnedRow = useCallback(({ item }: { item: PinnedItem }) => (
+    <PinnedRow
+      item={item}
+      isActive={item.path === activeFilePath}
+      theme={theme}
+      onPress={handlePinnedPress}
+      onLongPress={handlePinnedLongPress}
+    />
+  ), [activeFilePath, theme, handlePinnedPress, handlePinnedLongPress]);
+
+  const renderSearchRow = useCallback(({ item, index }: { item: typeof searchResults[0]; index: number }) => (
+    <SearchResultRow
+      result={item}
+      index={index}
+      isActive={item.file.path === activeFilePath}
+      theme={theme}
+      onPress={handleFileSelect}
+    />
+  ), [activeFilePath, theme, handleFileSelect, searchResults]);
 
   return (
     <>
       {/* Hamburger Button */}
-      <TouchableOpacity
-        style={styles.hamburgerButton}
-        onPress={openDrawer}
-        testID="hamburger-button"
-      >
-        <MaterialIcons name="menu" size={28} color={theme.colors.text} />
-      </TouchableOpacity>
+      {showHamburger && (
+        <TouchableOpacity
+          style={styles.hamburgerButton}
+          onPress={openDrawer}
+          testID="hamburger-button"
+        >
+          <MaterialIcons name="menu" size={28} color={theme.colors.text} />
+        </TouchableOpacity>
+      )}
 
       {/* Drawer Modal */}
       <Modal
@@ -787,6 +859,7 @@ export function FileDrawer({
               {
                 backgroundColor: theme.colors.card,
                 transform: [{ translateX: slideAnim }],
+                paddingTop: insets.top,
               },
             ]}
             testID="file-drawer"
@@ -910,33 +983,16 @@ export function FileDrawer({
                   <Text style={[styles.searchResultsHeader, { color: theme.colors.text + '70' }]}>
                     {searchResults.length} match{searchResults.length !== 1 ? 'es' : ''}
                   </Text>
-                  <ScrollView style={styles.searchResultsList} testID="search-results-list">
-                    {searchResults.map((result, index) => (
-                      <TouchableOpacity
-                        key={`${result.file.path}-${result.lineNumber}-${index}`}
-                        style={[
-                          styles.searchResultItem,
-                          { borderBottomColor: theme.colors.border },
-                          activeFilePath === result.file.path && styles.searchResultItemActive
-                        ]}
-                        onPress={() => handleFileSelect(result.file.path)}
-                        testID={`search-result-${index}`}
-                      >
-                        <View style={styles.searchResultHeader}>
-                          <MaterialIcons name="description" size={16} color={theme.colors.primary} />
-                          <Text style={[styles.searchResultFileName, { color: theme.colors.text }]} numberOfLines={1}>
-                            {result.file.name.replace(/\.md$/, '')}
-                          </Text>
-                          <Text style={[styles.searchResultLineNumber, { color: theme.colors.text + '50' }]}>
-                            Line {result.lineNumber}
-                          </Text>
-                        </View>
-                        <Text style={[styles.searchResultPreview, { color: theme.colors.text + '80' }]} numberOfLines={2}>
-                          {result.lineText}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                  <FlatList
+                    style={styles.searchResultsList}
+                    testID="search-results-list"
+                    data={searchResults}
+                    keyExtractor={(result, index) => `${result.file.path}-${result.lineNumber}-${index}`}
+                    renderItem={renderSearchRow}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
+                  />
                 </View>
               )}
             </View>
@@ -947,9 +1003,12 @@ export function FileDrawer({
                 <Text style={[styles.pinnedHeader, { color: theme.colors.text + '70' }]}>
                   PINNED
                 </Text>
-                <View style={styles.pinnedList}>
-                  {pinnedItems.map(item => renderPinnedItem(item))}
-                </View>
+                <FlatList
+                  data={pinnedItems}
+                  keyExtractor={item => item.id}
+                  renderItem={renderPinnedRow}
+                  scrollEnabled={false}
+                />
               </View>
             )}
 
@@ -998,44 +1057,43 @@ export function FileDrawer({
             </View>
 
             {/* File List */}
-            <ScrollView style={styles.fileList}>
-              {isLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                  <Text style={[styles.loadingText, { color: theme.colors.text, marginTop: 12 }]}>
-                    Loading files...
-                  </Text>
-                </View>
-              ) : isLoadingFlat ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                  <Text style={[styles.loadingText, { color: theme.colors.text, marginTop: 12 }]}>
-                    Loading all files...
-                  </Text>
-                </View>
-              ) : files.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={[styles.emptyStateText, { color: theme.colors.text }]}>
-                    No files found
-                  </Text>
-                  <Text style={[styles.emptyStateSubtext, { color: theme.colors.text + '80' }]}>
-                    Vault: {vaultPath}
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.refreshButtonLarge, { backgroundColor: theme.colors.primary }]}
-                    onPress={syncAndRefreshFiles}
-                  >
-                    <Text style={[styles.refreshButtonLargeText, { color: theme.colors.background }]}>
-                      Refresh
+            {isLoading || isLoadingFlat ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={[styles.loadingText, { color: theme.colors.text, marginTop: 12 }]}>
+                  {isLoading ? 'Loading files...' : 'Loading all files...'}
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                style={styles.fileList}
+                data={viewMode === 'tree' ? treeRows : flatRows}
+                keyExtractor={item => item.node.path}
+                renderItem={renderTreeRow}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={15}
+                updateCellsBatchingPeriod={50}
+                windowSize={7}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Text style={[styles.emptyStateText, { color: theme.colors.text }]}>
+                      No files found
                     </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : viewMode === 'tree' ? (
-                getSortedFiles().map(node => renderFileItem(node))
-              ) : (
-                getSortedFlatFiles().map(node => renderFileItem(node))
-              )}
-            </ScrollView>
+                    <Text style={[styles.emptyStateSubtext, { color: theme.colors.text + '80' }]}>
+                      Vault: {vaultPath}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.refreshButtonLarge, { backgroundColor: theme.colors.primary }]}
+                      onPress={syncAndRefreshFiles}
+                    >
+                      <Text style={[styles.refreshButtonLargeText, { color: theme.colors.background }]}>
+                        Refresh
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                }
+              />
+            )}
           </Animated.View>
         </View>
       </Modal>
@@ -1074,7 +1132,6 @@ const styles = StyleSheet.create({
   drawer: {
     width: Dimensions.get('window').width * 0.82,
     height: '100%',
-    paddingTop: StatusBar.currentHeight || 0,
     shadowColor: '#000',
     shadowOffset: { width: 4, height: 0 },
     shadowOpacity: 0.1,
