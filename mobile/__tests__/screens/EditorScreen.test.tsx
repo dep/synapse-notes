@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert, BackHandler } from 'react-native';
 import { ThemeProvider } from '../../src/theme/ThemeContext';
 import { EditorScreen, preparePreviewContent } from '../../src/screens/EditorScreen';
 import { FileSystemService } from '../../src/services/FileSystemService';
@@ -49,18 +50,27 @@ jest.mock('../../src/services/onboardingStorage', () => ({
   },
 }));
 
-jest.mock('@react-navigation/native', () => ({
-  useFocusEffect: (callback: () => void | (() => void)) => {
-    const React = require('react');
-    if (callback.toString().includes('loadFile()')) {
-      React.useEffect(() => callback(), [callback]);
-    }
-  },
-}));
+jest.mock('@react-navigation/native', () => {
+  const React = require('react');
+  return {
+    useFocusEffect: (callback: () => void | (() => void)) => {
+      React.useEffect(() => {
+        const cleanup = callback();
+        return typeof cleanup === 'function' ? cleanup : undefined;
+      }, [callback]);
+    },
+  };
+});
 
 describe('EditorScreen', () => {
   const mockNavigate = jest.fn();
   const mockAddListener = jest.fn(() => jest.fn());
+
+  const getLatestHardwareBackHandler = () => {
+    const addListener = BackHandler.addEventListener as jest.Mock;
+    const calls = addListener.mock.calls.filter((call) => call[0] === 'hardwareBackPress');
+    return calls[calls.length - 1]?.[1] as (() => boolean) | undefined;
+  };
 
   const renderScreen = (filePath = 'file:///vault/repo/note.md') =>
     render(
@@ -74,6 +84,7 @@ describe('EditorScreen', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (Alert.alert as jest.Mock).mockClear();
     repositoryRefreshHandler = null;
     (FileSystemService.readFile as jest.Mock).mockResolvedValue('# Old note');
     (FileSystemService.writeFile as jest.Mock).mockResolvedValue(undefined);
@@ -207,6 +218,75 @@ describe('EditorScreen', () => {
 
     await waitFor(() => {
       expect(FileSystemService.readFile).toHaveBeenCalledWith('file:///vault/repo/note.md');
+    });
+  });
+
+  it('discards in-memory edits when choosing Don\'t Save from the hardware-back prompt', async () => {
+    const { getByTestId } = renderScreen();
+
+    await waitFor(() => {
+      expect(getByTestId('editor-input').props.value).toBe('# Old note');
+    });
+
+    fireEvent.changeText(getByTestId('editor-input'), '# Edited note');
+
+    await waitFor(() => {
+      expect(getLatestHardwareBackHandler()).toBeDefined();
+    });
+
+    const hardwareBackHandler = getLatestHardwareBackHandler();
+    expect(hardwareBackHandler!()).toBe(true);
+
+    expect(Alert.alert).toHaveBeenCalled();
+    const buttons = (Alert.alert as jest.Mock).mock.calls[0][2] as {
+      text: string;
+      onPress?: () => void;
+    }[];
+    const discard = buttons.find((b) => b.text === "Don't Save");
+    expect(discard?.onPress).toBeDefined();
+
+    act(() => {
+      discard!.onPress!();
+    });
+
+    await waitFor(() => {
+      expect(getByTestId('editor-input').props.value).toBe('# Old note');
+    });
+  });
+
+  it('does not open the file drawer after Save fails from the hardware-back prompt', async () => {
+    (FileSystemService.writeFile as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
+
+    const { getByTestId } = renderScreen();
+
+    await waitFor(() => {
+      expect(getByTestId('editor-input').props.value).toBe('# Old note');
+    });
+
+    fireEvent.changeText(getByTestId('editor-input'), '# Edited note');
+
+    await waitFor(() => {
+      expect(getLatestHardwareBackHandler()).toBeDefined();
+    });
+
+    const hardwareBackHandler = getLatestHardwareBackHandler();
+    hardwareBackHandler!();
+
+    const buttons = (Alert.alert as jest.Mock).mock.calls[0][2] as {
+      text: string;
+      style?: string;
+      onPress?: () => void | Promise<void>;
+    }[];
+    const save = buttons.find((b) => b.text === 'Save');
+    expect(save?.onPress).toBeDefined();
+
+    await act(async () => {
+      await save!.onPress!();
+    });
+
+    expect(FileSystemService.writeFile).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(getByTestId('editor-input').props.value).toBe('# Edited note');
     });
   });
 
