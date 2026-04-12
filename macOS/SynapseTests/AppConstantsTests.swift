@@ -82,6 +82,14 @@ final class AppConstantsTests: XCTestCase {
                                  "Caching too many recent files wastes memory")
     }
 
+    func test_maxRecentTags_isTwenty() {
+        XCTAssertEqual(AppConstants.maxRecentTags, 20)
+    }
+
+    func test_maxRecentFolders_isTwenty() {
+        XCTAssertEqual(AppConstants.maxRecentFolders, 20)
+    }
+
     func test_maxSearchMatches_isPositive() {
         XCTAssertGreaterThan(AppConstants.maxSearchMatches, 0)
     }
