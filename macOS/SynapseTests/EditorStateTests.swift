@@ -50,6 +50,47 @@ final class EditorStateTests: XCTestCase {
         XCTAssertFalse(sut.editorState.isDirty)
     }
 
+    // MARK: - Pending editor hand-off signals (scroll, selection, find)
+
+    func test_editorState_pendingCursorSignals_roundTrip() {
+        let editor = sut.editorState
+        editor.pendingCursorPosition = 42
+        editor.pendingCursorRange = NSRange(location: 10, length: 5)
+        editor.pendingCursorTargetPaneIndex = 1
+        XCTAssertEqual(editor.pendingCursorPosition, 42)
+        XCTAssertEqual(editor.pendingCursorRange, NSRange(location: 10, length: 5))
+        XCTAssertEqual(editor.pendingCursorTargetPaneIndex, 1)
+    }
+
+    func test_editorState_pendingScrollAndSearch_roundTrip() {
+        let editor = sut.editorState
+        editor.pendingScrollOffsetY = 120.5
+        editor.pendingSearchQuery = "wikilink"
+        XCTAssertEqual(editor.pendingScrollOffsetY, 120.5, accuracy: 0.001)
+        XCTAssertEqual(editor.pendingSearchQuery, "wikilink")
+    }
+
+    func test_editorState_pendingSignals_canBeCleared() {
+        let editor = sut.editorState
+        editor.pendingCursorPosition = 1
+        editor.pendingCursorRange = NSRange(location: 0, length: 1)
+        editor.pendingCursorTargetPaneIndex = 0
+        editor.pendingScrollOffsetY = 99
+        editor.pendingSearchQuery = "x"
+
+        editor.pendingCursorPosition = nil
+        editor.pendingCursorRange = nil
+        editor.pendingCursorTargetPaneIndex = nil
+        editor.pendingScrollOffsetY = nil
+        editor.pendingSearchQuery = nil
+
+        XCTAssertNil(editor.pendingCursorPosition)
+        XCTAssertNil(editor.pendingCursorRange)
+        XCTAssertNil(editor.pendingCursorTargetPaneIndex)
+        XCTAssertNil(editor.pendingScrollOffsetY)
+        XCTAssertNil(editor.pendingSearchQuery)
+    }
+
     // MARK: - AppState.selectedFile is mirrored into EditorState
 
     func test_appState_selectedFile_forwardsToEditorState() {

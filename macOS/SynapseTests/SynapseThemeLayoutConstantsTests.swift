@@ -11,6 +11,46 @@ import AppKit
 /// contrast; pinning them with assertions acts as a regression guard.
 final class SynapseThemeLayoutConstantsTests: XCTestCase {
 
+    // MARK: - Layout: golden ratio spine (phi → spacing tokens)
+
+    func test_phi_isGoldenRatioConstant() {
+        XCTAssertEqual(SynapseTheme.Layout.phi, 1.61803398875, accuracy: 1e-9)
+    }
+
+    func test_baseUnit_isEight() {
+        XCTAssertEqual(SynapseTheme.Layout.baseUnit, 8.0, accuracy: 0.001)
+    }
+
+    func test_spacingTokens_followPhiScaling() {
+        let u = SynapseTheme.Layout.baseUnit
+        let p = SynapseTheme.Layout.phi
+        XCTAssertEqual(SynapseTheme.Layout.spaceSmall, u, accuracy: 0.001)
+        XCTAssertEqual(SynapseTheme.Layout.spaceMedium, u * p, accuracy: 0.02)
+        XCTAssertEqual(SynapseTheme.Layout.spaceLarge, u * p * p, accuracy: 0.03)
+        XCTAssertEqual(SynapseTheme.Layout.spaceExtraLarge, u * p * p * p, accuracy: 0.05)
+    }
+
+    // MARK: - Layout: responsive sidebar breakpoints (paired with sidebarAutoCollapseIDs)
+
+    func test_allSidebarsExpandedWidth_is800TimesPhi() {
+        XCTAssertEqual(SynapseTheme.Layout.allSidebarsExpandedWidth, 800 * SynapseTheme.Layout.phi, accuracy: 0.1)
+    }
+
+    func test_twoSidebarsExpandedWidth_is600TimesPhi() {
+        XCTAssertEqual(SynapseTheme.Layout.twoSidebarsExpandedWidth, 600 * SynapseTheme.Layout.phi, accuracy: 0.1)
+    }
+
+    func test_oneSidebarExpandedWidth_is500TimesPhi() {
+        XCTAssertEqual(SynapseTheme.Layout.oneSidebarExpandedWidth, 500 * SynapseTheme.Layout.phi, accuracy: 0.1)
+    }
+
+    func test_sidebarBreakpoints_areStrictlyOrdered() {
+        XCTAssertLessThan(SynapseTheme.Layout.oneSidebarExpandedWidth,
+                          SynapseTheme.Layout.twoSidebarsExpandedWidth)
+        XCTAssertLessThan(SynapseTheme.Layout.twoSidebarsExpandedWidth,
+                          SynapseTheme.Layout.allSidebarsExpandedWidth)
+    }
+
     // MARK: - Layout: sidebar widths
 
     func test_minLeftSidebarWidth_isLessThanMaxLeftSidebarWidth() {
@@ -91,6 +131,35 @@ final class SynapseThemeLayoutConstantsTests: XCTestCase {
 
     func test_h4FontSize_isExpectedValue() {
         XCTAssertEqual(SynapseTheme.Editor.h4FontSize, 15 * SynapseTheme.Editor.headingH4Multiplier, accuracy: 0.01)
+    }
+
+    func test_h5HeadingMultiplier_isOne() {
+        XCTAssertEqual(SynapseTheme.Editor.headingH5Multiplier, 1.0, accuracy: 0.001)
+    }
+
+    func test_h6HeadingMultiplier_isSmallerThanBody() {
+        XCTAssertEqual(SynapseTheme.Editor.headingH6Multiplier, 0.95, accuracy: 0.001)
+        let h6Size = SynapseTheme.Editor.bodyFontSize * SynapseTheme.Editor.headingH6Multiplier
+        XCTAssertLessThan(h6Size, SynapseTheme.Editor.bodyFontSize,
+                          "H6 should render slightly smaller than body text per design tokens")
+    }
+
+    func test_h5ComputedFontSize_matchesMultiplier() {
+        let h5 = SynapseTheme.Editor.bodyFontSize * SynapseTheme.Editor.headingH5Multiplier
+        XCTAssertEqual(h5, 15.0, accuracy: 0.01)
+    }
+
+    func test_h6ComputedFontSize_matchesMultiplier() {
+        let h6 = SynapseTheme.Editor.bodyFontSize * SynapseTheme.Editor.headingH6Multiplier
+        XCTAssertEqual(h6, 15 * 0.95, accuracy: 0.01)
+    }
+
+    func test_headingFontSizes_decreaseFromH4ToH6() {
+        let h4 = SynapseTheme.Editor.h4FontSize
+        let h5 = SynapseTheme.Editor.bodyFontSize * SynapseTheme.Editor.headingH5Multiplier
+        let h6 = SynapseTheme.Editor.bodyFontSize * SynapseTheme.Editor.headingH6Multiplier
+        XCTAssertGreaterThanOrEqual(h4, h5)
+        XCTAssertGreaterThan(h5, h6)
     }
 
     func test_maxInlinePreviewWidth_isExpectedValue() {
