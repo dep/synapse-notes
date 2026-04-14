@@ -948,7 +948,14 @@ describe('GitService', () => {
         return '';
       });
 
-      (git.hashBlob as jest.Mock).mockResolvedValueOnce({ oid: 'local-new-sha' });
+      (git.hashBlob as jest.Mock).mockImplementation(async ({ object }: { object: Buffer | Uint8Array }) => {
+        const buf = Buffer.isBuffer(object) ? object : Buffer.from(object);
+        const text = buf.toString('utf8');
+        if (text === 'LOCAL ONLY NEW\n') {
+          return { oid: 'local-new-sha' };
+        }
+        return { oid: 'blob-readme' };
+      });
 
       mockFetch
         .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'remote-tip-commit' } }) })
@@ -976,6 +983,71 @@ describe('GitService', () => {
       expect(saved.commitSha).toBe('remote-tip-commit');
       expect(saved.files['NEW.md'].sha).toBe('local-new-sha');
       expect(saved.files['NEW.md'].sha).not.toBe('blob-remote-new');
+    });
+
+    it('should record local blob hash when metadata and remote tip agree but working tree bytes differ', async () => {
+      const localPath = 'file:///mock/documents/vault/repo';
+      const metadata = {
+        version: 1,
+        transport: 'github-api',
+        repoUrl: 'https://github.com/test/repo',
+        owner: 'test',
+        repo: 'repo',
+        branch: 'main',
+        commitSha: 'remote-tip-commit',
+        treeSha: 'tree-sha-1',
+        files: {
+          'README.md': { sha: 'blob-readme', mode: '100644', type: 'blob' },
+        },
+      };
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
+        JSON.stringify({ ['https://github.com/test/repo']: { username: 'token', token: 'ghp_testtoken123' } })
+      );
+
+      (FileSystem.getInfoAsync as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return { exists: true, isDirectory: false, size: 0 };
+        if (path === 'file:///mock/documents/vault/repo/README.md') return { exists: true, isDirectory: false, size: 0 };
+        return { exists: false, isDirectory: false, size: 0 };
+      });
+
+      (FileSystem.readAsStringAsync as jest.Mock).mockImplementation(async (path: string, options?: any) => {
+        if (path === 'file:///mock/documents/vault/repo/.synapse/repo.json') return JSON.stringify(metadata);
+        if (path === 'file:///mock/documents/vault/repo/README.md' && options?.encoding === 'base64') {
+          return 'TE9DQUwgT1ZFUlJJRERFTgo=';
+        }
+        return '';
+      });
+
+      (git.hashBlob as jest.Mock).mockImplementation(async ({ object }: { object: Buffer | Uint8Array }) => {
+        const buf = Buffer.isBuffer(object) ? object : Buffer.from(object);
+        const text = buf.toString('utf8');
+        if (text === 'LOCAL OVERRIDDEN\n') {
+          return { oid: 'local-readme-sha' };
+        }
+        return { oid: 'blob-readme' };
+      });
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ commit: { sha: 'remote-tip-commit' } }) })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ tree: { sha: 'tree-sha-2' } }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            tree: [{ path: 'README.md', type: 'blob', mode: '100644', sha: 'blob-readme' }],
+          }),
+        });
+
+      await GitService.refreshRemote(localPath);
+
+      const metaWrite = (FileSystem.writeAsStringAsync as jest.Mock).mock.calls.find(
+        (call: string[]) => call[0] === 'file:///mock/documents/vault/repo/.synapse/repo.json'
+      );
+      expect(metaWrite).toBeDefined();
+      const saved = JSON.parse(metaWrite![1] as string);
+      expect(saved.commitSha).toBe('remote-tip-commit');
+      expect(saved.files['README.md'].sha).toBe('local-readme-sha');
+      expect(saved.files['README.md'].sha).not.toBe('blob-readme');
     });
   });
 
