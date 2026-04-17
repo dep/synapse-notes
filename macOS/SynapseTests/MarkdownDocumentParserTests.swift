@@ -183,6 +183,31 @@ final class MarkdownDocumentParserTests: XCTestCase {
         XCTAssertEqual(document.blocks[0].inlineTokens[0].kind, .wikiLink(destination: "Other Note", alias: nil))
     }
 
+    func test_parse_emptySource_returnsEmptyBlocks() {
+        let document = parser.parse("")
+        XCTAssertTrue(document.blocks.isEmpty)
+        XCTAssertEqual(document.source, "")
+    }
+
+    func test_parse_orderedListItem_preservesOrdinal() {
+        let markdown = "1. First step\n2. Second step\n"
+        let document = parser.parse(markdown)
+
+        XCTAssertEqual(document.blocks.count, 2)
+        XCTAssertEqual(document.blocks[0].kind, .orderedListItem(indent: 0, ordinal: 1))
+        XCTAssertEqual(document.blocks[1].kind, .orderedListItem(indent: 0, ordinal: 2))
+    }
+
+    func test_parse_thematicBreak_recognizedAsSingleBlock() {
+        let markdown = "Before\n\n---\n\nAfter\n"
+        let document = parser.parse(markdown)
+
+        XCTAssertEqual(document.blocks.count, 3)
+        XCTAssertEqual(document.blocks[0].kind, .paragraph)
+        XCTAssertEqual(document.blocks[1].kind, .thematicBreak)
+        XCTAssertEqual(document.blocks[2].kind, .paragraph)
+    }
+
     private func substring(_ text: String, range: NSRange) -> String {
         (text as NSString).substring(with: range)
     }

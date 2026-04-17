@@ -365,4 +365,63 @@ final class PinnedItemStructTests: XCTestCase {
 
         try? FileManager.default.removeItem(at: alternateVault)
     }
+
+    // MARK: - matchesVaultPath (multi-machine vault list)
+
+    func test_matchesVaultPath_trueWhenPathInList() {
+        let url = tempDir.appendingPathComponent("note.md")
+        try! "".write(to: url, atomically: true, encoding: .utf8)
+
+        let otherVault = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: otherVault) }
+
+        let json = """
+        {
+          "id": "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+          "name": "note.md",
+          "isFolder": false,
+          "isTag": false,
+          "vaultPaths": ["\(otherVault.path)", "\(tempDir.path)"],
+          "relativePath": "note.md"
+        }
+        """
+        let item = try! JSONDecoder().decode(PinnedItem.self, from: Data(json.utf8))
+
+        XCTAssertTrue(item.matchesVaultPath(tempDir.path))
+        XCTAssertTrue(item.matchesVaultPath(otherVault.path))
+    }
+
+    func test_matchesVaultPath_falseWhenPathNotInList() {
+        let url = tempDir.appendingPathComponent("solo.md")
+        try! "".write(to: url, atomically: true, encoding: .utf8)
+        let item = PinnedItem(url: url, isFolder: false, vaultURL: tempDir)
+
+        XCTAssertFalse(item.matchesVaultPath("/nonexistent/vault"))
+    }
+
+    func test_url_withMultipleVaultPaths_resolvesAgainstFirstExistingRelativePath() throws {
+        let missingVault = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: missingVault, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: missingVault) }
+
+        let noteURL = tempDir.appendingPathComponent("Inbox/Todo.md")
+        try FileManager.default.createDirectory(at: noteURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "".write(to: noteURL, atomically: true, encoding: .utf8)
+
+        let json = """
+        {
+          "id": "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFFFFFF",
+          "name": "Todo.md",
+          "isFolder": false,
+          "isTag": false,
+          "vaultPaths": ["\(missingVault.path)", "\(tempDir.path)"],
+          "relativePath": "Inbox/Todo.md"
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(PinnedItem.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.url?.path, noteURL.path)
+    }
 }
