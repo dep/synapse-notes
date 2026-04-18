@@ -140,13 +140,11 @@ extension Array where Element == SidebarPaneItem {
     }
 }
 
-func == (lhs: [SidebarPaneItem], rhs: [SidebarPane]) -> Bool {
-    guard lhs.count == rhs.count else { return false }
-    return zip(lhs, rhs).allSatisfy { item, pane in item.builtInPane == pane }
-}
-
-func == (lhs: [SidebarPane], rhs: [SidebarPaneItem]) -> Bool {
-    rhs == lhs
+extension Array where Element == SidebarPaneItem {
+    func hasSamePanes(as panes: [SidebarPane]) -> Bool {
+        guard count == panes.count else { return false }
+        return zip(self, panes).allSatisfy { item, pane in item.builtInPane == pane }
+    }
 }
 
 /// Position of a sidebar container (left or right side of the window)
