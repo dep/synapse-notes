@@ -90,8 +90,9 @@ final class CriticalSidebarAndEditorRoutingTests: XCTestCase {
     // MARK: - Date page formatting (DatePageView)
 
     func test_datePageFormatting_isoTitle_matchesTabDisplayFormat() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        // Use the local calendar (no explicit timezone) so the date components
+        // align with the formatter, which also uses the local timezone.
+        let calendar = Calendar(identifier: .gregorian)
         let date = try XCTUnwrap(calendar.date(from: DateComponents(year: 2024, month: 3, day: 15)))
         XCTAssertEqual(DatePageFormatting.isoTitle(for: date), "2024-03-15")
     }

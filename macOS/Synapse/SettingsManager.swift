@@ -140,6 +140,15 @@ extension Array where Element == SidebarPaneItem {
     }
 }
 
+func == (lhs: [SidebarPaneItem], rhs: [SidebarPane]) -> Bool {
+    guard lhs.count == rhs.count else { return false }
+    return zip(lhs, rhs).allSatisfy { item, pane in item.builtInPane == pane }
+}
+
+func == (lhs: [SidebarPane], rhs: [SidebarPaneItem]) -> Bool {
+    rhs == lhs
+}
+
 /// Position of a sidebar container (left or right side of the window)
 enum SidebarPosition: String, Codable, CaseIterable {
     case left = "left"
