@@ -9,7 +9,7 @@
 ### macOS Build and Relaunch
 Whenever you modify `.swift` files, you MUST rebuild and relaunch the app BEFORE you ask the user for feedback or perform git operations.
 
-Use `@.agents/commands/RELOAD.md on macOS`
+Use `@.agents/commands/RELOAD-MAC.md`
 
 Do not skip this step, even if unit tests pass. This overrides the "Minimize Verification Loops" rule.
 
@@ -19,7 +19,7 @@ Whenever you modify `mobile/` files, you MUST rebuild and relaunch the app BEFOR
 
 Do not skip this step, even if unit tests pass. This overrides the "Minimize Verification Loops" rule.
 
-Use `@.agents/commands/RELOAD.md on android`
+Use `@.agents/commands/RELOAD-MOBILE.md`
 
 "🚀 **Rebuilt and relaunched the Synapse app.**"
 </critical_workflow>
