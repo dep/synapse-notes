@@ -957,8 +957,11 @@ struct RawEditor: NSViewRepresentable {
         init(_ parent: RawEditor) { self.parent = parent }
 
         func flushPendingStyling() {
-            guard stylingScheduled, let work = stylingWorkItem else { return }
-            work.cancel()
+            // After coalesced edits we cancel the debounced work item but keep `stylingScheduled`
+            // true until the next `textStorage` pass. The view can still be torn down or receive
+            // a full text replacement (e.g. switching notes) before that — flush in that case too.
+            guard stylingScheduled else { return }
+            stylingWorkItem?.cancel()
             stylingWorkItem = nil
             runPendingStyling()
         }
