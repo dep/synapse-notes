@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   AppBar,
@@ -69,6 +69,9 @@ export function RepoEditor({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  /** Bumps on each file open so out-of-order fetch responses cannot apply after a newer selection. */
+  const fileLoadGeneration = useRef(0)
+
   const loadTree = useCallback(async () => {
     if (!token || !parsed) return
     setTreeLoading(true)
@@ -107,6 +110,7 @@ export function RepoEditor({
       setFileLoading(true)
       setFileError(null)
       setActiveFile(null)
+      const generation = ++fileLoadGeneration.current
       const result = await fetchFileContent(
         token,
         parsed.owner,
@@ -114,6 +118,9 @@ export function RepoEditor({
         path,
         repo.defaultBranch,
       )
+      if (generation !== fileLoadGeneration.current) {
+        return
+      }
       if (result.ok) {
         setActiveFile({
           path,
