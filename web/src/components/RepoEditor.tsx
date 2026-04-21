@@ -309,14 +309,18 @@ export function RepoEditor({
   const handleSelectFile = useCallback(
     (path: string) => {
       const current = activeFileRef.current
-      if (current && current.path === path) return
+      if (current && current.path === path) {
+        if (mobile) setSidebarOverride(false)
+        return
+      }
       if (current && current.content !== current.originalContent) {
         const ok = window.confirm(`Discard unsaved changes in ${current.path}?`)
         if (!ok) return
       }
       navigateToFile(path)
+      if (mobile) setSidebarOverride(false)
     },
-    [navigateToFile],
+    [navigateToFile, mobile],
   )
 
   useEffect(() => {
