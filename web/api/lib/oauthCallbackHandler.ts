@@ -141,11 +141,10 @@ export async function handleOAuthCallbackGet(
     fetch,
   )
 
-  if (!exchanged.ok) {
-    return htmlResponse(buildOAuthErrorHtml(exchanged.error, basePath))
+  if (exchanged.ok === true) {
+    return htmlResponse(buildOAuthSuccessHtml(exchanged.accessToken, state, basePath))
   }
-
-  return htmlResponse(buildOAuthSuccessHtml(exchanged.accessToken, state, basePath))
+  return htmlResponse(buildOAuthErrorHtml(exchanged.error, basePath))
 }
 
 export const defaultOAuthExchange = exchangeCodeForToken
