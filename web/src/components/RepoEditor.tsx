@@ -983,11 +983,25 @@ export function RepoEditor({
 
       <Box
         sx={{
+          position: 'relative',
           display: 'grid',
-          gridTemplateColumns: sidebarVisible ? '280px 1fr' : '1fr',
+          gridTemplateColumns:
+            sidebarVisible && !mobile ? '280px 1fr' : '1fr',
           overflow: 'hidden',
         }}
       >
+        {mobile && sidebarVisible && (
+          <Box
+            aria-hidden
+            onClick={() => setSidebarOverride(false)}
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              bgcolor: 'rgba(0, 0, 0, 0.4)',
+              zIndex: 2,
+            }}
+          />
+        )}
         <Box
           sx={{
             display: sidebarVisible ? 'flex' : 'none',
@@ -996,6 +1010,18 @@ export function RepoEditor({
             overflow: 'hidden',
             bgcolor: 'background.paper',
             flexDirection: 'column',
+            ...(mobile
+              ? {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  width: 280,
+                  maxWidth: '85vw',
+                  zIndex: 3,
+                  boxShadow: 6,
+                }
+              : {}),
           }}
         >
           <Box
