@@ -59,7 +59,7 @@ describe('sort settings persistence', () => {
   })
 
   it('uses a predictable key', () => {
-    expect(sortSettingsStorageKey(REPO)).toBe(`opus_sort:${REPO}`)
+    expect(sortSettingsStorageKey(REPO)).toBe(`synapse_sort:${REPO}`)
   })
 })
 

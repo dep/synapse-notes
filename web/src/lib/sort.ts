@@ -11,7 +11,7 @@ export type SortSettings = {
 export const DEFAULT_SORT: SortSettings = { criterion: 'name', direction: 'asc' }
 
 export function sortSettingsStorageKey(repoFullName: string): string {
-  return `opus_sort:${repoFullName}`
+  return `synapse_sort:${repoFullName}`
 }
 
 export function parseSortSettings(raw: string | null): SortSettings {

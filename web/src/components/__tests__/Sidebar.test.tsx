@@ -114,18 +114,23 @@ describe('<Sidebar /> breadcrumb', () => {
 })
 
 describe('<Sidebar /> pinned', () => {
-  it('renders pinned section above the breadcrumb', () => {
+  it('renders pinned section above the sort controls and breadcrumb', () => {
     const props = {
       ...defaultProps(),
       pinnedItems: [{ path: 'notes', kind: 'folder' as const }],
     }
     const { container } = render(<Sidebar {...props} />)
-    // Find the Pinned header and the breadcrumb (Root), then confirm Pinned
-    // appears earlier in the document order.
     const pinnedHeader = screen.getByText('Pinned')
+    const sortName = screen.getByText('Name')
     const rootSeg = screen.getByText('Root')
-    const order = pinnedHeader.compareDocumentPosition(rootSeg)
-    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      pinnedHeader.compareDocumentPosition(sortName) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      sortName.compareDocumentPosition(rootSeg) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(container).toBeInTheDocument()
   })
 

@@ -18,7 +18,7 @@ export type PinsStore = {
 type Storage = Pick<globalThis.Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 export function pinsStorageKey(repoFullName: string): string {
-  return `opus_pins:${repoFullName}`
+  return `synapse_pins:${repoFullName}`
 }
 
 export function parsePins(raw: string | null): PinnedItem[] {

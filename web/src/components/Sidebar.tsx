@@ -82,6 +82,15 @@ export function Sidebar(props: SidebarProps) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {pinnedItems.length > 0 && (
+        <PinnedSection
+          items={pinnedItems}
+          activePath={activePath}
+          onClick={onPinnedClick}
+          onContextMenu={(target, event) => onContextMenu(target, event)}
+        />
+      )}
+
       <Box sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <Box sx={{ flex: 1 }} />
@@ -99,15 +108,6 @@ export function Sidebar(props: SidebarProps) {
           />
         </Stack>
       </Box>
-
-      {pinnedItems.length > 0 && (
-        <PinnedSection
-          items={pinnedItems}
-          activePath={activePath}
-          onClick={onPinnedClick}
-          onContextMenu={(target, event) => onContextMenu(target, event)}
-        />
-      )}
 
       <Breadcrumb folder={currentFolder} onNavigate={onNavigateFolder} />
 

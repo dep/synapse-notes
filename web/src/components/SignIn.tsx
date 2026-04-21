@@ -12,7 +12,7 @@ export function SignIn() {
     >
       <Stack spacing={2}>
         <Typography variant="h5" fontWeight={700}>
-          Repo Markdown Editor
+          Synapse Web
         </Typography>
         <Typography variant="body2" color="text.secondary">
           Sign in with GitHub, pick a repo, and edit its files — markdown gets

@@ -9,7 +9,7 @@ const REPO = 'owner/repo'
 
 describe('pinsStorageKey', () => {
   it('scopes by repo full name', () => {
-    expect(pinsStorageKey('a/b')).toBe('opus_pins:a/b')
+    expect(pinsStorageKey('a/b')).toBe('synapse_pins:a/b')
     expect(pinsStorageKey('x/y')).not.toBe(pinsStorageKey('a/b'))
   })
 })

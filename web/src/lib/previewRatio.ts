@@ -3,7 +3,7 @@ export const MIN_PANE_RATIO = 0.2
 export const MAX_PANE_RATIO = 0.8
 
 export function previewRatioStorageKey(repoFullName: string): string {
-  return `opus_preview_ratio:${repoFullName}`
+  return `synapse_preview_ratio:${repoFullName}`
 }
 
 export function clampRatio(ratio: number): number {

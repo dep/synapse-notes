@@ -55,6 +55,6 @@ describe('persistence', () => {
   })
 
   it('uses predictable key', () => {
-    expect(previewRatioStorageKey('o/r')).toBe('opus_preview_ratio:o/r')
+    expect(previewRatioStorageKey('o/r')).toBe('synapse_preview_ratio:o/r')
   })
 })
