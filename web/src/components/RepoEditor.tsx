@@ -55,6 +55,7 @@ import { collectPaletteItems, type PaletteItem } from '../lib/palette'
 import { buildWikilinkIndex, type WikilinkIndex } from '../lib/wikilinks'
 import { dailyNotePath, formatLocalDate } from '../lib/dailyNote'
 import { TabBar } from './TabBar'
+import { EmptyEditorState } from './EmptyEditorState'
 import {
   activateByIndex,
   activeTab as activeTabOf,
@@ -1453,11 +1454,15 @@ export function RepoEditor({
               mobile={mobile}
               previewRatio={previewRatio}
               wikilinkIndex={wikilinkIndex}
+              todayLabel={todayLabel}
               onRatioChange={handleRatioChange}
               onWikilinkClick={handleSelectFile}
               onContentChange={(next) =>
                 updateActiveFile((prev) => ({ ...prev, content: next }))
               }
+              onOpenToday={() => void handleOpenToday()}
+              onOpenPalette={() => setPaletteOpen(true)}
+              onOpenSidebar={() => setSidebarOverride(true)}
             />
           </Box>
         </Box>
@@ -1554,9 +1559,13 @@ function EditorPane({
   mobile,
   previewRatio,
   wikilinkIndex,
+  todayLabel,
   onRatioChange,
   onWikilinkClick,
   onContentChange,
+  onOpenToday,
+  onOpenPalette,
+  onOpenSidebar,
 }: {
   loading: boolean
   file: LoadedFile | null
@@ -1566,9 +1575,13 @@ function EditorPane({
   mobile: boolean
   previewRatio: number
   wikilinkIndex: WikilinkIndex
+  todayLabel: string
   onRatioChange: (next: number) => void
   onWikilinkClick: (path: string) => void
   onContentChange: (next: string) => void
+  onOpenToday: () => void
+  onOpenPalette: () => void
+  onOpenSidebar: () => void
 }) {
   if (loading) {
     return (
@@ -1586,17 +1599,13 @@ function EditorPane({
   }
   if (!file) {
     return (
-      <Box
-        sx={{
-          display: 'grid',
-          placeItems: 'center',
-          color: 'text.secondary',
-        }}
-      >
-        <Typography variant="body2">
-          Select a file from the left to start editing.
-        </Typography>
-      </Box>
+      <EmptyEditorState
+        mobile={mobile}
+        todayLabel={todayLabel}
+        onOpenToday={onOpenToday}
+        onOpenPalette={onOpenPalette}
+        onOpenSidebar={onOpenSidebar}
+      />
     )
   }
   if (file.encoding === 'binary') {
