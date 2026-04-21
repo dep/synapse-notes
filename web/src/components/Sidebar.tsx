@@ -36,9 +36,9 @@ export type SidebarProps = {
   currentFolder: string
   onSortChange: (next: SortSettings) => void
   onNavigateFolder: (folder: string) => void
-  onSelectFile: (path: string) => void
+  onSelectFile: (path: string, event?: MouseEvent) => void
   onContextMenu: (target: SidebarContextTarget, event: MouseEvent) => void
-  onPinnedClick: (item: PinnedItem) => void
+  onPinnedClick: (item: PinnedItem, event: MouseEvent) => void
   onOpenToday: () => void
   todayLabel: string
   todayPath: string
@@ -297,7 +297,7 @@ function SortButton({
   label: string
   active: boolean
   direction: 'asc' | 'desc' | null
-  onClick: () => void
+  onClick: (event: MouseEvent) => void
 }) {
   return (
     <Tooltip
@@ -347,7 +347,7 @@ function PinnedSection({
 }: {
   items: PinnedItem[]
   activePath: string | null
-  onClick: (item: PinnedItem) => void
+  onClick: (item: PinnedItem, event: MouseEvent) => void
   onContextMenu: (target: SidebarContextTarget, event: MouseEvent) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -382,7 +382,7 @@ function PinnedSection({
             <Row
               key={`${item.kind}:${item.path}`}
               active={item.kind === 'file' && activePath === item.path}
-              onClick={() => onClick(item)}
+              onClick={(e) => onClick(item, e)}
               onContextMenu={(e) => {
                 e.preventDefault()
                 onContextMenu(
@@ -442,7 +442,7 @@ function FolderContents({
   activePath: string | null
   topLevel: boolean
   onEnterFolder: (folder: string) => void
-  onSelectFile: (path: string) => void
+  onSelectFile: (path: string, event?: MouseEvent) => void
   onContextMenu: (target: SidebarContextTarget, event: MouseEvent) => void
 }) {
   if (children.length === 0) {
@@ -502,7 +502,7 @@ function FolderContents({
           <Row
             key={node.path}
             active={activePath === node.path}
-            onClick={() => onSelectFile(node.path)}
+            onClick={(e) => onSelectFile(node.path, e)}
             onContextMenu={(e) => {
               e.preventDefault()
               onContextMenu(
@@ -536,7 +536,7 @@ function Row({
   labelColor,
 }: {
   active: boolean
-  onClick: () => void
+  onClick: (event: MouseEvent) => void
   onContextMenu?: (event: MouseEvent) => void
   icon: React.ReactNode
   label: string

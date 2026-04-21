@@ -4,6 +4,7 @@ import { Box } from '@mui/material'
 import { marked } from 'marked'
 import type { WikilinkIndex } from '../lib/wikilinks'
 import { applyWikilinks } from '../lib/wikilinksHtml'
+import { splitFrontmatter } from '../lib/frontmatter'
 
 marked.setOptions({ gfm: true, breaks: false })
 
@@ -16,10 +17,11 @@ export function MarkdownPreview({
   wikilinkIndex?: WikilinkIndex
   onWikilinkClick?: (path: string) => void
 }) {
+  const { frontmatter, body } = useMemo(() => splitFrontmatter(source), [source])
   const html = useMemo(() => {
-    const raw = marked.parse(source) as string
+    const raw = marked.parse(body) as string
     return wikilinkIndex ? applyWikilinks(raw, wikilinkIndex) : raw
-  }, [source, wikilinkIndex])
+  }, [body, wikilinkIndex])
 
   const handleClick = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {
@@ -106,8 +108,34 @@ export function MarkdownPreview({
           cursor: 'help',
         },
       }}
-      // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    >
+      {frontmatter !== null && (
+        <Box
+          component="pre"
+          sx={{
+            m: 0,
+            mb: 2,
+            px: 1.5,
+            py: 1,
+            borderLeft: '2px solid',
+            borderColor: 'divider',
+            bgcolor: 'rgba(255,255,255,0.03)',
+            color: 'text.secondary',
+            fontFamily: 'ui-monospace, Menlo, monospace',
+            fontSize: 11,
+            lineHeight: 1.45,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            borderRadius: 0.5,
+          }}
+        >
+          {frontmatter}
+        </Box>
+      )}
+      <Box
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </Box>
   )
 }

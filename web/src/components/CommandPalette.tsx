@@ -25,6 +25,7 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
@@ -71,6 +72,11 @@ export function CommandPalette({
       onClose={onClose}
       maxWidth="sm"
       fullWidth
+      // Focus the query input once the dialog has finished mounting its focus
+      // trap; autoFocus on InputBase alone races with MUI's trap.
+      TransitionProps={{
+        onEntered: () => inputRef.current?.focus(),
+      }}
       PaperProps={{ sx: { position: 'absolute', top: '12vh', m: 0 } }}
     >
       <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -85,7 +91,10 @@ export function CommandPalette({
           onKeyDown={handleKeyDown}
           fullWidth
           sx={{ fontSize: 16, fontFamily: 'ui-monospace, Menlo, monospace' }}
-          inputProps={{ 'aria-label': 'command palette query' }}
+          inputProps={{
+            'aria-label': 'command palette query',
+            ref: inputRef,
+          }}
         />
       </Box>
       <Box

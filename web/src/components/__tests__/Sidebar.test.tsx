@@ -85,7 +85,8 @@ describe('<Sidebar /> drill-down', () => {
     const props = { ...defaultProps(), currentFolder: 'notes' }
     render(<Sidebar {...props} />)
     await user.click(screen.getByText('alpha.md'))
-    expect(props.onSelectFile).toHaveBeenCalledWith('notes/alpha.md')
+    expect(props.onSelectFile).toHaveBeenCalled()
+    expect(props.onSelectFile.mock.calls[0][0]).toBe('notes/alpha.md')
     expect(props.onNavigateFolder).not.toHaveBeenCalled()
   })
 })
@@ -184,7 +185,8 @@ describe('<Sidebar /> pinned', () => {
     render(<Sidebar {...props} />)
     const [pinned] = screen.getAllByText('notes')
     await user.click(pinned)
-    expect(props.onPinnedClick).toHaveBeenCalledWith({
+    expect(props.onPinnedClick).toHaveBeenCalled()
+    expect(props.onPinnedClick.mock.calls[0][0]).toEqual({
       path: 'notes',
       kind: 'folder',
     })
@@ -198,7 +200,8 @@ describe('<Sidebar /> pinned', () => {
     }
     render(<Sidebar {...props} />)
     await user.click(screen.getByText('alpha.md'))
-    expect(props.onPinnedClick).toHaveBeenCalledWith({
+    expect(props.onPinnedClick).toHaveBeenCalled()
+    expect(props.onPinnedClick.mock.calls[0][0]).toEqual({
       path: 'notes/alpha.md',
       kind: 'file',
     })

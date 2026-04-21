@@ -18,7 +18,7 @@ Synapse is a powerful Markdown-based knowledge management application exclusivel
 3. **Open a Vault:**
    Upon launching Synapse, you'll be prompted to select a folder. This folder acts as your **Vault**, where all your Markdown notes and assets are stored locally.
 
-Want to access Synapse without installing anything? There's a very light-weight, experimental version of Synapse that runs in your browser. [Check it out here](https://synapsenotes.app/web).
+Want to access Synapse without installing anything? There's a very light-weight, experimental version of Synapse that runs in your browser (really good for mobile!) -- [Check it out here](https://synapsenotes.app/web).
 
 ### Initial Configuration
 

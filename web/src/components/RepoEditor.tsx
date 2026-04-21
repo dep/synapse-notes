@@ -54,6 +54,18 @@ import { CommandPalette } from './CommandPalette'
 import { collectPaletteItems, type PaletteItem } from '../lib/palette'
 import { buildWikilinkIndex, type WikilinkIndex } from '../lib/wikilinks'
 import { dailyNotePath, formatLocalDate } from '../lib/dailyNote'
+import { TabBar } from './TabBar'
+import {
+  activateByIndex,
+  activeTab as activeTabOf,
+  closeTab as closeTabInState,
+  loadTabs,
+  openInActive,
+  openInNewTab,
+  renamePath as renamePathInTabs,
+  saveTabs,
+  type TabsState,
+} from '../lib/tabs'
 import { canPublishGist, createGist } from '../github/gists'
 import { loadPreviewRatio, savePreviewRatio } from '../lib/previewRatio'
 import { createPinsStore, type PinnedItem } from '../lib/pins'
@@ -208,7 +220,27 @@ export function RepoEditor({
   const [treeLoading, setTreeLoading] = useState(true)
   const [truncated, setTruncated] = useState(false)
 
-  const [activeFile, setActiveFile] = useState<LoadedFile | null>(null)
+  const [tabsState, setTabsState] = useState<TabsState>(() =>
+    loadTabs(repo.fullName),
+  )
+  useEffect(() => saveTabs(repo.fullName, tabsState), [repo.fullName, tabsState])
+  const active = useMemo(() => activeTabOf(tabsState), [tabsState])
+
+  const [files, setFiles] = useState<Record<string, LoadedFile>>({})
+  const activeFile: LoadedFile | null = active ? files[active.id] ?? null : null
+
+  const updateActiveFile = useCallback(
+    (patch: (prev: LoadedFile) => LoadedFile) => {
+      setFiles((prev) => {
+        if (!active) return prev
+        const cur = prev[active.id]
+        if (!cur) return prev
+        return { ...prev, [active.id]: patch(cur) }
+      })
+    },
+    [active],
+  )
+
   const [fileLoading, setFileLoading] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
 
@@ -305,8 +337,41 @@ export function RepoEditor({
   const activeFileRef = useRef<LoadedFile | null>(null)
   activeFileRef.current = activeFile
 
-  const handleSelectFile = useCallback(
+  // Keep tabs state in sync with the URL's current file.
+  // - URL has a file → ensure it's in tabs + active (either re-activating an
+  //   existing tab or replacing the active tab's path).
+  // - URL has no file → deactivate (tabs list stays; nothing "active").
+  useEffect(() => {
+    setTabsState((prev) => {
+      if (!currentFile) {
+        return prev.activeId === null ? prev : { ...prev, activeId: null }
+      }
+      const existing = prev.tabs.find((t) => t.path === currentFile)
+      if (existing) {
+        return prev.activeId === existing.id
+          ? prev
+          : { ...prev, activeId: existing.id }
+      }
+      return openInActive(prev, currentFile)
+    })
+  }, [currentFile])
+
+  const handleOpenInNewTab = useCallback(
     (path: string) => {
+      setTabsState((prev) => openInNewTab(prev, path))
+      navigateToFile(path)
+      if (mobile) setSidebarOverride(false)
+    },
+    [navigateToFile, mobile],
+  )
+
+  const handleSelectFile = useCallback(
+    (path: string, event?: MouseEvent) => {
+      // Cmd/Ctrl-click → open in a new tab instead of replacing the active one.
+      if (event && (event.metaKey || event.ctrlKey)) {
+        handleOpenInNewTab(path)
+        return
+      }
       const current = activeFileRef.current
       if (current && current.path === path) {
         if (mobile) setSidebarOverride(false)
@@ -319,38 +384,110 @@ export function RepoEditor({
       navigateToFile(path)
       if (mobile) setSidebarOverride(false)
     },
-    [navigateToFile, mobile],
+    [navigateToFile, mobile, handleOpenInNewTab],
   )
 
+  const handleActivateTab = useCallback(
+    (id: string) => {
+      // Activating is just navigating to that tab's path. The URL→tabs sync
+      // effect will flip activeId to match.
+      const tab = tabsState.tabs.find((t) => t.id === id)
+      if (!tab) return
+      navigateToFile(tab.path)
+    },
+    [tabsState.tabs, navigateToFile],
+  )
+
+  const handleCloseTab = useCallback(
+    (id: string) => {
+      const closing = tabsState.tabs.find((t) => t.id === id)
+      const cachedFile = closing ? filesRef.current[closing.id] : null
+      if (
+        cachedFile &&
+        cachedFile.content !== cachedFile.originalContent
+      ) {
+        const ok = window.confirm(`Discard unsaved changes in ${closing!.path}?`)
+        if (!ok) return
+      }
+      setFiles((prev) => {
+        if (!(id in prev)) return prev
+        const { [id]: _, ...rest } = prev
+        void _
+        return rest
+      })
+      setTabsState((prev) => {
+        const next = closeTabInState(prev, id)
+        // If the active tab changed as a result, navigate to match.
+        if (next.activeId !== prev.activeId) {
+          const nextActive = next.activeId
+            ? next.tabs.find((t) => t.id === next.activeId)
+            : null
+          // Defer the navigation; state updater must be pure.
+          queueMicrotask(() => {
+            if (nextActive) navigateToFile(nextActive.path)
+            else navigateToFolder(currentFolder)
+          })
+        }
+        return next
+      })
+    },
+    [
+      tabsState.tabs,
+      navigateToFile,
+      navigateToFolder,
+      currentFolder,
+    ],
+  )
+
+  const dirtyTabIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const [id, f] of Object.entries(files)) {
+      if (f.content !== f.originalContent) set.add(id)
+    }
+    return set
+  }, [files])
+
+  // Load the active tab's file content on demand. We cache per-tab in `files`,
+  // so switching back to a tab doesn't re-fetch and unsaved edits survive.
+  // `filesRef` is read inside the effect so we don't re-run whenever the map
+  // mutates — only when `active` or auth/parsed/branch change.
+  const filesRef = useRef(files)
+  filesRef.current = files
   useEffect(() => {
     if (!token || !parsed) return
-    if (!currentFile) {
-      setActiveFile(null)
+    if (!active) {
       setFileError(null)
       setFileLoading(false)
       return
     }
-    if (activeFileRef.current?.path === currentFile) return
+    const cached = filesRef.current[active.id]
+    if (cached && cached.path === active.path) {
+      setFileError(cached.encoding === 'binary' ? 'Binary file — cannot edit in browser.' : null)
+      setFileLoading(false)
+      return
+    }
     let cancelled = false
     setFileLoading(true)
     setFileError(null)
-    setActiveFile(null)
     void fetchFileContent(
       token,
       parsed.owner,
       parsed.repo,
-      currentFile,
+      active.path,
       repo.defaultBranch,
     ).then((result) => {
       if (cancelled) return
       if (result.ok) {
-        setActiveFile({
-          path: currentFile,
-          content: result.content,
-          originalContent: result.content,
-          sha: result.sha,
-          encoding: result.encoding,
-        })
+        setFiles((prev) => ({
+          ...prev,
+          [active.id]: {
+            path: active.path,
+            content: result.content,
+            originalContent: result.content,
+            sha: result.sha,
+            encoding: result.encoding,
+          },
+        }))
         if (result.encoding === 'binary') {
           setFileError('Binary file — cannot edit in browser.')
         }
@@ -362,7 +499,7 @@ export function RepoEditor({
     return () => {
       cancelled = true
     }
-  }, [token, parsed, repo.defaultBranch, currentFile])
+  }, [token, parsed, repo.defaultBranch, active])
 
   const dirty = Boolean(
     activeFile && activeFile.content !== activeFile.originalContent,
@@ -395,8 +532,8 @@ export function RepoEditor({
     )
     setSaving(false)
     if (result.ok) {
-      setActiveFile((prev) =>
-        prev && prev.path === file.path
+      updateActiveFile((prev) =>
+        prev.path === file.path
           ? { ...prev, sha: result.newSha, originalContent: file.content }
           : prev,
       )
@@ -422,10 +559,55 @@ export function RepoEditor({
         setPaletteOpen((v) => !v)
         return
       }
+      // Ctrl-P toggles the preview pane. Uses plain ctrlKey so it doesn't
+      // conflict with Cmd-P (print) on Mac — and preventDefault stops the
+      // browser's print dialog on every platform.
+      if (
+        e.ctrlKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        !e.altKey &&
+        (e.key === 'p' || e.key === 'P')
+      ) {
+        e.preventDefault()
+        setPreviewOverride((prev) =>
+          prev === null ? !previewVisible : !prev,
+        )
+        return
+      }
+      // Ctrl-W closes the active tab. Uses plain ctrlKey (not metaKey) so it
+      // doesn't fight Cmd-W on Mac (browser close).
+      if (
+        e.ctrlKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        !e.altKey &&
+        (e.key === 'w' || e.key === 'W')
+      ) {
+        if (tabsState.activeId) {
+          e.preventDefault()
+          handleCloseTab(tabsState.activeId)
+        }
+        return
+      }
+      // Ctrl-1..9 → activate the Nth tab. Use plain ctrlKey (not metaKey) to
+      // avoid stomping the browser's Cmd-1..9 tab switch on Mac.
+      if (e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+        if (e.key >= '1' && e.key <= '9') {
+          const idx = Number(e.key)
+          const target = activateByIndex(tabsState, idx)
+          if (target.activeId !== tabsState.activeId) {
+            e.preventDefault()
+            const tab = target.tabs.find((t) => t.id === target.activeId)
+            if (tab) navigateToFile(tab.path)
+          }
+          return
+        }
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [doSave])
+  }, [doSave, tabsState, navigateToFile, handleCloseTab, previewVisible])
 
   const handlePaletteSelect = useCallback(
     (item: PaletteItem) => {
@@ -557,9 +739,9 @@ export function RepoEditor({
   ])
 
   const handlePinnedClick = useCallback(
-    (item: PinnedItem) => {
+    (item: PinnedItem, event: MouseEvent) => {
       if (item.kind === 'file') {
-        handleSelectFile(item.path)
+        handleSelectFile(item.path, event)
       } else {
         navigateToFolder(item.path)
       }
@@ -744,10 +926,21 @@ export function RepoEditor({
               return
             }
             setPinnedItems(pinsStore.rename(oldPath, newPath))
+            setTabsState((prev) => renamePathInTabs(prev, oldPath, newPath))
+            setFiles((prev) => {
+              let changed = false
+              const next: Record<string, LoadedFile> = {}
+              for (const [k, v] of Object.entries(prev)) {
+                if (v.path === oldPath) {
+                  changed = true
+                  next[k] = { ...v, path: newPath, sha: created.newSha }
+                } else {
+                  next[k] = v
+                }
+              }
+              return changed ? next : prev
+            })
             if (activeFileRef.current?.path === oldPath) {
-              setActiveFile((prev) =>
-                prev ? { ...prev, path: newPath, sha: created.newSha } : prev,
-              )
               navigateToFile(newPath)
             }
             setDialog({ kind: 'none' })
@@ -819,10 +1012,30 @@ export function RepoEditor({
             return
           }
           setPinnedItems(pinsStore.remove(dialog.path))
-          if (activeFileRef.current?.path === dialog.path) {
-            setActiveFile(null)
-            const slash = dialog.path.lastIndexOf('/')
-            const parent = slash >= 0 ? dialog.path.slice(0, slash) : ''
+          // Close any tabs that were on the deleted path and drop their cached file.
+          const deletedPath = dialog.path
+          setTabsState((prev) => {
+            let next = prev
+            for (const t of prev.tabs) {
+              if (t.path === deletedPath) next = closeTabInState(next, t.id)
+            }
+            return next
+          })
+          setFiles((prev) => {
+            const next: Record<string, LoadedFile> = {}
+            let changed = false
+            for (const [k, v] of Object.entries(prev)) {
+              if (v.path === deletedPath) {
+                changed = true
+                continue
+              }
+              next[k] = v
+            }
+            return changed ? next : prev
+          })
+          if (activeFileRef.current?.path === deletedPath) {
+            const slash = deletedPath.lastIndexOf('/')
+            const parent = slash >= 0 ? deletedPath.slice(0, slash) : ''
             navigateToFolder(parent)
           }
           setDialog({ kind: 'none' })
@@ -1213,26 +1426,40 @@ export function RepoEditor({
         </Box>
 
         <Box
-          sx={{ overflow: 'hidden', minWidth: 0 }}
+          sx={{
+            overflow: 'hidden',
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
           onMouseDownCapture={() => {
             if (mobile && sidebarVisible) setSidebarOverride(false)
           }}
         >
-          <EditorPane
-            loading={fileLoading}
-            file={activeFile}
-            fileError={fileError}
-            isMarkdown={isMarkdown}
-            previewVisible={previewVisible}
-            mobile={mobile}
-            previewRatio={previewRatio}
-            wikilinkIndex={wikilinkIndex}
-            onRatioChange={handleRatioChange}
-            onWikilinkClick={handleSelectFile}
-            onContentChange={(next) =>
-              setActiveFile((prev) => (prev ? { ...prev, content: next } : prev))
-            }
+          <TabBar
+            tabs={tabsState.tabs}
+            activeId={tabsState.activeId}
+            dirtyIds={dirtyTabIds}
+            onActivate={handleActivateTab}
+            onClose={handleCloseTab}
           />
+          <Box sx={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <EditorPane
+              loading={fileLoading}
+              file={activeFile}
+              fileError={fileError}
+              isMarkdown={isMarkdown}
+              previewVisible={previewVisible}
+              mobile={mobile}
+              previewRatio={previewRatio}
+              wikilinkIndex={wikilinkIndex}
+              onRatioChange={handleRatioChange}
+              onWikilinkClick={handleSelectFile}
+              onContentChange={(next) =>
+                updateActiveFile((prev) => ({ ...prev, content: next }))
+              }
+            />
+          </Box>
         </Box>
       </Box>
 
