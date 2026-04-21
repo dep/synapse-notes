@@ -1,4 +1,9 @@
-import { useEffect, useRef } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'react'
 import { EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -12,21 +17,48 @@ import { markdown } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { oneDark } from '@codemirror/theme-one-dark'
 
-export function MarkdownEditor({
-  value,
-  onChange,
-  readOnly,
-  markdownMode,
-}: {
+export type EditorSelectionInfo = {
+  text: string
+  from: number
+  to: number
+  // Viewport-relative rect at the end of the selection, for pill positioning.
+  rect: { left: number; top: number; bottom: number } | null
+}
+
+export type CursorInfo = {
+  offset: number
+  beforeContext: string
+  afterContext: string
+}
+
+export type MarkdownEditorHandle = {
+  getSelection: () => EditorSelectionInfo | null
+  getCursor: () => CursorInfo | null
+  replaceRange: (from: number, to: number, text: string) => void
+  insertAt: (offset: number, text: string) => void
+}
+
+export type MarkdownEditorProps = {
   value: string
   onChange: (next: string) => void
   readOnly?: boolean
   markdownMode: boolean
-}) {
+  onSelectionChange?: (info: EditorSelectionInfo | null) => void
+}
+
+export const MarkdownEditor = forwardRef<
+  MarkdownEditorHandle,
+  MarkdownEditorProps
+>(function MarkdownEditor(
+  { value, onChange, readOnly, markdownMode, onSelectionChange },
+  ref,
+) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  const onSelectionChangeRef = useRef(onSelectionChange)
+  onSelectionChangeRef.current = onSelectionChange
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -53,6 +85,10 @@ export function MarkdownEditor({
       EditorView.updateListener.of((v) => {
         if (v.docChanged) {
           onChangeRef.current(v.state.doc.toString())
+        }
+        if (v.selectionSet || v.docChanged || v.focusChanged) {
+          const info = readSelectionInfo(v.view)
+          onSelectionChangeRef.current?.(info)
         }
       }),
     ]
@@ -84,6 +120,49 @@ export function MarkdownEditor({
     }
   }, [value])
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      getSelection: () => {
+        const view = viewRef.current
+        if (!view) return null
+        return readSelectionInfo(view)
+      },
+      getCursor: () => {
+        const view = viewRef.current
+        if (!view) return null
+        const pos = view.state.selection.main.head
+        const doc = view.state.doc.toString()
+        const beforeStart = Math.max(0, pos - 80)
+        const afterEnd = Math.min(doc.length, pos + 80)
+        return {
+          offset: pos,
+          beforeContext: doc.slice(beforeStart, pos),
+          afterContext: doc.slice(pos, afterEnd),
+        }
+      },
+      replaceRange: (from, to, text) => {
+        const view = viewRef.current
+        if (!view) return
+        view.dispatch({
+          changes: { from, to, insert: text },
+          selection: { anchor: from + text.length },
+        })
+        view.focus()
+      },
+      insertAt: (offset, text) => {
+        const view = viewRef.current
+        if (!view) return
+        view.dispatch({
+          changes: { from: offset, to: offset, insert: text },
+          selection: { anchor: offset + text.length },
+        })
+        view.focus()
+      },
+    }),
+    [],
+  )
+
   return (
     <div
       ref={hostRef}
@@ -95,4 +174,15 @@ export function MarkdownEditor({
       }}
     />
   )
+})
+
+function readSelectionInfo(view: EditorView): EditorSelectionInfo | null {
+  const { from, to } = view.state.selection.main
+  if (from === to) return null
+  const text = view.state.sliceDoc(from, to)
+  const coords = view.coordsAtPos(to)
+  const rect = coords
+    ? { left: coords.left, top: coords.top, bottom: coords.bottom }
+    : null
+  return { text, from, to, rect }
 }

@@ -31,6 +31,7 @@ import MenuOpenIcon from '@mui/icons-material/MenuOpen'
 import MenuIcon from '@mui/icons-material/Menu'
 import IosShareIcon from '@mui/icons-material/IosShare'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
+import SettingsIcon from '@mui/icons-material/Settings'
 import { useAuth } from '../auth/AuthContext'
 import { parseRepoFullName } from '../github/parseRepoFullName'
 import {
@@ -42,7 +43,11 @@ import {
 } from '../github/contents'
 import { buildTree, isMarkdownPath } from '../github/tree'
 import type { SelectedRepo } from '../App'
-import { MarkdownEditor } from './MarkdownEditor'
+import {
+  MarkdownEditor,
+  type MarkdownEditorHandle,
+  type EditorSelectionInfo,
+} from './MarkdownEditor'
 import { MarkdownPreview } from './MarkdownPreview'
 import { Sidebar, type SidebarContextTarget } from './Sidebar'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
@@ -56,6 +61,15 @@ import { buildWikilinkIndex, type WikilinkIndex } from '../lib/wikilinks'
 import { dailyNotePath, formatLocalDate } from '../lib/dailyNote'
 import { TabBar } from './TabBar'
 import { EmptyEditorState } from './EmptyEditorState'
+import {
+  AskClaudeDialog,
+  AskClaudePill,
+  SettingsDialog,
+  type AskClaudeMode,
+} from './AskClaude'
+import { editSelection } from '../anthropic/editSelection'
+import { generateAtCursor } from '../anthropic/generateAtCursor'
+import { loadAnthropicKey, saveAnthropicKey } from '../lib/anthropicKey'
 import {
   activateByIndex,
   activeTab as activeTabOf,
@@ -299,6 +313,29 @@ export function RepoEditor({
   const [gistOpen, setGistOpen] = useState(false)
   const [gistBusy, setGistBusy] = useState(false)
   const [gistError, setGistError] = useState<string | null>(null)
+
+  // Ask Claude state
+  const editorHandleRef = useRef<MarkdownEditorHandle | null>(null)
+  const [editorSelection, setEditorSelection] =
+    useState<EditorSelectionInfo | null>(null)
+  const [askOpen, setAskOpen] = useState(false)
+  const [askBusy, setAskBusy] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
+  // Either a rewrite (with selection range) or an insert (with cursor offset).
+  // We capture this at dialog-open time so later edits don't shift the anchor.
+  type AskAnchor =
+    | {
+        mode: 'rewrite'
+        from: number
+        to: number
+        text: string
+      }
+    | { mode: 'insert'; offset: number; before: string; after: string }
+  const [askAnchor, setAskAnchor] = useState<AskAnchor | null>(null)
+  const [anthropicKey, setAnthropicKey] = useState<string | null>(() =>
+    loadAnthropicKey(),
+  )
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const loadTree = useCallback(async () => {
     if (!token || !parsed) return
@@ -1084,6 +1121,96 @@ export function RepoEditor({
     [token],
   )
 
+  // Opens Ask Claude. If there's a non-empty selection → rewrite mode. Else →
+  // insert mode at the current cursor. Caller should only invoke when an
+  // editor is mounted.
+  const openAskClaude = useCallback(() => {
+    const handle = editorHandleRef.current
+    if (!handle) return
+    const sel = handle.getSelection()
+    if (sel && sel.text.trim()) {
+      setAskAnchor({
+        mode: 'rewrite',
+        from: sel.from,
+        to: sel.to,
+        text: sel.text,
+      })
+    } else {
+      const cur = handle.getCursor()
+      if (!cur) return
+      setAskAnchor({
+        mode: 'insert',
+        offset: cur.offset,
+        before: cur.beforeContext,
+        after: cur.afterContext,
+      })
+    }
+    setAskError(null)
+    setAskOpen(true)
+  }, [])
+
+  const handleAskSubmit = useCallback(
+    async (instruction: string) => {
+      const anchor = askAnchor
+      const file = activeFileRef.current
+      if (!anchor || !file) return
+      if (!anthropicKey) {
+        setSettingsOpen(true)
+        return
+      }
+      setAskBusy(true)
+      setAskError(null)
+      if (anchor.mode === 'rewrite') {
+        const result = await editSelection({
+          apiKey: anthropicKey,
+          instruction,
+          selection: anchor.text,
+          documentContext: file.content,
+        })
+        setAskBusy(false)
+        if (!result.ok) {
+          setAskError(result.error)
+          return
+        }
+        editorHandleRef.current?.replaceRange(
+          anchor.from,
+          anchor.to,
+          result.text,
+        )
+      } else {
+        const result = await generateAtCursor({
+          apiKey: anthropicKey,
+          instruction,
+          document: file.content,
+          cursorOffset: anchor.offset,
+        })
+        setAskBusy(false)
+        if (!result.ok) {
+          setAskError(result.error)
+          return
+        }
+        editorHandleRef.current?.insertAt(anchor.offset, result.text)
+      }
+      setAskOpen(false)
+    },
+    [anthropicKey, askAnchor],
+  )
+
+  // ⌘J / Ctrl-J opens Ask Claude. Selection present → rewrite; empty → insert
+  // at cursor. No-op when the editor isn't focused/mounted.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const combo = (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey
+      if (combo && (e.key === 'j' || e.key === 'J')) {
+        if (!editorHandleRef.current) return
+        e.preventDefault()
+        openAskClaude()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [openAskClaude])
+
   const isMarkdown = activeFile ? isMarkdownPath(activeFile.path) : false
 
   if (!parsed) {
@@ -1183,6 +1310,15 @@ export function RepoEditor({
             </Tooltip>
           )}
           <Box sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
+            <Tooltip title="Settings">
+              <IconButton
+                size="small"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="settings"
+              >
+                <SettingsIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip
               title={
                 gistAllowed
@@ -1293,6 +1429,17 @@ export function RepoEditor({
           <ListItemText
             primary={gistAllowed ? 'Publish as gist' : 'Gist (re-auth needed)'}
           />
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setOverflowAnchor(null)
+            setSettingsOpen(true)
+          }}
+        >
+          <ListItemIcon>
+            <SettingsIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Settings" />
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -1455,11 +1602,13 @@ export function RepoEditor({
               previewRatio={previewRatio}
               wikilinkIndex={wikilinkIndex}
               todayLabel={todayLabel}
+              editorRef={editorHandleRef}
               onRatioChange={handleRatioChange}
               onWikilinkClick={handleSelectFile}
               onContentChange={(next) =>
                 updateActiveFile((prev) => ({ ...prev, content: next }))
               }
+              onSelectionChange={setEditorSelection}
               onOpenToday={() => void handleOpenToday()}
               onOpenPalette={() => setPaletteOpen(true)}
               onOpenSidebar={() => setSidebarOverride(true)}
@@ -1546,6 +1695,47 @@ export function RepoEditor({
         onSelect={handlePaletteSelect}
         onClose={() => setPaletteOpen(false)}
       />
+
+      {!askOpen && (
+        <AskClaudePill
+          selection={editorSelection}
+          onAsk={openAskClaude}
+        />
+      )}
+
+      <AskClaudeDialog
+        open={askOpen}
+        mode={
+          askAnchor === null
+            ? null
+            : askAnchor.mode === 'rewrite'
+              ? ({ kind: 'rewrite', selection: askAnchor.text } as AskClaudeMode)
+              : ({
+                  kind: 'insert',
+                  before: askAnchor.before,
+                  after: askAnchor.after,
+                } as AskClaudeMode)
+        }
+        hasApiKey={Boolean(anthropicKey)}
+        busy={askBusy}
+        error={askError}
+        onSubmit={handleAskSubmit}
+        onClose={() => setAskOpen(false)}
+        onOpenSettings={() => {
+          setAskOpen(false)
+          setSettingsOpen(true)
+        }}
+      />
+
+      <SettingsDialog
+        open={settingsOpen}
+        initialKey={anthropicKey ?? ''}
+        onSave={(k) => {
+          saveAnthropicKey(k)
+          setAnthropicKey(k.trim() || null)
+        }}
+        onClose={() => setSettingsOpen(false)}
+      />
     </Box>
   )
 }
@@ -1560,9 +1750,11 @@ function EditorPane({
   previewRatio,
   wikilinkIndex,
   todayLabel,
+  editorRef,
   onRatioChange,
   onWikilinkClick,
   onContentChange,
+  onSelectionChange,
   onOpenToday,
   onOpenPalette,
   onOpenSidebar,
@@ -1576,9 +1768,11 @@ function EditorPane({
   previewRatio: number
   wikilinkIndex: WikilinkIndex
   todayLabel: string
+  editorRef: React.Ref<MarkdownEditorHandle>
   onRatioChange: (next: number) => void
   onWikilinkClick: (path: string) => void
   onContentChange: (next: string) => void
+  onSelectionChange: (info: EditorSelectionInfo | null) => void
   onOpenToday: () => void
   onOpenPalette: () => void
   onOpenSidebar: () => void
@@ -1621,9 +1815,11 @@ function EditorPane({
   const previewActive = isMarkdown && previewVisible
   const editor = (
     <MarkdownEditor
+      ref={editorRef}
       value={file.content}
       onChange={onContentChange}
       markdownMode={isMarkdown}
+      onSelectionChange={onSelectionChange}
     />
   )
   const preview = (
