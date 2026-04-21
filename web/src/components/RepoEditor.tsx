@@ -462,8 +462,31 @@ export function RepoEditor({
             : null
           // Defer the navigation; state updater must be pure.
           queueMicrotask(() => {
-            if (nextActive) navigateToFile(nextActive.path)
-            else navigateToFolder(currentFolder)
+            if (nextActive) {
+              navigateToFile(nextActive.path)
+            } else {
+              // No tabs left — move off the /blob URL to a /tree URL so the
+              // empty state is reflected in the address bar. Using navigate()
+              // directly; navigateToFolder() would preserve the file route.
+              navigate(
+                formatRoute(
+                  currentFolder
+                    ? {
+                        kind: 'folder',
+                        owner,
+                        repo: repoName,
+                        folder: currentFolder,
+                        query: {},
+                      }
+                    : {
+                        kind: 'repo',
+                        owner,
+                        repo: repoName,
+                        query: {},
+                      },
+                ),
+              )
+            }
           })
         }
         return next
@@ -472,7 +495,9 @@ export function RepoEditor({
     [
       tabsState.tabs,
       navigateToFile,
-      navigateToFolder,
+      navigate,
+      owner,
+      repoName,
       currentFolder,
     ],
   )

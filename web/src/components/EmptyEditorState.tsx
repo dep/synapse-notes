@@ -75,7 +75,7 @@ export function EmptyEditorState({
             color="text.disabled"
             sx={{ display: 'block', textAlign: 'center' }}
           >
-            ⌘S save · ⌘K find · ⌃⌘H today · ⌃P toggle preview · ⌃W close tab
+            ⌘S save · ⌘K find · ⌘J ask Claude · ⌃⌘H today · ⌃P toggle preview · ⌃W close tab
           </Typography>
         </Box>
       </Box>
