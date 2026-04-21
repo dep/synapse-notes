@@ -1,14 +1,44 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
+import type { MouseEvent } from 'react'
 import { Box } from '@mui/material'
 import { marked } from 'marked'
+import type { WikilinkIndex } from '../lib/wikilinks'
+import { applyWikilinks } from '../lib/wikilinksHtml'
 
 marked.setOptions({ gfm: true, breaks: false })
 
-export function MarkdownPreview({ source }: { source: string }) {
-  const html = useMemo(() => marked.parse(source) as string, [source])
+export function MarkdownPreview({
+  source,
+  wikilinkIndex,
+  onWikilinkClick,
+}: {
+  source: string
+  wikilinkIndex?: WikilinkIndex
+  onWikilinkClick?: (path: string) => void
+}) {
+  const html = useMemo(() => {
+    const raw = marked.parse(source) as string
+    return wikilinkIndex ? applyWikilinks(raw, wikilinkIndex) : raw
+  }, [source, wikilinkIndex])
+
+  const handleClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      if (!onWikilinkClick) return
+      const target = e.target as HTMLElement | null
+      if (!target) return
+      const anchor = target.closest('a[data-wikilink-path]') as HTMLElement | null
+      if (!anchor) return
+      const path = anchor.getAttribute('data-wikilink-path')
+      if (!path) return
+      e.preventDefault()
+      onWikilinkClick(path)
+    },
+    [onWikilinkClick],
+  )
 
   return (
     <Box
+      onClick={handleClick}
       sx={{
         p: 3,
         height: '100%',
@@ -59,6 +89,22 @@ export function MarkdownPreview({ source }: { source: string }) {
         },
         '& img': { maxWidth: '100%' },
         '& hr': { border: 0, borderTop: '1px solid', borderColor: 'divider', my: 3 },
+        '& .wikilink': {
+          cursor: 'pointer',
+          textDecoration: 'none',
+          borderBottom: '1px dashed',
+        },
+        '& .wikilink-resolved': {
+          color: 'primary.main',
+          borderBottomColor: 'primary.main',
+          '&:hover': { backgroundColor: 'action.hover' },
+        },
+        '& .wikilink-unresolved': {
+          color: 'text.disabled',
+          borderBottomColor: 'text.disabled',
+          fontStyle: 'italic',
+          cursor: 'help',
+        },
       }}
       // eslint-disable-next-line react/no-danger
       dangerouslySetInnerHTML={{ __html: html }}

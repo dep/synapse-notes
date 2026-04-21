@@ -1,12 +1,16 @@
-export const SIDEBAR_BREAKPOINT = 800
-export const PREVIEW_BREAKPOINT = 1250
+export const MOBILE_BREAKPOINT = 900
+export const WIDE_BREAKPOINT = 1250
+
+export function isMobile(width: number): boolean {
+  return width < MOBILE_BREAKPOINT
+}
 
 export function defaultSidebarVisible(width: number): boolean {
-  return width >= SIDEBAR_BREAKPOINT
+  return width >= MOBILE_BREAKPOINT
 }
 
 export function defaultPreviewVisible(width: number): boolean {
-  return width >= PREVIEW_BREAKPOINT
+  return width >= WIDE_BREAKPOINT
 }
 
 type Side = 'above' | 'below'

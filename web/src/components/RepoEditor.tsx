@@ -45,6 +45,9 @@ import { PromptDialog } from './PromptDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SplitPane } from './SplitPane'
 import { GistDialog, type GistSubmission } from './GistDialog'
+import { CommandPalette } from './CommandPalette'
+import { collectPaletteItems, type PaletteItem } from '../lib/palette'
+import { buildWikilinkIndex, type WikilinkIndex } from '../lib/wikilinks'
 import { canPublishGist, createGist } from '../github/gists'
 import { loadPreviewRatio, savePreviewRatio } from '../lib/previewRatio'
 import { createPinsStore, type PinnedItem } from '../lib/pins'
@@ -62,9 +65,10 @@ import {
 } from '../lib/route'
 import { defaultCommitMessage } from '../lib/commit'
 import {
-  PREVIEW_BREAKPOINT,
-  SIDEBAR_BREAKPOINT,
+  MOBILE_BREAKPOINT,
+  WIDE_BREAKPOINT,
   crossedBreakpoint,
+  isMobile,
   resolveVisible,
 } from '../lib/responsive'
 import { useWindowWidth } from '../lib/useWindowWidth'
@@ -149,24 +153,25 @@ export function RepoEditor({
   useEffect(() => {
     const prev = prevWidthRef.current
     prevWidthRef.current = windowWidth
-    if (crossedBreakpoint(prev, windowWidth, SIDEBAR_BREAKPOINT)) {
+    if (crossedBreakpoint(prev, windowWidth, MOBILE_BREAKPOINT)) {
       setSidebarOverride(null)
     }
-    if (crossedBreakpoint(prev, windowWidth, PREVIEW_BREAKPOINT)) {
+    if (crossedBreakpoint(prev, windowWidth, WIDE_BREAKPOINT)) {
       setPreviewOverride(null)
     }
   }, [windowWidth])
 
   const sidebarVisible = resolveVisible(
     windowWidth,
-    SIDEBAR_BREAKPOINT,
+    MOBILE_BREAKPOINT,
     sidebarOverride,
   )
-  const showPreview = resolveVisible(
+  const previewVisible = resolveVisible(
     windowWidth,
-    PREVIEW_BREAKPOINT,
+    WIDE_BREAKPOINT,
     previewOverride,
   )
+  const mobile = isMobile(windowWidth)
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -328,17 +333,39 @@ export function RepoEditor({
     }
   }, [token, parsed, repo.defaultBranch])
 
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const paletteItems = useMemo(() => collectPaletteItems(tree), [tree])
+  const wikilinkIndex = useMemo(() => buildWikilinkIndex(tree), [tree])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const isSaveCombo =
-        (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key === 's'
-      if (!isSaveCombo) return
-      e.preventDefault()
-      void doSave()
+      const combo = (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey
+      if (combo && e.key === 's') {
+        e.preventDefault()
+        void doSave()
+        return
+      }
+      if (combo && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+        return
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [doSave])
+
+  const handlePaletteSelect = useCallback(
+    (item: PaletteItem) => {
+      setPaletteOpen(false)
+      if (item.kind === 'file') {
+        handleSelectFile(item.path)
+      } else {
+        navigateToFolder(item.path)
+      }
+    },
+    [handleSelectFile, navigateToFolder],
+  )
 
   const handleContextMenu = useCallback(
     (target: SidebarContextTarget, event: MouseEvent) => {
@@ -704,13 +731,13 @@ export function RepoEditor({
             </Alert>
           )}
           {isMarkdown && (
-            <Tooltip title={showPreview ? 'Hide preview' : 'Show preview'}>
+            <Tooltip title={previewVisible ? 'Hide preview' : 'Show preview'}>
               <IconButton
                 size="small"
-                onClick={() => setPreviewOverride(!showPreview)}
+                onClick={() => setPreviewOverride(!previewVisible)}
                 aria-label="toggle preview"
               >
-                {showPreview ? (
+                {previewVisible ? (
                   <VisibilityOffIcon fontSize="small" />
                 ) : (
                   <VisibilityIcon fontSize="small" />
@@ -858,9 +885,12 @@ export function RepoEditor({
           file={activeFile}
           fileError={fileError}
           isMarkdown={isMarkdown}
-          showPreview={showPreview}
+          previewVisible={previewVisible}
+          mobile={mobile}
           previewRatio={previewRatio}
+          wikilinkIndex={wikilinkIndex}
           onRatioChange={handleRatioChange}
+          onWikilinkClick={handleSelectFile}
           onContentChange={(next) =>
             setActiveFile((prev) => (prev ? { ...prev, content: next } : prev))
           }
@@ -938,6 +968,13 @@ export function RepoEditor({
         busy={gistBusy}
         error={gistError}
       />
+
+      <CommandPalette
+        open={paletteOpen}
+        items={paletteItems}
+        onSelect={handlePaletteSelect}
+        onClose={() => setPaletteOpen(false)}
+      />
     </Box>
   )
 }
@@ -947,18 +984,24 @@ function EditorPane({
   file,
   fileError,
   isMarkdown,
-  showPreview,
+  previewVisible,
+  mobile,
   previewRatio,
+  wikilinkIndex,
   onRatioChange,
+  onWikilinkClick,
   onContentChange,
 }: {
   loading: boolean
   file: LoadedFile | null
   fileError: string | null
   isMarkdown: boolean
-  showPreview: boolean
+  previewVisible: boolean
+  mobile: boolean
   previewRatio: number
+  wikilinkIndex: WikilinkIndex
   onRatioChange: (next: number) => void
+  onWikilinkClick: (path: string) => void
   onContentChange: (next: string) => void
 }) {
   if (loading) {
@@ -1000,7 +1043,7 @@ function EditorPane({
     )
   }
 
-  const previewActive = isMarkdown && showPreview
+  const previewActive = isMarkdown && previewVisible
   const editor = (
     <MarkdownEditor
       value={file.content}
@@ -1008,17 +1051,35 @@ function EditorPane({
       markdownMode={isMarkdown}
     />
   )
+  const preview = (
+    <MarkdownPreview
+      source={file.content}
+      wikilinkIndex={wikilinkIndex}
+      onWikilinkClick={onWikilinkClick}
+    />
+  )
 
+  // Mobile: single pane, preview replaces editor.
+  if (mobile) {
+    return (
+      <Box sx={{ height: '100%', overflow: 'hidden' }}>
+        {previewActive ? preview : editor}
+      </Box>
+    )
+  }
+
+  // Desktop narrow (no preview): editor only.
   if (!previewActive) {
     return <Box sx={{ height: '100%', overflow: 'hidden' }}>{editor}</Box>
   }
 
+  // Desktop split.
   return (
     <SplitPane
       ratio={previewRatio}
       onRatioChange={onRatioChange}
       left={editor}
-      right={<MarkdownPreview source={file.content} />}
+      right={preview}
     />
   )
 }
