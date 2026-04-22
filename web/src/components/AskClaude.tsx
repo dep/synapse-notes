@@ -355,49 +355,67 @@ function truncateForPreview(s: string): string {
 export function SettingsDialog({
   open,
   initialKey,
+  initialHiddenPaths,
   onSave,
   onClose,
 }: {
   open: boolean
   initialKey: string
-  onSave: (key: string) => void
+  initialHiddenPaths: string
+  onSave: (key: string, hiddenPaths: string) => void
   onClose: () => void
 }) {
   const [key, setKey] = useState(initialKey)
+  const [hiddenPaths, setHiddenPaths] = useState(initialHiddenPaths)
   useEffect(() => {
-    if (open) setKey(initialKey)
-  }, [open, initialKey])
+    if (open) {
+      setKey(initialKey)
+      setHiddenPaths(initialHiddenPaths)
+    }
+  }, [open, initialKey, initialHiddenPaths])
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Settings</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Your Anthropic API key is stored in this browser only. It's sent
-            directly to Anthropic — never to our servers.
-          </Typography>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Anthropic API key"
-            placeholder="sk-ant-..."
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            type="password"
-            autoComplete="off"
-          />
-          <Typography variant="caption" color="text.disabled">
-            Create a key at{' '}
-            <a
-              href="https://console.anthropic.com/settings/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'inherit' }}
-            >
-              console.anthropic.com/settings/keys
-            </a>
-          </Typography>
+        <Stack spacing={3} sx={{ mt: 1 }}>
+          <Stack spacing={1}>
+            <Typography variant="body2" color="text.secondary">
+              Your Anthropic API key is stored in this browser only. It's sent
+              directly to Anthropic — never to our servers.
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              label="Anthropic API key"
+              placeholder="sk-ant-..."
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              type="password"
+              autoComplete="off"
+            />
+            <Typography variant="caption" color="text.disabled">
+              Create a key at{' '}
+              <a
+                href="https://console.anthropic.com/settings/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'inherit' }}
+              >
+                console.anthropic.com/settings/keys
+              </a>
+            </Typography>
+          </Stack>
+          <Stack spacing={1}>
+            <TextField
+              fullWidth
+              label="Hidden files & folders"
+              placeholder=".obsidian, templates, _private"
+              helperText="Comma-separated names or paths to hide from the sidebar."
+              value={hiddenPaths}
+              onChange={(e) => setHiddenPaths(e.target.value)}
+            />
+          </Stack>
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -405,7 +423,7 @@ export function SettingsDialog({
         <Button
           variant="contained"
           onClick={() => {
-            onSave(key)
+            onSave(key, hiddenPaths)
             onClose()
           }}
         >

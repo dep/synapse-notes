@@ -74,6 +74,12 @@ import { generateAtCursor } from '../anthropic/generateAtCursor'
 import { buildMentionContext, parseMentions } from '../anthropic/mentions'
 import { loadAnthropicKey, saveAnthropicKey } from '../lib/anthropicKey'
 import {
+  isHidden,
+  loadHiddenPaths,
+  parseHiddenPatterns,
+  saveHiddenPaths,
+} from '../lib/hiddenPaths'
+import {
   activateByIndex,
   activeTab as activeTabOf,
   closeTab as closeTabInState,
@@ -339,6 +345,11 @@ export function RepoEditor({
   const [anthropicKey, setAnthropicKey] = useState<string | null>(() =>
     loadAnthropicKey(),
   )
+  const [hiddenPathsRaw, setHiddenPathsRaw] = useState(() => loadHiddenPaths())
+  const hiddenPatterns = useMemo(
+    () => parseHiddenPatterns(hiddenPathsRaw),
+    [hiddenPathsRaw],
+  )
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const loadTree = useCallback(async () => {
@@ -364,10 +375,14 @@ export function RepoEditor({
     void loadTree()
   }, [loadTree])
 
-  const tree = useMemo(() => buildTree(entries), [entries])
+  const visibleEntries = useMemo(
+    () => entries.filter((e) => !isHidden(e.path, hiddenPatterns)),
+    [entries, hiddenPatterns],
+  )
+  const tree = useMemo(() => buildTree(visibleEntries), [visibleEntries])
   const filePaths = useMemo(
-    () => entries.filter((e) => e.type === 'blob').map((e) => e.path),
-    [entries],
+    () => visibleEntries.filter((e) => e.type === 'blob').map((e) => e.path),
+    [visibleEntries],
   )
 
   useEffect(() => {
@@ -1753,9 +1768,12 @@ export function RepoEditor({
       <SettingsDialog
         open={settingsOpen}
         initialKey={anthropicKey ?? ''}
-        onSave={(k) => {
+        initialHiddenPaths={hiddenPathsRaw}
+        onSave={(k, hidden) => {
           saveAnthropicKey(k)
           setAnthropicKey(k.trim() || null)
+          saveHiddenPaths(hidden)
+          setHiddenPathsRaw(hidden)
         }}
         onClose={() => setSettingsOpen(false)}
       />
