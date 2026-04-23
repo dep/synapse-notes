@@ -1787,7 +1787,15 @@ export function RepoEditor({
           branch={repo.defaultBranch}
           filePath={activeFile.path}
           onApply={(content) => {
-            updateActiveFile((prev) => ({ ...prev, content }))
+            updateActiveFile((prev) => {
+              if (prev.content !== prev.originalContent) {
+                const ok = window.confirm(
+                  `Apply this version? Unsaved edits in ${prev.path} will be replaced.`,
+                )
+                if (!ok) return prev
+              }
+              return { ...prev, content }
+            })
           }}
           onClose={() => setHistoryOpen(false)}
         />

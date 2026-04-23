@@ -67,12 +67,14 @@ export function FileHistory({
   // Fetch commit list when the drawer opens or file changes.
   useEffect(() => {
     if (!open || !filePath) return
+    let cancelled = false
     setCommits([])
     setSelectedSha(null)
     setPreview(null)
     setCommitsError(null)
     setLoadingCommits(true)
     void fetchFileCommits(token, owner, repo, filePath, branch).then((result) => {
+      if (cancelled) return
       setLoadingCommits(false)
       if (result.ok) {
         setCommits(result.commits)
@@ -80,22 +82,32 @@ export function FileHistory({
         setCommitsError(result.error)
       }
     })
+    return () => {
+      cancelled = true
+    }
   }, [open, token, owner, repo, filePath, branch])
 
   // Fetch file content when a commit is selected.
   useEffect(() => {
     if (!selectedSha) return
+    let cancelled = false
     setPreview(null)
     setPreviewError(null)
     setLoadingPreview(true)
-    void fetchFileAtCommit(token, owner, repo, filePath, selectedSha).then((result) => {
-      setLoadingPreview(false)
-      if (result.ok) {
-        setPreview(result.content)
-      } else {
-        setPreviewError(result.error)
-      }
-    })
+    void fetchFileAtCommit(token, owner, repo, filePath, selectedSha).then(
+      (result) => {
+        if (cancelled) return
+        setLoadingPreview(false)
+        if (result.ok) {
+          setPreview(result.content)
+        } else {
+          setPreviewError(result.error)
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+    }
   }, [selectedSha, token, owner, repo, filePath])
 
   const selectedCommit = commits.find((c) => c.sha === selectedSha) ?? null
