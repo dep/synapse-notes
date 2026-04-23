@@ -539,6 +539,8 @@ export function RepoEditor({
   // mutates — only when `active` or auth/parsed/branch change.
   const filesRef = useRef(files)
   filesRef.current = files
+  /** Bumps for each in-flight file fetch; stale `fetchFileContent` results must not win over newer selections. */
+  const fileLoadGeneration = useRef(0)
   useEffect(() => {
     if (!token || !parsed) return
     if (!active) {
@@ -552,22 +554,24 @@ export function RepoEditor({
       setFileLoading(false)
       return
     }
-    let cancelled = false
     setFileLoading(true)
     setFileError(null)
+    const generation = ++fileLoadGeneration.current
+    const tabId = active.id
+    const filePath = active.path
     void fetchFileContent(
       token,
       parsed.owner,
       parsed.repo,
-      active.path,
+      filePath,
       repo.defaultBranch,
     ).then((result) => {
-      if (cancelled) return
+      if (generation !== fileLoadGeneration.current) return
       if (result.ok) {
         setFiles((prev) => ({
           ...prev,
-          [active.id]: {
-            path: active.path,
+          [tabId]: {
+            path: filePath,
             content: result.content,
             originalContent: result.content,
             sha: result.sha,
@@ -582,9 +586,6 @@ export function RepoEditor({
       }
       setFileLoading(false)
     })
-    return () => {
-      cancelled = true
-    }
   }, [token, parsed, repo.defaultBranch, active])
 
   const dirty = Boolean(
