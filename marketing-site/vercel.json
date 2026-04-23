@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/web",
+      "destination": "https://synapse-web-six.vercel.app/"
+    },
+    {
+      "source": "/web/(.*)",
+      "destination": "https://synapse-web-six.vercel.app/$1"
+    }
+  ]
+}
