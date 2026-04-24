@@ -321,6 +321,14 @@ class AppState: ObservableObject {
     /// Replaces the ad-hoc `noteIndex()` helper which rebuilt the map on every call.
     private(set) var cachedNoteIndex: [String: URL] = [:]
 
+    /// Per-file git commit dates keyed by standardized file URL. `created` is the author date of
+    /// the earliest commit that introduced the file, `updated` is the committer date of the most
+    /// recent commit that touched it. Populated by `refreshGitDateCache()` after vault scans and
+    /// after any sync that could change history. Empty when the vault has no git repo.
+    private(set) var gitDateCache: [URL: GitService.FileDates] = [:]
+    /// Monotonic counter so stale background git-log results don't overwrite a newer cache.
+    private var gitDateCacheGeneration: Int = 0
+
     /// Inverted word index: lowercase word token → set of files whose content contains it.
     /// Built from `noteContentCache` and updated incrementally.
     /// Used by `candidateFiles(for:)` to pre-filter before the expensive line-by-line scan.
@@ -1293,12 +1301,30 @@ class AppState: ObservableObject {
             }
         }
         
-        // Sort by creation date descending (newest first)
         return matchingFiles.sorted { url1, url2 in
-            let date1 = (try? FileManager.default.attributesOfItem(atPath: url1.path)[.creationDate] as? Date) ?? Date.distantPast
-            let date2 = (try? FileManager.default.attributesOfItem(atPath: url2.path)[.creationDate] as? Date) ?? Date.distantPast
+            let date1 = effectiveCreatedDate(for: url1) ?? Date.distantPast
+            let date2 = effectiveCreatedDate(for: url2) ?? Date.distantPast
             return date1 > date2
         }
+    }
+
+    /// Git-aware creation date for a URL. Prefers the author date of the file's first commit
+    /// from `gitDateCache`, falling back to the filesystem `creationDate` for files not yet in
+    /// git history (uncommitted new notes, non-git vaults).
+    ///
+    /// Why: when a vault is cloned from GitHub, every file's filesystem `creationDate` reflects
+    /// when the clone ran, not when the note was actually authored. Using the git author date
+    /// restores the real authorship timeline.
+    private func effectiveCreatedDate(for url: URL) -> Date? {
+        if let git = gitDateCache[url.standardizedFileURL] { return git.created }
+        return try? FileManager.default.attributesOfItem(atPath: url.path)[.creationDate] as? Date
+    }
+
+    /// Git-aware modification date for a URL. Prefers the committer date of the file's most
+    /// recent commit from `gitDateCache`, falling back to the filesystem `modificationDate`.
+    private func effectiveModifiedDate(for url: URL) -> Date? {
+        if let git = gitDateCache[url.standardizedFileURL] { return git.updated }
+        return try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
     }
 
     /// Returns all notes created on a specific date.
@@ -1308,24 +1334,19 @@ class AppState: ObservableObject {
         let targetDay = calendar.startOfDay(for: date)
 
         let matchingFiles = allFiles.filter { url in
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-                  let creationDate = attributes[.creationDate] as? Date else {
-                return false
-            }
-            let fileDay = calendar.startOfDay(for: creationDate)
-            return fileDay == targetDay
+            guard let creationDate = effectiveCreatedDate(for: url) else { return false }
+            return calendar.startOfDay(for: creationDate) == targetDay
         }
 
-        // Sort by creation date descending (newest first)
         return matchingFiles.sorted { url1, url2 in
-            let date1 = (try? FileManager.default.attributesOfItem(atPath: url1.path)[.creationDate] as? Date) ?? Date.distantPast
-            let date2 = (try? FileManager.default.attributesOfItem(atPath: url2.path)[.creationDate] as? Date) ?? Date.distantPast
+            let date1 = effectiveCreatedDate(for: url1) ?? Date.distantPast
+            let date2 = effectiveCreatedDate(for: url2) ?? Date.distantPast
             return date1 > date2
         }
     }
 
     /// Returns notes modified on a specific calendar day whose **creation** day is **before** that day.
-    /// Same-day-created notes are omitted here so the date page’s Modified list does not duplicate
+    /// Same-day-created notes are omitted here so the date page's Modified list does not duplicate
     /// items already listed under Created.
     /// Results are sorted descending by modification date (newest first).
     func notesModifiedOnDate(_ date: Date) -> [URL] {
@@ -1333,9 +1354,8 @@ class AppState: ObservableObject {
         let targetDay = calendar.startOfDay(for: date)
 
         let matchingFiles = allFiles.filter { url in
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-                  let creationDate = attributes[.creationDate] as? Date,
-                  let modificationDate = attributes[.modificationDate] as? Date else {
+            guard let creationDate = effectiveCreatedDate(for: url),
+                  let modificationDate = effectiveModifiedDate(for: url) else {
                 return false
             }
 
@@ -1347,10 +1367,9 @@ class AppState: ObservableObject {
                 && creationDay < targetDay
         }
 
-        // Sort by modification date descending (newest first)
         return matchingFiles.sorted { url1, url2 in
-            let date1 = (try? FileManager.default.attributesOfItem(atPath: url1.path)[.modificationDate] as? Date) ?? Date.distantPast
-            let date2 = (try? FileManager.default.attributesOfItem(atPath: url2.path)[.modificationDate] as? Date) ?? Date.distantPast
+            let date1 = effectiveModifiedDate(for: url1) ?? Date.distantPast
+            let date2 = effectiveModifiedDate(for: url2) ?? Date.distantPast
             return date1 > date2
         }
     }
@@ -1675,6 +1694,7 @@ class AppState: ObservableObject {
         cachedTagCounts = [:]
         cachedBacklinks = [:]
         cachedNoteIndex = [:]
+        gitDateCache = [:]
         wordSearchIndex = [:]
         isIndexing = false
         vaultIndex.notifyFilesDidChange()
@@ -1722,6 +1742,10 @@ class AppState: ObservableObject {
             gitBranch = git.currentBranch()
             gitAheadCount = git.aheadCount()
             gitSyncStatus = .idle
+            // Populate the file-date cache now that gitService is available — the initial
+            // file scan may have committed before this ran, in which case its
+            // refreshGitDateCache() call was a no-op. This second call guarantees population.
+            refreshGitDateCache()
             startPushTimer()
             startPullTimer()
             startAutoSaveTimer()
@@ -1791,6 +1815,7 @@ class AppState: ObservableObject {
 
                 DispatchQueue.main.async {
                     self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                    self.refreshGitDateCache()
                     self.gitSyncStatus = .idle
                 }
             } catch {
@@ -1822,6 +1847,7 @@ class AppState: ObservableObject {
                 DispatchQueue.main.async {
                     self.gitAheadCount = ahead
                     self.gitSyncStatus = .upToDate
+                    self.refreshGitDateCache()
                 }
 
                 // Reset to idle after a brief pause so the user can see "up to date"
@@ -2069,6 +2095,7 @@ class AppState: ObservableObject {
                 self.allFiles = visible
                 self.cachedNoteIndex = self.buildNoteIndex(from: visible)
                 self.vaultIndex.notifyFilesDidChange()
+                self.refreshGitDateCache()
                 // In tests: run the indexing pass synchronously on the same thread so
                 // cache-dependent assertions work without async expectations.
                 self.indexGeneration += 1
@@ -2107,6 +2134,7 @@ class AppState: ObservableObject {
                         self.allFiles = visible
                         self.cachedNoteIndex = self.buildNoteIndex(from: visible)
                         self.vaultIndex.notifyFilesDidChange()
+                        self.refreshGitDateCache()
                         // Kick off background indexing pass; file tree is usable immediately.
                         self.indexGeneration += 1
                         let idxGen = self.indexGeneration
@@ -2117,6 +2145,36 @@ class AppState: ObservableObject {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /// Refreshes `gitDateCache` by running a single `git log` against the repo. Runs off the
+    /// main thread; the result is committed on main. A generation counter discards stale runs
+    /// so a slow log invocation can't overwrite a newer one.
+    ///
+    /// Called after vault scans and after any sync operation that can change history (pull /
+    /// push / commit). Silently no-ops when the vault isn't a git repo.
+    func refreshGitDateCache() {
+        guard let git = gitService, let root = rootURL else { return }
+
+        gitDateCacheGeneration += 1
+        let generation = gitDateCacheGeneration
+        let repoRoot = root.standardizedFileURL
+
+        gitQueue.async { [weak self] in
+            let dates = git.getAllFileDates()
+
+            var resolved: [URL: GitService.FileDates] = [:]
+            resolved.reserveCapacity(dates.count)
+            for (relPath, value) in dates {
+                let url = repoRoot.appendingPathComponent(relPath).standardizedFileURL
+                resolved[url] = value
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.gitDateCacheGeneration == generation else { return }
+                self.gitDateCache = resolved
             }
         }
     }

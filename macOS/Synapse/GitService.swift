@@ -221,15 +221,139 @@ final class GitService {
         let relativePath = fileURL.path.replacingOccurrences(of: repoURL.path, with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        
+
         guard !relativePath.isEmpty else { return nil }
-        
+
         do {
             let content = try run(["show", "\(commitSha):\(relativePath)"])
             return content
         } catch {
             return nil
         }
+    }
+
+    // MARK: - Repo-wide file dates
+
+    struct FileDates: Equatable {
+        /// Earliest commit authorship date the file appears in — i.e. when it was created in history.
+        let created: Date
+        /// Most recent commit that touched the file — i.e. when it was last updated in history.
+        let updated: Date
+    }
+
+    /// Walks the entire reachable commit history once and returns, per repo-relative path,
+    /// the author date of the earliest commit that introduced the file and the committer date
+    /// of the most recent commit that touched it.
+    ///
+    /// This is dramatically cheaper than calling `getFileHistory` per file because it uses a
+    /// single `git log` invocation with `--name-only` rather than N subprocess spawns.
+    ///
+    /// Returned keys are paths relative to the repo root (no leading slash), matching
+    /// `git log --name-only` output.
+    func getAllFileDates(timeout: TimeInterval = 60) -> [String: FileDates] {
+        // Per-commit header sentinel. Must survive being passed as an argv arg (so no NUL —
+        // POSIX argv is NUL-terminated and `Process.run()` will reject it) and must not appear
+        // in commit metadata or file paths in practice.
+        let sentinel = "@@SYN_COMMIT@@"
+        let format = "\(sentinel)%aI|%cI"
+
+        // This command's output is large (one line per commit header + one line per file-touch
+        // per commit — 15K+ lines in a mature vault). The shared `run()` helper reads pipes only
+        // after the process terminates, which deadlocks once the 64KB pipe buffer fills. Run git
+        // directly and drain stdout on a background thread so the child can keep writing.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gitPath)
+        process.arguments = ["log", "--all", "--name-only", "--format=\(format)"]
+        process.currentDirectoryURL = repoURL
+        var env = ProcessInfo.processInfo.environment
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        process.environment = env
+
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+
+        var collected = Data()
+        let collectLock = NSLock()
+        outPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else {
+                handle.readabilityHandler = nil
+                return
+            }
+            collectLock.lock()
+            collected.append(chunk)
+            collectLock.unlock()
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in semaphore.signal() }
+
+        do {
+            try process.run()
+        } catch {
+            return [:]
+        }
+
+        if semaphore.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            process.waitUntilExit()
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            return [:]
+        }
+
+        // Drain anything left in the pipe after termination.
+        let remaining = outPipe.fileHandleForReading.readDataToEndOfFile()
+        outPipe.fileHandleForReading.readabilityHandler = nil
+        collectLock.lock()
+        collected.append(remaining)
+        let outData = collected
+        collectLock.unlock()
+
+        // Discard stderr — if git failed, we just return an empty map and let the filesystem
+        // fallback cover the UI rather than throw.
+        _ = errPipe.fileHandleForReading.readDataToEndOfFile()
+
+        guard process.terminationStatus == 0 else { return [:] }
+        let output = String(data: outData, encoding: .utf8) ?? ""
+        guard !output.isEmpty else { return [:] }
+
+        let formatter = ISO8601DateFormatter()
+        var result: [String: FileDates] = [:]
+
+        // Output is a sequence of records. Each record starts with the sentinel followed by
+        // "authorDate|committerDate" on one line, then a blank line, then one path per line
+        // (possibly empty for merge commits). We walk newest → oldest (git log's default), so
+        // for each path:
+        //   first sighting → updated date (committer)
+        //   last  sighting → created date (author)
+        let records = output.components(separatedBy: sentinel)
+        for record in records {
+            guard !record.isEmpty else { continue }
+            let lines = record.components(separatedBy: "\n")
+            guard let header = lines.first else { continue }
+
+            let parts = header.components(separatedBy: "|")
+            guard parts.count == 2,
+                  let authorDate = formatter.date(from: parts[0]),
+                  let committerDate = formatter.date(from: parts[1]) else { continue }
+
+            for path in lines.dropFirst() {
+                let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+
+                if let existing = result[trimmed] {
+                    // Newer-than-existing updated already locked in from the first sighting;
+                    // keep overwriting created so it ends up at the oldest author date.
+                    result[trimmed] = FileDates(created: authorDate, updated: existing.updated)
+                } else {
+                    result[trimmed] = FileDates(created: authorDate, updated: committerDate)
+                }
+            }
+        }
+
+        return result
     }
 
     // MARK: Private
