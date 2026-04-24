@@ -2149,6 +2149,17 @@ class AppState: ObservableObject {
         }
     }
 
+    /// When `getAllFileDates()` fails or times out it returns `[:]` (see `GitService.getAllFileDates`).
+    /// Merging with the previous cache avoids clobbering good data: otherwise the UI would fall
+    /// back to filesystem timestamps (wrong for git-cloned vaults) until another refresh wins.
+    internal static func mergedGitDateCache(
+        previous: [URL: GitService.FileDates],
+        fromRefresh resolved: [URL: GitService.FileDates]
+    ) -> [URL: GitService.FileDates] {
+        if !resolved.isEmpty { return resolved }
+        return previous
+    }
+
     /// Refreshes `gitDateCache` by running a single `git log` against the repo. Runs off the
     /// main thread; the result is committed on main. A generation counter discards stale runs
     /// so a slow log invocation can't overwrite a newer one.
@@ -2174,7 +2185,10 @@ class AppState: ObservableObject {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.gitDateCacheGeneration == generation else { return }
-                self.gitDateCache = resolved
+                self.gitDateCache = Self.mergedGitDateCache(
+                    previous: self.gitDateCache,
+                    fromRefresh: resolved
+                )
             }
         }
     }
