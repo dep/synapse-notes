@@ -278,8 +278,10 @@ final class CollapsibleSectionsTests: XCTestCase {
 
         let frame = collapsibleToggleFrame(forMarkerRect: markerRect, textContainerOrigin: NSPoint(x: 5, y: 8), buttonSize: 28)
 
+        // x: markerRect.minX (72) - buttonSize (28) - 4 gap = 40
+        // y: round(markerRect.midY (132) - buttonSize/2 (14)) - 2 vertical nudge = 116
         XCTAssertEqual(frame.origin.x, 40)
-        XCTAssertEqual(frame.origin.y, 123)
+        XCTAssertEqual(frame.origin.y, 116)
         XCTAssertEqual(frame.size, NSSize(width: 28, height: 28))
     }
 
