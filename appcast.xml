@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Synapse Notes</title>
+    <link>https://raw.githubusercontent.com/dep/synapse-notes/main/appcast.xml</link>
+    <description>Synapse Notes release updates</description>
+    <language>en</language>
+
+    <item>
+      <title>Version 1.2.6</title>
+      <pubDate>Sat, 26 Apr 2026 11:03:32 +0000</pubDate>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>1.2.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/1.2.6/Synapse-Notes-1.2.6.dmg"
+        sparkle:edSignature="yYq8aCjxkwCgTZDsBCYcWWJ3OSTaCGPfSCbGPoPz5jNhOhg6hjXrpULjCCTJH94EFgdzqOcWQONf5BAc40jgAg=="
+        length="6004055"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+  </channel>
+</rss>
