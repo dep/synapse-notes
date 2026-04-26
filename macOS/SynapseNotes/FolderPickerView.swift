@@ -19,7 +19,7 @@ struct FolderPickerView: View {
                         .padding(.bottom, SynapseTheme.Layout.spaceSmall)
 
                     VStack(spacing: SynapseTheme.Layout.spaceMedium) {
-                        Text("Synapse")
+                        Text("Synapse Notes")
                             .font(.system(size: 20 * (SynapseTheme.Layout.phi * SynapseTheme.Layout.phi), weight: .bold, design: .rounded))
                             .foregroundStyle(SynapseTheme.textPrimary)
 

@@ -73,7 +73,7 @@ class SynapseAppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct SynapseApp: App {
     @StateObject private var appState = AppState()
-    @StateObject private var autoUpdater = AutoUpdater()
+    @StateObject private var sparkleUpdater = SparkleUpdater()
     @StateObject private var themeEnv = ThemeEnvironment()
     @NSApplicationDelegateAdaptor(SynapseAppDelegate.self) var appDelegate
 
@@ -100,13 +100,11 @@ struct SynapseApp: App {
                     .environmentObject(appState.vaultIndex)
                     .environmentObject(appState.editorState)
                     .environmentObject(appState.navigationState)
-                    .environmentObject(autoUpdater)
                     .environmentObject(themeEnv)
                     .tint(SynapseTheme.accent)
                     .preferredColorScheme(themeEnv.isLightTheme ? .light : .dark)
                     .frame(minWidth: 530, minHeight: 300)
                     .onAppear {
-                        autoUpdater.checkForUpdatesOnLaunch()
                         // Wire up app delegate to appState
                         appDelegate.appState = appState
                         themeEnv.observe(appState.settings)
@@ -117,6 +115,12 @@ struct SynapseApp: App {
         .windowResizability(.contentMinSize)
         .windowStyle(.hiddenTitleBar)
         .commands {
+            CommandGroup(after: .appSettings) {
+                Button("Check for Updates…") {
+                    sparkleUpdater.checkForUpdates()
+                }
+            }
+
             CommandGroup(replacing: .newItem) {
                 Button("New Note…") {
                     appState.presentRootNoteSheet()

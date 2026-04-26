@@ -1,9 +1,9 @@
 /**
- * Synapse Dark Theme - Matching the macOS app aesthetic
+ * Synapse Notes Dark Theme - Matching the macOS app aesthetic
  */
 
 :root {
-  /* Synapse App Colors */
+  /* Synapse Notes App Colors */
   --synapse-bg: #0d0d0d;
   --synapse-bg-elevated: #141414;
   --synapse-bg-hover: #1a1a1a;

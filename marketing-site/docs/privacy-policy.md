@@ -7,7 +7,7 @@ title: Privacy Policy
 
 **Effective date:** April 5, 2026  
 
-**Wandering Ghost, LLC** (“we,” “us,” or “our”) operates the Synapse application and related websites (including this marketing site). This policy describes how we handle information in connection with those services.
+**Wandering Ghost, LLC** (“we,” “us,” or “our”) operates the Synapse Notes application and related websites (including this marketing site). This policy describes how we handle information in connection with those services.
 
 ## Who we are
 
@@ -18,9 +18,9 @@ United States
 
 For privacy-related questions, contact **[danny@wanderingghost.us](mailto:danny@wanderingghost.us)**.
 
-## Synapse (the app)
+## Synapse Notes (the app)
 
-Synapse is designed so that **your notes and vault content stay on your devices** under your control. We do not operate a cloud backend that stores the contents of your vault.
+Synapse Notes is designed so that **your notes and vault content stay on your devices** under your control. We do not operate a cloud backend that stores the contents of your vault.
 
 - **Local data:** Notes, settings stored with your vault, and similar data reside locally unless you choose to sync or back up using your own tools (for example, Git or third‑party cloud storage).
 - **Credentials:** If you configure integrations (such as tokens for optional features), those credentials are handled according to the app’s design and your device security. Review in‑app documentation for details.
@@ -37,7 +37,7 @@ We do not use this policy to override any **cookie banners or consent tools** re
 
 We use information we collect to:
 
-- Provide and maintain Synapse and this website  
+- Provide and maintain Synapse Notes and this website  
 - Respond to support requests  
 - Understand aggregate usage and improve our products  
 - Comply with law and protect our rights  

@@ -59,7 +59,7 @@ jobs:
       - name: Resolve Swift packages
         run: |
           xcodebuild -resolvePackageDependencies \
-            -project macOS/Synapse.xcodeproj \
+            -project "macOS/Synapse Notes.xcodeproj" \
             -scheme Synapse
 
       - name: Install xcpretty
@@ -69,7 +69,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild test \
-            -project macOS/Synapse.xcodeproj \
+            -project "macOS/Synapse Notes.xcodeproj" \
             -scheme Synapse \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" \

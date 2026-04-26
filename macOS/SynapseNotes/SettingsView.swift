@@ -162,7 +162,7 @@ struct SettingsView: View {
                         .padding(.top, 8)
                     }
                     
-                    Text("Choose what opens automatically when Synapse starts.")
+                    Text("Choose what opens automatically when Synapse Notes starts.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -296,7 +296,7 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                     }
 
-                    Text("A command to run automatically when Synapse launches with a folder. Leave empty to do nothing.")
+                    Text("A command to run automatically when Synapse Notes launches with a folder. Leave empty to do nothing.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -1527,7 +1527,7 @@ class AppState: ObservableObject {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a folder to open in Synapse"
+        panel.message = "Choose a folder to open in Synapse Notes"
         panel.prompt = "Open"
         if panel.runModal() == .OK, let url = panel.url {
             openFolder(url)
@@ -2654,7 +2654,7 @@ class AppState: ObservableObject {
                 throw FileBrowserError.itemAlreadyExists(url.lastPathComponent)
             }
             // Atomic replace: never delete the destination until the source is safely
-            // on disk at a staging path (same pattern as SynapseAppInstaller).
+            // on disk at a staging path.
             let parent = destination.deletingLastPathComponent()
             let stagingName = ".synapse-move-\(Process().processIdentifier)-\(UUID().uuidString.prefix(8))"
             let stagingURL = parent.appendingPathComponent(stagingName)

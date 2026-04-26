@@ -34,7 +34,7 @@ export function EmptyEditorState({
             variant="overline"
             sx={{ color: 'text.disabled', letterSpacing: 2 }}
           >
-            Synapse Web
+            Synapse Notes Web
           </Typography>
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Nothing open.

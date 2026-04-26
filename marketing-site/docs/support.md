@@ -5,7 +5,7 @@ title: Support
 
 # Support
 
-We’re glad you’re using **Synapse**. Here’s how to get help, report problems, or send feedback.
+We’re glad you’re using **Synapse Notes**. Here’s how to get help, report problems, or send feedback.
 
 ## Email
 
@@ -32,7 +32,7 @@ United States
 
 ## More documentation
 
-- [Synapse user guide (home)](/)  
+- [Synapse Notes user guide (home)](/)  
 - [Markdown guide](/markdown)  
 - [Privacy Policy](/privacy-policy)  
 - [Terms of Service](/terms-of-service)  

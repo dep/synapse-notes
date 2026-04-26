@@ -31,5 +31,9 @@
 	<string>NSApplication</string>
 	<key>NSQuitAlwaysKeepsWindows</key>
 	<false/>
+	<key>SUPublicEDKey</key>
+	<string>Tnoq0NNryfeGcjS0eQ2xfuOuvqf4dRoa3wF86ljVZh4=</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/dep/synapse-notes/main/appcast.xml</string>
 </dict>
 </plist>

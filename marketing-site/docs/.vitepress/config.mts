@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: "Synapse",
+  title: "Synapse Notes",
   description: "Markdown-based knowledge management app for macOS.",
   appearance: 'force-dark', // Always use dark mode to match app aesthetic
 
@@ -21,7 +21,7 @@ export default defineConfig({
     // Enable the sidebar and configure it
     sidebar: [
       {
-        text: 'Synapse User Guide',
+        text: 'Synapse Notes User Guide',
         items: [
           { text: 'Setup & Installation', link: '/#setup-installation' },
           { text: 'Initial Configuration', link: '/#initial-configuration' },

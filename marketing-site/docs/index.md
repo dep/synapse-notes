@@ -2,23 +2,23 @@
 layout: doc
 ---
 
-# Welcome to Synapse!
+# Welcome to Synapse Notes!
 
 ![](images/hero.png)
 
-Synapse is a powerful Markdown-based knowledge management application exclusively built for macOS using SwiftUI. It's your second brain, backed by YOUR Git repository, and is deeply customizable.
+Synapse Notes is a powerful Markdown-based knowledge management application exclusively built for macOS using SwiftUI. It's your second brain, backed by YOUR Git repository, and is deeply customizable.
 
 ♥️ Built by nerds _for_ nerds.
 
 ## Setup & Installation
 
-1. **Download the App:** [Download the latest release (DMG) of Synapse](https://github.com/dep/synapse/releases).
+1. **Download the App:** [Download the latest release (DMG) of Synapse Notes](https://github.com/dep/synapse/releases).
 2. **Installation:**
-   Drag the Synapse application to your `Applications` folder.
+   Drag the Synapse Notes application to your `Applications` folder.
 3. **Open a Vault:**
-   Upon launching Synapse, you'll be prompted to select a folder. This folder acts as your **Vault**, where all your Markdown notes and assets are stored locally.
+   Upon launching Synapse Notes, you'll be prompted to select a folder. This folder acts as your **Vault**, where all your Markdown notes and assets are stored locally.
 
-Want to access Synapse without installing anything? There's a very light-weight, experimental version of Synapse that runs in your browser (really good for mobile!) -- [Check it out here](https://synapsenotes.app/web).
+Want to access Synapse Notes without installing anything? There's a very light-weight, experimental version of Synapse Notes that runs in your browser (really good for mobile!) -- [Check it out here](https://synapsenotes.app/web).
 
 ### Initial Configuration
 
@@ -30,7 +30,7 @@ Once your vault is opened, consider configuring the following:
 
 ![](images/calendar.png)
 
-Synapse packs a robust set of features to boost your productivity.
+Synapse Notes packs a robust set of features to boost your productivity.
 
 ### Markdown Editor
 - **Live Styling:** Write in plain text, but see bold, italics, links, and code blocks styled live.
@@ -40,7 +40,7 @@ Synapse packs a robust set of features to boost your productivity.
 - **Wikilinks:** Easily link to other notes using `[[Note Name]]`, or highlight text and press `CMD + K` to turn it into a wikilink with that text as the display alias.
 - **Embedded Notes:** Include other notes directly using `![[Note Name]]`.
 - **Media Previews:** Inline support for image rendering and YouTube video previews.
-- **Paste HTML as Markdown:** Copy content from any website and paste it directly into Synapse — it's automatically converted to clean Markdown.
+- **Paste HTML as Markdown:** Copy content from any website and paste it directly into Synapse Notes — it's automatically converted to clean Markdown.
 - **View History:** Access the View History button in the file editor to see previous versions of your note.
 
 ![](images/customize.png)
@@ -67,7 +67,7 @@ Visualize connections between your notes.
 ### Daily Notes & Templates
 - **Daily Notes:** Start each day with a fresh note created automatically using customizable templates.
 - **Templates:** Use templates for dynamic note creation with variables like <code v-pre>{{year}}</code>, <code v-pre>{{month}}</code>, <code v-pre>{{day}}</code>, and <code v-pre>{{cursor}}</code> (where the cursor lands after template insertion).
-- **New Note with Folder Picker:** When creating a new note (via `CMD+N` or the + button), a folder picker lets you choose exactly where to save it. Synapse remembers your last used folder per vault and pre-selects it for subsequent notes. Right-click any folder in the file tree and select "New Note" to pre-select that specific folder.
+- **New Note with Folder Picker:** When creating a new note (via `CMD+N` or the + button), a folder picker lets you choose exactly where to save it. Synapse Notes remembers your last used folder per vault and pre-selects it for subsequent notes. Right-click any folder in the file tree and select "New Note" to pre-select that specific folder.
 
 ### Pinning
 Pin frequently used notes, folders, and tags for quick access directly from the sidebar.
@@ -93,19 +93,19 @@ Drag and drop files directly to sidebar panes to move or organize your notes.
 Easily publish specific notes to GitHub Gists using your Personal Access Token (PAT).
 
 ### .gitignore Support
-Synapse can automatically hide files and folders that your project's `.gitignore` rules mark as ignored — so `node_modules/`, `build/`, and other generated directories stay out of your file tree without any extra configuration.
+Synapse Notes can automatically hide files and folders that your project's `.gitignore` rules mark as ignored — so `node_modules/`, `build/`, and other generated directories stay out of your file tree without any extra configuration.
 - Enable or disable this in **Settings → File Browser → Respect .gitignore** (on by default).
 - Nested `.gitignore` files and global git ignores are honoured automatically.
 - Non-git vaults are unaffected — scanning works normally.
 
 ### Themes
 
-Synapse has full theme support, with the ability to use one of our existing dark/light themes or create your own!
+Synapse Notes has full theme support, with the ability to use one of our existing dark/light themes or create your own!
 
 ![](images/themes.png)
 
 ### Vault-Specific Settings
-Settings automatically sync with your vault. When you open a vault, Synapse stores its settings in `.synapse/settings.yml` at the vault root:
+Settings automatically sync with your vault. When you open a vault, Synapse Notes stores its settings in `.synapse/settings.yml` at the vault root:
 - **Portable Settings** — Settings travel with the vault, perfect for syncing via Git or cloud storage
 - **Vault Independence** — Each vault has its own independent settings
 - **Visible & Controllable** — The `.synapse` folder appears in your file tree; you control whether to commit it
@@ -113,7 +113,7 @@ Settings automatically sync with your vault. When you open a vault, Synapse stor
 
 ## Settings
 
-To access Synapse settings, press `CMD + ,` or navigate to `Synapse > Settings` in the menu bar.
+To access Synapse Notes settings, press `CMD + ,` or navigate to `Synapse Notes > Settings` in the menu bar.
 
 ### General
 - **On-boot terminal command:** Set a command that runs automatically when the Terminal pane is loaded (e.g., loading an environment, starting Claude Code, etc).
@@ -128,7 +128,7 @@ To access Synapse settings, press `CMD + ,` or navigate to `Synapse > Settings` 
 
 ### Sync
 - **Auto-save:** Enable automatic saving of changes.
-- **Auto-push (Git):** If your vault is a Git repository, Synapse can automatically commit and push changes on a set interval.
+- **Auto-push (Git):** If your vault is a Git repository, Synapse Notes can automatically commit and push changes on a set interval.
 - **GitHub PAT:** Provide a GitHub Personal Access Token to enable publishing notes as Gists.
 
 ### Sidebar Layout
@@ -142,7 +142,7 @@ Available panes:
 
 ## Keyboard Shortcuts
 
-Synapse relies heavily on keyboard shortcuts to help you navigate and edit quickly.
+Synapse Notes relies heavily on keyboard shortcuts to help you navigate and edit quickly.
 
 ### File & Note Management
 | Action | Shortcut |
@@ -191,7 +191,7 @@ Synapse relies heavily on keyboard shortcuts to help you navigate and edit quick
 
 ## Context-Aware Assistance
 
-Synapse provides context-aware assistance by creating a `.synapse/state.json` file at the start of relevant interactions. This file contains information about the current note the user is viewing, including the vault-relative path to the note, the list of open tabs, and the last updated timestamp.
+Synapse Notes provides context-aware assistance by creating a `.synapse/state.json` file at the start of relevant interactions. This file contains information about the current note the user is viewing, including the vault-relative path to the note, the list of open tabs, and the last updated timestamp.
 
 This enables context-aware assistance where "this note" refers to the active file.  So if you are using an AI Agent inside of your Notes vault, **it's recommended that you add the following instructions to your agent configuration** (into your root `AGENTS.md` file):
 
@@ -204,7 +204,7 @@ This allows the user to reference the current note or notes they are viewing in 
 eg., "What is the current note?"
 </critical_info>
 
-When operating in a Synapse vault directory, read `.synapse/state.json` at the start of relevant interactions to understand which note the user is currently viewing. This enables context-aware assistance where "this note" refers to the active file.
+When operating in a Synapse Notes vault directory, read `.synapse/state.json` at the start of relevant interactions to understand which note the user is currently viewing. This enables context-aware assistance where "this note" refers to the active file.
 
 **State file format:**
 - `currentFile` — Vault-relative path to the currently focused markdown file (null if graph/tag view is active)
@@ -214,12 +214,12 @@ When operating in a Synapse vault directory, read `.synapse/state.json` at the s
 **Guidelines:**
 - Check this file when the user refers to "this note" or when context about the active file would be helpful
 - Use vault-relative paths from this file when working with notes
-- The file is transient runtime state and may not exist if Synapse is not running
+- The file is transient runtime state and may not exist if Synapse Notes is not running
 ````
 
 ## Support the Developer
 
-If Synapse saves you money on a notes app subscription or just sparks a little joy, a coffee goes a long way. ☕
+If Synapse Notes saves you money on a notes app subscription or just sparks a little joy, a coffee goes a long way. ☕
 
 [![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/dnnypck)
 

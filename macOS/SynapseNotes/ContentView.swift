@@ -145,7 +145,6 @@ func extractSidebarFileURL(from item: Any?) -> URL? {
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var autoUpdater: AutoUpdater
     @State private var keyEventMonitor: Any?
     @State private var leftSidebarWidth: CGFloat = SynapseTheme.Layout.minLeftSidebarWidth
     @State private var rightSidebarPrimaryWidth: CGFloat = SynapseTheme.Layout.minRightSidebarWidth + 100
@@ -154,7 +153,6 @@ struct ContentView: View {
     @State private var dragStartLeft: CGFloat = 0
     @State private var dragStartRightPrimary: CGFloat = 0
     @State private var dragStartRightSecondary: CGFloat = 0
-    @State private var showUpdateBanner: Bool = false
     /// Tracks which sidebars were collapsed automatically (by window resize) so
     /// we only auto-expand those — never sidebars the user manually collapsed.
     @State private var autoCollapsedSidebarIDs: Set<UUID> = []
@@ -238,25 +236,6 @@ struct ContentView: View {
                     .environmentObject(appState)
                     .transition(.opacity)
                     .zIndex(2)
-            }
-
-            if showUpdateBanner, let version = autoUpdater.latestVersion {
-                VStack {
-                    UpdateBannerView(
-                        version: version,
-                        isPresented: $showUpdateBanner,
-                        downloadProgress: autoUpdater.downloadProgress,
-                        restartRequired: autoUpdater.restartRequired,
-                        onInstall: {
-                            autoUpdater.downloadAndInstall()
-                        },
-                        onRestart: {
-                            autoUpdater.relaunch()
-                        }
-                    )
-                    Spacer()
-                }
-                .zIndex(3)
             }
 
             Group {
@@ -399,20 +378,6 @@ struct ContentView: View {
             TemplateRenameSheet()
                 .environmentObject(appState)
         }
-        .onChange(of: autoUpdater.updateAvailable) { available in
-            if available {
-                withAnimation {
-                    showUpdateBanner = true
-                }
-            }
-        }
-        .onChange(of: autoUpdater.restartRequired) { needed in
-            if needed {
-                withAnimation {
-                    showUpdateBanner = true
-                }
-            }
-        }
         .onAppear(perform: installEventMonitor)
         .onDisappear(perform: removeEventMonitor)
     }
@@ -488,7 +453,7 @@ struct ContentView: View {
         HStack(spacing: SynapseTheme.Layout.spaceMedium) {
             // Left side: Title, folder, and navigation
             HStack(spacing: SynapseTheme.Layout.spaceSmall) {
-                Text("Synapse")
+                Text("Synapse Notes")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(SynapseTheme.textPrimary)
 

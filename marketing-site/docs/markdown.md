@@ -5,7 +5,7 @@ title: Markdown Guide
 
 # Markdown Guide
 
-Synapse supports standard Markdown syntax along with powerful extensions for knowledge management, including wiki links, embeds, and hashtags.
+Synapse Notes supports standard Markdown syntax along with powerful extensions for knowledge management, including wiki links, embeds, and hashtags.
 
 ## Basic Syntax
 
@@ -132,7 +132,7 @@ ___
 - [ ] Another task
 ```
 
-## Synapse Extensions
+## Synapse Notes Extensions
 
 ### Slash Commands
 
@@ -147,13 +147,13 @@ Type a slash command at the start of a line or after a space — it expands auto
 
 ### Paste HTML as Markdown
 
-Copy content from any website, document, or rich-text source and paste it directly into Synapse. The HTML is automatically converted to clean Markdown — headings, lists, links, bold/italic, code blocks, and blockquotes all come through correctly.
+Copy content from any website, document, or rich-text source and paste it directly into Synapse Notes. The HTML is automatically converted to clean Markdown — headings, lists, links, bold/italic, code blocks, and blockquotes all come through correctly.
 
 Content pasted inside a fenced code block is always kept as-is, so code samples are never mangled.
 
 ### Wiki Links
 
-Wiki links are the foundation of connected notes in Synapse. They create bidirectional links between notes.
+Wiki links are the foundation of connected notes in Synapse Notes. They create bidirectional links between notes.
 
 **Basic syntax:**
 
@@ -175,7 +175,7 @@ Wiki links are the foundation of connected notes in Synapse. They create bidirec
 
 **How wiki links work:**
 - **Case-insensitive:** `[[My Note]]` matches `my note.md`, `MY NOTE.md`, etc.
-- **Automatic backlinks:** Synapse tracks which notes link to the current note
+- **Automatic backlinks:** Synapse Notes tracks which notes link to the current note
 - **Click to navigate:** Click a wiki link to open that note
 - **Link selected text quickly:** Highlight text and press `CMD + K`, then pick a note to insert `[[Note Title|highlighted text]]`
 - **Cmd+click:** Open in a new tab
@@ -243,7 +243,7 @@ Tag your notes for organization and filtering:
 
 **Tags in URLs are ignored:**
 
-Synapse automatically ignores hashtags that appear inside URLs:
+Synapse Notes automatically ignores hashtags that appear inside URLs:
 
 ```markdown
 This link https://example.com/page#section contains a URL fragment, not a tag.

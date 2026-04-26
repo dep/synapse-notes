@@ -1,6 +1,6 @@
-name: Synapse
+name: Synapse Notes
 options:
-  bundleIdPrefix: com.Synapse
+  bundleIdPrefix: com.SynapseNotes
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -16,21 +16,25 @@ packages:
   Yams:
     url: https://github.com/jpsim/Yams
     from: 6.2.1
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
 
 targets:
   Synapse:
     type: application
     platform: macOS
     sources:
-      - Synapse
-      - Synapse/Assets.xcassets
+      - SynapseNotes
+      - SynapseNotes/Assets.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.SynapseNotes.app
-        PRODUCT_NAME: Synapse
+        PRODUCT_NAME: Synapse Notes
+        PRODUCT_MODULE_NAME: Synapse
         SWIFT_VERSION: 5.0
         MACOSX_DEPLOYMENT_TARGET: "14.0"
-        INFOPLIST_FILE: Synapse/Info.plist
+        INFOPLIST_FILE: SynapseNotes/Info.plist
         ENABLE_HARDENED_RUNTIME: YES
       configs:
         Release:
@@ -41,8 +45,9 @@ targets:
       - package: SwiftTerm
       - package: Grape
       - package: Yams
+      - package: Sparkle
     entitlements:
-      path: Synapse/Synapse.entitlements
+      path: SynapseNotes/SynapseNotes.entitlements
       properties:
         com.apple.security.app-sandbox: false
 
@@ -50,14 +55,14 @@ targets:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - SynapseTests
+      - SynapseNotesTests
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.SynapseNotes.app.tests
         SWIFT_VERSION: 5.0
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Synapse.app/Contents/MacOS/Synapse"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Synapse Notes.app/Contents/MacOS/Synapse Notes"
         BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:
       - target: Synapse

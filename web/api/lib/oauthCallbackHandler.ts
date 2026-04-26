@@ -54,7 +54,7 @@ function buildOAuthErrorHtml(message: string, basePath: string): string {
   const home = JSON.stringify(basePath)
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"/><title>Synapse Web · Sign-in failed</title></head>
+<head><meta charset="utf-8"/><title>Synapse Notes Web · Sign-in failed</title></head>
 <body>
 <p>GitHub sign-in could not be completed.</p>
 <script>
@@ -81,7 +81,7 @@ function buildOAuthSuccessHtml(
 
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"/><title>Synapse Web · Signing in…</title></head>
+<head><meta charset="utf-8"/><title>Synapse Notes Web · Signing in…</title></head>
 <body>
 <script>
 (function(){
