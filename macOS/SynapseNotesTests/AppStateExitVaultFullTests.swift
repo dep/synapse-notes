@@ -93,6 +93,14 @@ final class AppStateExitVaultFullTests: XCTestCase {
         XCTAssertEqual(sut.scanGeneration, generationBeforeExit + 1)
     }
 
+    /// Bumping `gitDateCacheGeneration` on exit invalidates async `refreshGitDateCache` work so
+    /// a slow `git log` cannot repopulate `gitDateCache` after we cleared it (wrong-vault paths).
+    func test_exitVault_bumpsGitDateCacheGeneration_toInvalidateInFlightRefresh() {
+        let generationBeforeExit = sut.gitDateCacheGeneration
+        sut.exitVault()
+        XCTAssertEqual(sut.gitDateCacheGeneration, generationBeforeExit + 1)
+    }
+
     // MARK: - Git state reset
 
     func test_exitVault_resetsGitState() {

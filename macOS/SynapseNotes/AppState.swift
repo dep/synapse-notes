@@ -327,7 +327,9 @@ class AppState: ObservableObject {
     /// after any sync that could change history. Empty when the vault has no git repo.
     private(set) var gitDateCache: [URL: GitService.FileDates] = [:]
     /// Monotonic counter so stale background git-log results don't overwrite a newer cache.
-    private var gitDateCacheGeneration: Int = 0
+    /// `exitVault()` increments this (like `scanGeneration`) so a git-log that finishes after
+    /// close cannot repopulate `gitDateCache` and leak paths from the previous vault.
+    private(set) var gitDateCacheGeneration: Int = 0
 
     /// Inverted word index: lowercase word token → set of files whose content contains it.
     /// Built from `noteContentCache` and updated incrementally.
@@ -1686,6 +1688,9 @@ class AppState: ObservableObject {
         // `scanGeneration`, a scan started before exit could still complete on the main queue
         // and repopulate `allFiles` while `rootURL` is nil — breaking splash / command palette.
         scanGeneration += 1
+        // Invalidate in-flight `refreshGitDateCache` work. Without this, a background git log
+        // can still commit after we cleared `gitDateCache`, restoring stale per-file paths.
+        gitDateCacheGeneration += 1
 
         // Clear all files
         allFiles = []
