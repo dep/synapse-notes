@@ -31,11 +31,16 @@ final class AppStateGitDateFilteringTests: XCTestCase {
 
     @discardableResult
     private func runGit(_ args: [String], env: [String: String] = [:]) -> String {
+        runGit(at: tempDir, args, env: env)
+    }
+
+    @discardableResult
+    private func runGit(at directory: URL, _ args: [String], env: [String: String] = [:]) -> String {
         guard let gitPath = GitService.findGit() else { return "" }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: gitPath)
         p.arguments = args
-        p.currentDirectoryURL = tempDir
+        p.currentDirectoryURL = directory
         var combined = ProcessInfo.processInfo.environment
         for (k, v) in env { combined[k] = v }
         p.environment = combined
@@ -134,5 +139,53 @@ final class AppStateGitDateFilteringTests: XCTestCase {
 
         XCTAssertEqual(modified.count, 1)
         XCTAssertEqual(modified.first?.lastPathComponent, "note.md")
+    }
+
+    /// Opening a new vault must clear the prior `gitDateCache` so date views cannot show
+    /// stale paths from another workspace.
+    func test_openFolder_switchingVaults_clearsGitDateCacheBeforeRepopulating() throws {
+        try initRepo()
+        commitFile("first.md", on: "2026-04-10T10:00:00-04:00")
+
+        sut.openFolder(tempDir)
+        let deadline1 = Date().addingTimeInterval(10)
+        while sut.gitDateCache.isEmpty && Date() < deadline1 {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertFalse(sut.gitDateCache.isEmpty)
+
+        let otherDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: otherDir) }
+        try FileManager.default.createDirectory(at: otherDir, withIntermediateDirectories: true)
+        guard GitService.findGit() != nil else { throw XCTSkip("git not available") }
+        runGit(at: otherDir, ["init"])
+        runGit(at: otherDir, ["config", "user.email", "test@example.com"])
+        runGit(at: otherDir, ["config", "user.name", "Test"])
+        runGit(at: otherDir, ["config", "commit.gpgsign", "false"])
+        let secondFile = otherDir.appendingPathComponent("second.md")
+        try "only in second vault".write(to: secondFile, atomically: true, encoding: .utf8)
+        runGit(at: otherDir, ["add", "second.md"])
+        runGit(
+            at: otherDir,
+            ["commit", "-m", "second"],
+            env: [
+                "GIT_AUTHOR_DATE": "2026-04-11T10:00:00-04:00",
+                "GIT_COMMITTER_DATE": "2026-04-11T10:00:00-04:00",
+            ]
+        )
+
+        sut.openFolder(otherDir)
+        let deadline2 = Date().addingTimeInterval(10)
+        while sut.gitDateCache.isEmpty && Date() < deadline2 {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertFalse(sut.gitDateCache.isEmpty, "second vault should populate gitDateCache")
+        XCTAssertFalse(
+            sut.gitDateCache.keys.contains { $0.path.hasPrefix(tempDir.path) },
+            "After switching vaults, gitDateCache must not retain URLs from the previous root"
+        )
+        XCTAssertEqual(sut.gitDateCache.count, 1)
+        XCTAssertTrue(sut.gitDateCache.keys.contains { $0.lastPathComponent == "second.md" })
     }
 }

@@ -1551,7 +1551,18 @@ class AppState: ObservableObject {
         
         // Reload settings for the new vault
         reloadSettingsForVault(rootURL)
-        
+
+        // Drop any in-flight git date work from a prior vault and clear stale keys so a failed
+        // refresh cannot merge paths from the previous workspace.
+        gitDateCacheGeneration += 1
+        gitDateCache = [:]
+
+        // Wire git before `refreshAllFiles()` so the scan's `refreshGitDateCache()` is not a no-op
+        // (was: scan scheduled first, then setupGit — the scan callback could run before gitService
+        // existed, bumping the generation and leaving the cache empty after setupGit's refresh was
+        // discarded as stale).
+        setupGit(for: url)
+
         selectedFile = nil
         fileContent = ""
         isDirty = false
@@ -1562,13 +1573,11 @@ class AppState: ObservableObject {
         historyIndex = -1
         updateHistoryState()
         refreshAllFiles()
-        
+
         // Handle launch behavior only on initial vault open (not when switching)
         if !hadPriorVault {
             handleLaunchBehavior()
         }
-        
-        setupGit(for: url)
         
         // Write runtime state file on vault open
         scheduleStateFileWrite()
@@ -1742,10 +1751,8 @@ class AppState: ObservableObject {
             gitBranch = git.currentBranch()
             gitAheadCount = git.aheadCount()
             gitSyncStatus = .idle
-            // Populate the file-date cache now that gitService is available — the initial
-            // file scan may have committed before this ran, in which case its
-            // refreshGitDateCache() call was a no-op. This second call guarantees population.
-            refreshGitDateCache()
+            // `openFolder` calls `setupGit` before `refreshAllFiles`, so the scan's
+            // `refreshGitDateCache()` always sees a live `gitService`.
             startPushTimer()
             startPullTimer()
             startAutoSaveTimer()
