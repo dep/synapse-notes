@@ -2674,7 +2674,12 @@ class LinkAwareTextView: NSTextView {
         let dimHighlight = NSColor.yellow.withAlphaComponent(0.30)
         let focusHighlight = NSColor.yellow
         storage.beginEditing()
+        let storageLength = storage.length
         for range in lastSearchHighlightRanges {
+            // Ranges may be stale relative to the current storage (e.g. after an
+            // external edit). Skip any that no longer fit so removeAttribute can't
+            // throw NSRangeException and abort the rest of the highlight update.
+            guard NSMaxRange(range) <= storageLength else { continue }
             storage.removeAttribute(.backgroundColor, range: range)
         }
         for (i, range) in matches.enumerated() {
@@ -2701,7 +2706,9 @@ class LinkAwareTextView: NSTextView {
     private func clearSearchHighlights() {
         guard let storage = textStorage else { return }
         storage.beginEditing()
+        let storageLength = storage.length
         for range in lastSearchHighlightRanges {
+            guard NSMaxRange(range) <= storageLength else { continue }
             storage.removeAttribute(.backgroundColor, range: range)
         }
         storage.endEditing()
@@ -2750,6 +2757,11 @@ class LinkAwareTextView: NSTextView {
         }
         let fullRange = NSRange(location: 0, length: storage.length)
         guard shouldChangeText(in: fullRange, replacementString: mutable as String) else { return }
+        // Highlight ranges are about to be invalidated by the full-document replace.
+        // Drop them now so the debounced restyle (which re-applies highlights via
+        // reapplySearchHighlights) can't read out-of-bounds NSRanges and crash.
+        lastSearchHighlightRanges = []
+        lastSearchFocusIndex = -1
         storage.replaceCharacters(in: fullRange, with: mutable as String)
         didChangeText()
 
@@ -2781,7 +2793,9 @@ class LinkAwareTextView: NSTextView {
         let dimHighlight = NSColor.yellow.withAlphaComponent(0.30)
         let focusHighlight = NSColor.yellow
         storage.beginEditing()
+        let storageLength = storage.length
         for (i, range) in lastSearchHighlightRanges.enumerated() {
+            guard NSMaxRange(range) <= storageLength else { continue }
             if i == lastSearchFocusIndex {
                 storage.addAttribute(.backgroundColor, value: focusHighlight, range: range)
                 storage.addAttribute(.foregroundColor, value: NSColor.black, range: range)
