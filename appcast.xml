@@ -7,6 +7,26 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.3.2</title>
+      <pubDate>Thu, 30 Apr 2026 14:46:06 +0000</pubDate>
+      <sparkle:version>9</sparkle:version>
+      <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's new</h3>
+        <ul>
+          <li><strong>Find &amp; Replace in the note editor.</strong> The Find bar (&#8984;F) now expands into a replace row with Replace, Replace &amp; Find, and Replace All. Open it directly with &#8997;&#8984;F or Edit &rarr; Find and Replace&#8230;.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/v1.3.2/Synapse.Notes-1.3.2.dmg"
+        sparkle:edSignature="ykNhM0+kYccg0uyEOaV40cl4o6mCZhPz4HdR6vMtFU0AfcwLiwoRIdlpAkDnGHG0B3s7jSLN8E0TpD9wCNnQCA=="
+        length="6667094"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+    <item>
       <title>Version 1.2.6</title>
       <pubDate>Sat, 26 Apr 2026 11:03:32 +0000</pubDate>
       <sparkle:version>6</sparkle:version>
