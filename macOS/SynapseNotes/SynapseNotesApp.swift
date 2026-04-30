@@ -182,6 +182,12 @@ struct SynapseApp: App {
                 .keyboardShortcut("f", modifiers: [.command, .shift])
                 .disabled(appState.rootURL == nil)
 
+                Button("Find and Replace…") {
+                    appState.presentSearch(mode: .currentFile, withReplace: true)
+                }
+                .keyboardShortcut("f", modifiers: [.command, .option])
+                .disabled(appState.selectedFile == nil)
+
                 Button("Find Next") {
                     NotificationCenter.default.post(name: .advanceSearchMatch, object: nil, userInfo: [SearchMatchKey.delta: 1])
                 }

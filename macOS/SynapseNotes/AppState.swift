@@ -234,6 +234,8 @@ class AppState: ObservableObject {
     @Published var searchQuery: String = ""
     @Published var searchMatchIndex: Int = 0
     @Published var searchMatchCount: Int = 0
+    @Published var isReplaceVisible: Bool = false
+    @Published var replaceText: String = ""
 
     enum SearchMode { case currentFile, allFiles }
 
@@ -2264,14 +2266,19 @@ class AppState: ObservableObject {
         handler?(fileURL)
     }
 
-    func presentSearch(mode: SearchMode) {
+    func presentSearch(mode: SearchMode, withReplace: Bool = false) {
         guard selectedFile != nil || mode == .allFiles else { return }
         searchMode = mode
+        if withReplace, mode == .currentFile {
+            isReplaceVisible = true
+        }
         isSearchPresented = true
     }
 
     func dismissSearch() {
         isSearchPresented = false
+        isReplaceVisible = false
+        replaceText = ""
     }
 
     func presentRootNoteSheet(in directory: URL? = nil) {

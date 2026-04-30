@@ -874,6 +874,7 @@ struct RawEditor: NSViewRepresentable {
             self.selectedEmbedID = embedID
         }
         textView.onMatchCountUpdate = participatesInGlobalEditorCommands ? { count in appState.searchMatchCount = count } : nil
+        textView.participatesInGlobalSearch = participatesInGlobalEditorCommands
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
         textView.refreshInlineImagePreviews()
 
@@ -2228,6 +2229,9 @@ class LinkAwareTextView: NSTextView {
     var onSelectEmbed: ((String) -> Void)?  // embed ID when clicking on markdown
     var currentFileURL: URL?
     var onMatchCountUpdate: ((Int) -> Void)?
+    /// Only the editor participating in global commands (current focused note) should react to
+    /// find/replace notifications that mutate text. Mirrors `onMatchCountUpdate` gating.
+    var participatesInGlobalSearch: Bool = false
     var onWikiLinkRequest: (() -> Void)?   // Called when [[ is typed
     var onWikiLinkComplete: ((URL) -> Void)?  // Called when a file is selected for wiki link
     var onWikiLinkDismiss: (() -> Void)?   // Called when the picker is dismissed via ESC
@@ -2603,6 +2607,8 @@ class LinkAwareTextView: NSTextView {
 
     private var searchObserver: Any?
     private var searchClearObserver: Any?
+    private var replaceCurrentObserver: Any?
+    private var replaceAllObserver: Any?
     private var lastSearchHighlightRanges: [NSRange] = []
     private var lastSearchFocusIndex: Int = -1
 
@@ -2624,6 +2630,28 @@ class LinkAwareTextView: NSTextView {
             queue: .main
         ) { [weak self] _ in
             self?.clearSearchHighlights()
+        }
+        replaceCurrentObserver = NotificationCenter.default.addObserver(
+            forName: .replaceCurrentMatch,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self, self.participatesInGlobalSearch, self.isEditable,
+                  let query = note.userInfo?[SearchMatchKey.query] as? String,
+                  let focusIndex = note.userInfo?[SearchMatchKey.matchIndex] as? Int,
+                  let replacement = note.userInfo?[SearchMatchKey.replacement] as? String else { return }
+            let advanceAfter = (note.userInfo?[SearchMatchKey.advanceAfter] as? Bool) ?? false
+            self.replaceCurrentMatch(query: query, focusIndex: focusIndex, replacement: replacement, advanceAfter: advanceAfter)
+        }
+        replaceAllObserver = NotificationCenter.default.addObserver(
+            forName: .replaceAllMatches,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let self, self.participatesInGlobalSearch, self.isEditable,
+                  let query = note.userInfo?[SearchMatchKey.query] as? String,
+                  let replacement = note.userInfo?[SearchMatchKey.replacement] as? String else { return }
+            self.replaceAllMatches(query: query, replacement: replacement)
         }
     }
 
@@ -2680,6 +2708,72 @@ class LinkAwareTextView: NSTextView {
         lastSearchHighlightRanges = []
         lastSearchFocusIndex = -1
         applyMarkdownStyling()
+    }
+
+    private func replaceCurrentMatch(query: String, focusIndex: Int, replacement: String, advanceAfter: Bool) {
+        guard !query.isEmpty,
+              lastSearchHighlightRanges.indices.contains(focusIndex) else { return }
+        let range = lastSearchHighlightRanges[focusIndex]
+        guard shouldChangeText(in: range, replacementString: replacement) else { return }
+        textStorage?.replaceCharacters(in: range, with: replacement)
+        didChangeText()
+
+        // Recompute matches against new text. Anchor on the position of the replacement
+        // so the next focused match is the one that was after the replaced range.
+        let newCaret = range.location + (replacement as NSString).length
+        let newFocus: Int
+        if advanceAfter {
+            newFocus = nextMatchIndex(forQuery: query, after: newCaret)
+        } else {
+            newFocus = nextMatchIndex(forQuery: query, after: range.location)
+        }
+        applySearchHighlights(query: query, focusIndex: newFocus)
+    }
+
+    private func replaceAllMatches(query: String, replacement: String) {
+        guard !query.isEmpty, let storage = textStorage else { return }
+        let content = storage.string
+        var matches: [NSRange] = []
+        var searchStart = content.startIndex
+        while searchStart < content.endIndex,
+              let r = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
+            matches.append(NSRange(r, in: content))
+            searchStart = r.upperBound
+        }
+        guard !matches.isEmpty else { return }
+
+        // Build the post-replace string in one shot, then ask the delegate to permit a
+        // single full-document change. This keeps undo as one coalesced operation.
+        let mutable = NSMutableString(string: content)
+        for range in matches.reversed() {
+            mutable.replaceCharacters(in: range, with: replacement)
+        }
+        let fullRange = NSRange(location: 0, length: storage.length)
+        guard shouldChangeText(in: fullRange, replacementString: mutable as String) else { return }
+        storage.replaceCharacters(in: fullRange, with: mutable as String)
+        didChangeText()
+
+        applySearchHighlights(query: query, focusIndex: 0)
+    }
+
+    /// Returns the index of the first match whose range starts at or after `location`,
+    /// wrapping to 0 if none. Recomputes matches against the live text storage.
+    private func nextMatchIndex(forQuery query: String, after location: Int) -> Int {
+        guard let storage = textStorage else { return 0 }
+        let content = storage.string
+        var matches: [NSRange] = []
+        var searchStart = content.startIndex
+        while searchStart < content.endIndex,
+              let r = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
+            matches.append(NSRange(r, in: content))
+            searchStart = r.upperBound
+            if matches.count > 2000 { break }
+        }
+        if matches.isEmpty { return 0 }
+        if let idx = matches.firstIndex(where: { $0.location >= location }) {
+            return idx
+        }
+        return 0
     }
 
     private func reapplySearchHighlights() {

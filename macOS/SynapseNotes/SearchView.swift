@@ -7,15 +7,19 @@ extension Notification.Name {
     static let scrollToSearchMatch  = Notification.Name("Synapse.scrollToSearchMatch")
     static let clearSearchHighlights = Notification.Name("Synapse.clearSearchHighlights")
     static let advanceSearchMatch   = Notification.Name("Synapse.advanceSearchMatch")
+    static let replaceCurrentMatch  = Notification.Name("Synapse.replaceCurrentMatch")
+    static let replaceAllMatches    = Notification.Name("Synapse.replaceAllMatches")
     static let focusEditor          = Notification.Name("Synapse.focusEditor")
     static let saveCursorPosition   = Notification.Name("Synapse.saveCursorPosition")
     static let commandKPressed      = Notification.Name("Synapse.commandKPressed")
 }
 
 enum SearchMatchKey {
-    static let query      = "query"
-    static let matchIndex = "matchIndex"
-    static let delta      = "delta"
+    static let query        = "query"
+    static let matchIndex   = "matchIndex"
+    static let delta        = "delta"
+    static let replacement  = "replacement"
+    static let advanceAfter = "advanceAfter"
 }
 
 // MARK: - Shared result-row chrome
@@ -49,10 +53,71 @@ struct FileSearchResult: Identifiable {
 
  struct FindBar: View {
      @EnvironmentObject var appState: AppState
-     @FocusState private var isFieldFocused: Bool
+     @FocusState private var isFindFieldFocused: Bool
+     @FocusState private var isReplaceFieldFocused: Bool
 
     var body: some View {
+        VStack(spacing: 4) {
+            findRow
+            if appState.isReplaceVisible {
+                replaceRow
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(SynapseTheme.panelElevated)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(SynapseTheme.border).frame(height: 1)
+        }
+        .onAppear {
+            DispatchQueue.main.async {
+                if appState.isReplaceVisible && !appState.searchQuery.isEmpty {
+                    isReplaceFieldFocused = true
+                } else {
+                    isFindFieldFocused = true
+                }
+            }
+        }
+        .onChange(of: appState.searchQuery) { _, newQuery in
+            postHighlight(query: newQuery, focusIndex: 0)
+            appState.searchMatchIndex = 0
+        }
+        .onChange(of: appState.isReplaceVisible) { _, visible in
+            if visible {
+                DispatchQueue.main.async {
+                    if appState.searchQuery.isEmpty {
+                        isFindFieldFocused = true
+                    } else {
+                        isReplaceFieldFocused = true
+                    }
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .advanceSearchMatch)) { note in
+            guard let delta = note.userInfo?[SearchMatchKey.delta] as? Int else { return }
+            advance(by: delta)
+        }
+        .onDisappear {
+            NotificationCenter.default.post(name: .clearSearchHighlights, object: nil)
+            appState.searchQuery = ""
+            appState.searchMatchIndex = 0
+            appState.searchMatchCount = 0
+        }
+    }
+
+    // MARK: Subviews
+
+    private var findRow: some View {
         HStack(spacing: 8) {
+            Button {
+                appState.isReplaceVisible.toggle()
+            } label: {
+                Image(systemName: appState.isReplaceVisible ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(ChromeButtonStyle())
+            .help(appState.isReplaceVisible ? "Hide replace" : "Show replace")
+
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(SynapseTheme.textMuted)
@@ -61,7 +126,7 @@ struct FileSearchResult: Identifiable {
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(SynapseTheme.textPrimary)
-                .focused($isFieldFocused)
+                .focused($isFindFieldFocused)
                 .onSubmit { advance(by: 1) }
 
             if !appState.searchQuery.isEmpty {
@@ -102,31 +167,40 @@ struct FileSearchResult: Identifiable {
                 .keyboardShortcut(.cancelAction)
                 .hidden()
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(SynapseTheme.panelElevated)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(SynapseTheme.border).frame(height: 1)
-        }
-        .onAppear {
-            // Delay focus slightly to ensure view is fully rendered
-            DispatchQueue.main.async {
-                isFieldFocused = true
-            }
-        }
-        .onChange(of: appState.searchQuery) { _, newQuery in
-            postHighlight(query: newQuery, focusIndex: 0)
-            appState.searchMatchIndex = 0
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .advanceSearchMatch)) { note in
-            guard let delta = note.userInfo?[SearchMatchKey.delta] as? Int else { return }
-            advance(by: delta)
-        }
-        .onDisappear {
-            NotificationCenter.default.post(name: .clearSearchHighlights, object: nil)
-            appState.searchQuery = ""
-            appState.searchMatchIndex = 0
-            appState.searchMatchCount = 0
+    }
+
+    private var replaceRow: some View {
+        HStack(spacing: 8) {
+            // Spacer aligned with the disclosure chevron above
+            Color.clear.frame(width: 18, height: 1)
+
+            Image(systemName: "arrow.2.squarepath")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(SynapseTheme.textMuted)
+
+            TextField("Replace with…", text: $appState.replaceText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(SynapseTheme.textPrimary)
+                .focused($isReplaceFieldFocused)
+                .onSubmit { replaceAndFind() }
+
+            Spacer(minLength: 0)
+
+            Button("Replace") { replaceCurrent(advanceAfter: false) }
+                .buttonStyle(ChromeButtonStyle())
+                .disabled(appState.searchMatchCount == 0)
+                .help("Replace current match")
+
+            Button("Replace & Find") { replaceAndFind() }
+                .buttonStyle(ChromeButtonStyle())
+                .disabled(appState.searchMatchCount == 0)
+                .help("Replace current match and move to the next")
+
+            Button("Replace All") { replaceAll() }
+                .buttonStyle(ChromeButtonStyle())
+                .disabled(appState.searchMatchCount == 0)
+                .help("Replace every match in this note")
         }
     }
 
@@ -147,6 +221,36 @@ struct FileSearchResult: Identifiable {
 
     private func close() {
         appState.dismissSearch()
+    }
+
+    private func replaceCurrent(advanceAfter: Bool) {
+        guard appState.searchMatchCount > 0, !appState.searchQuery.isEmpty else { return }
+        NotificationCenter.default.post(
+            name: .replaceCurrentMatch,
+            object: nil,
+            userInfo: [
+                SearchMatchKey.query: appState.searchQuery,
+                SearchMatchKey.matchIndex: appState.searchMatchIndex,
+                SearchMatchKey.replacement: appState.replaceText,
+                SearchMatchKey.advanceAfter: advanceAfter
+            ]
+        )
+    }
+
+    private func replaceAndFind() {
+        replaceCurrent(advanceAfter: true)
+    }
+
+    private func replaceAll() {
+        guard appState.searchMatchCount > 0, !appState.searchQuery.isEmpty else { return }
+        NotificationCenter.default.post(
+            name: .replaceAllMatches,
+            object: nil,
+            userInfo: [
+                SearchMatchKey.query: appState.searchQuery,
+                SearchMatchKey.replacement: appState.replaceText
+            ]
+        )
     }
 }
 
