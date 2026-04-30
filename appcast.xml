@@ -7,6 +7,26 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.3.3</title>
+      <pubDate>Thu, 30 Apr 2026 19:33:47 +0000</pubDate>
+      <sparkle:version>10</sparkle:version>
+      <sparkle:shortVersionString>1.3.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>Bug fixes</h3>
+        <ul>
+          <li><strong>Find &amp; Replace:</strong> Fixed a crash when clicking Replace All in the note editor.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/v1.3.3/Synapse.Notes-1.3.3.dmg"
+        sparkle:edSignature="ShvCnT6g2C0pD/JAXQPf8Hbaa8RAHeviIWDG9nHvu4rhg7wHtIEnN9Y7KNJ9+j81Z1Jym2PvB6Ez2b+4BxAIBA=="
+        length="6667215"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+    <item>
       <title>Version 1.3.2</title>
       <pubDate>Thu, 30 Apr 2026 14:46:06 +0000</pubDate>
       <sparkle:version>9</sparkle:version>
