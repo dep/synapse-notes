@@ -1749,6 +1749,7 @@ class AppState: ObservableObject {
             startPushTimer()
             startPullTimer()
             startAutoSaveTimer()
+            pullLatest()
         } else {
             gitService = nil
             gitBranch = AppConstants.defaultBranchName
