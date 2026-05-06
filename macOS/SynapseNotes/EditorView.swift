@@ -2717,10 +2717,34 @@ class LinkAwareTextView: NSTextView {
         applyMarkdownStyling()
     }
 
+    /// Used by replace-current and tests. Cached highlight ranges can lag the live document when the
+    /// user edits while the find bar stays open (`reapplySearchHighlights` skips invalid ranges but
+    /// does not remove them from `lastSearchHighlightRanges`).
+    internal static func cachedHighlightRangeStillMatchesQuery(
+        range: NSRange,
+        fullString: String,
+        query: String
+    ) -> Bool {
+        let ns = fullString as NSString
+        let storageLength = ns.length
+        guard NSMaxRange(range) <= storageLength else { return false }
+        let fragment = ns.substring(with: range)
+        return fragment.compare(query, options: .caseInsensitive) == .orderedSame
+    }
+
     private func replaceCurrentMatch(query: String, focusIndex: Int, replacement: String, advanceAfter: Bool) {
         guard !query.isEmpty,
-              lastSearchHighlightRanges.indices.contains(focusIndex) else { return }
+              lastSearchHighlightRanges.indices.contains(focusIndex),
+              let storage = textStorage else { return }
         let range = lastSearchHighlightRanges[focusIndex]
+        guard Self.cachedHighlightRangeStillMatchesQuery(
+            range: range,
+            fullString: storage.string,
+            query: query
+        ) else {
+            applySearchHighlights(query: query, focusIndex: focusIndex)
+            return
+        }
         guard shouldChangeText(in: range, replacementString: replacement) else { return }
         textStorage?.replaceCharacters(in: range, with: replacement)
         didChangeText()
