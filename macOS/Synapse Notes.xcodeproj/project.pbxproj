@@ -225,6 +225,7 @@
 		F228B8C0174B187AF8E91BB3 /* MiniBrowserURLNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08CB0284C3C5D4EE5C720C7 /* MiniBrowserURLNormalizer.swift */; };
 		F2C9C4B772AEAA1E6CB07B04 /* FolderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00CA4844F0E36301A2C61A6 /* FolderAppearance.swift */; };
 		F3D098320828F15946A3146B /* SearchNotificationConstantsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626454D7EB8684347CE78962 /* SearchNotificationConstantsTests.swift */; };
+		F3E1AA11556677889900AABB /* FindReplaceSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A0112233445566778899AA /* FindReplaceSafetyTests.swift */; };
 		F4163BF689BE7BC5A40BCB43 /* AppStatePendingSearchQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F638E6858D9C03A15E702690 /* AppStatePendingSearchQueryTests.swift */; };
 		F422146CA313257EAB4ABEAF /* AppStateWikiLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6820DD3112C970C66C5BD3 /* AppStateWikiLinkTests.swift */; };
 		F50070470A90436FCBDC6B9B /* AppStateEditModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125FEE59A72FC5BB02643BBC /* AppStateEditModeTests.swift */; };
@@ -444,6 +445,7 @@
 		CFE935FC16158D93B5B6C05C /* TabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarView.swift; sourceTree = "<group>"; };
 		D00CA4844F0E36301A2C61A6 /* FolderAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAppearance.swift; sourceTree = "<group>"; };
 		D27CF1236F7775109B48756D /* FileSearchResultTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchResultTests.swift; sourceTree = "<group>"; };
+		F8A0112233445566778899AA /* FindReplaceSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindReplaceSafetyTests.swift; sourceTree = "<group>"; };
 		D2EC80568C4675330252028C /* AppStateGitDateFilteringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateGitDateFilteringTests.swift; sourceTree = "<group>"; };
 		D3B6B8AE43A5A53AC28EC7C0 /* EditorFontStylingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorFontStylingTests.swift; sourceTree = "<group>"; };
 		D653C01C03E027EF0D3CBE1B /* TaskListCheckboxInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListCheckboxInteractionTests.swift; sourceTree = "<group>"; };
@@ -567,6 +569,7 @@
 				DE37BFA970CBBD53D660C05B /* EmojiFlickerTests.swift */,
 				1BE44B10BDADC754E1B880CB /* FileBrowserErrorTests.swift */,
 				D27CF1236F7775109B48756D /* FileSearchResultTests.swift */,
+				F8A0112233445566778899AA /* FindReplaceSafetyTests.swift */,
 				BD8522CDE0F66E2CBBE14548 /* FileTreeDragDropTests.swift */,
 				A0F4AC3667A2DBE976050A49 /* FileTreeHiddenItemsTests.swift */,
 				E60A5A7B35E4BA0A0789846F /* FileTreeSortingTests.swift */,
@@ -988,6 +991,7 @@
 				7C18AFF2F761AD1F8DE0FCAA /* FSEventsVaultWatcherTests.swift in Sources */,
 				F92DE068F0D6C76962CF0898 /* FileBrowserErrorTests.swift in Sources */,
 				D6144DA4D24E7FD74DADF363 /* FileSearchResultTests.swift in Sources */,
+				F3E1AA11556677889900AABB /* FindReplaceSafetyTests.swift in Sources */,
 				1544C9F45B0FCC6B21E87F7D /* FileTreeDragDropTests.swift in Sources */,
 				EB34163E2847E7EDCEE97C0E /* FileTreeHiddenItemsTests.swift in Sources */,
 				67C6CA3A7398776DFF7CEBF4 /* FileTreeSortingTests.swift in Sources */,
