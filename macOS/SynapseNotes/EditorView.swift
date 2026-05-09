@@ -2721,8 +2721,16 @@ class LinkAwareTextView: NSTextView {
         guard !query.isEmpty,
               lastSearchHighlightRanges.indices.contains(focusIndex) else { return }
         let range = lastSearchHighlightRanges[focusIndex]
+        guard let storage = textStorage else { return }
+        let storageLength = storage.length
+        guard range.location >= 0, NSMaxRange(range) <= storageLength else { return }
+        let hit = (storage.string as NSString).substring(with: range)
+        // Highlight ranges are not cleared on every edit; `reapplySearchHighlights` only skips
+        // stale ranges visually. Without this check, an in-bounds but stale range could replace
+        // the wrong characters (or trip AppKit) after the document shifted under the find bar.
+        guard hit.compare(query, options: .caseInsensitive) == .orderedSame else { return }
         guard shouldChangeText(in: range, replacementString: replacement) else { return }
-        textStorage?.replaceCharacters(in: range, with: replacement)
+        storage.replaceCharacters(in: range, with: replacement)
         didChangeText()
 
         // Recompute matches against new text. Anchor on the position of the replacement
