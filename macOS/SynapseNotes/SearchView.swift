@@ -102,7 +102,16 @@ struct FileSearchResult: Identifiable {
             appState.searchQuery = ""
             appState.searchMatchIndex = 0
             appState.searchMatchCount = 0
+            appState.searchMatchTotal = 0
         }
+    }
+
+    private var matchCountLabel: String {
+        if appState.searchMatchCount == 0 { return "No matches" }
+        if appState.searchMatchTotal > appState.searchMatchCount {
+            return "\(appState.searchMatchIndex + 1) / \(appState.searchMatchCount) shown (\(appState.searchMatchTotal) total)"
+        }
+        return "\(appState.searchMatchIndex + 1) / \(appState.searchMatchCount)"
     }
 
     // MARK: Subviews
@@ -130,12 +139,11 @@ struct FileSearchResult: Identifiable {
                 .onSubmit { advance(by: 1) }
 
             if !appState.searchQuery.isEmpty {
-                Text(appState.searchMatchCount == 0
-                     ? "No matches"
-                     : "\(appState.searchMatchIndex + 1) / \(appState.searchMatchCount)")
+                Text(matchCountLabel)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(SynapseTheme.textMuted)
                     .animation(.none, value: appState.searchMatchIndex)
+                    .animation(.none, value: appState.searchMatchTotal)
                     .fixedSize()
 
                 HStack(spacing: 2) {

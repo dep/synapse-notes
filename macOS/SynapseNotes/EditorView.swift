@@ -873,7 +873,12 @@ struct RawEditor: NSViewRepresentable {
             // Access the binding directly from RawEditor
             self.selectedEmbedID = embedID
         }
-        textView.onMatchCountUpdate = participatesInGlobalEditorCommands ? { count in appState.searchMatchCount = count } : nil
+        textView.onMatchCountUpdate = participatesInGlobalEditorCommands
+            ? { highlighted, total in
+                appState.searchMatchCount = highlighted
+                appState.searchMatchTotal = total
+            }
+            : nil
         textView.participatesInGlobalSearch = participatesInGlobalEditorCommands
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
         textView.refreshInlineImagePreviews()
@@ -2228,7 +2233,8 @@ class LinkAwareTextView: NSTextView {
     var onOpenExternalURL: ((URL) -> Void)?  // External URL opening (defaults to NSWorkspace)
     var onSelectEmbed: ((String) -> Void)?  // embed ID when clicking on markdown
     var currentFileURL: URL?
-    var onMatchCountUpdate: ((Int) -> Void)?
+    /// `(highlightedMatchCount, totalMatchCount)` — highlights cap at 2000 ranges; total is full-document count.
+    var onMatchCountUpdate: ((Int, Int) -> Void)?
     /// Only the editor participating in global commands (current focused note) should react to
     /// find/replace notifications that mutate text. Mirrors `onMatchCountUpdate` gating.
     var participatesInGlobalSearch: Bool = false
@@ -2661,15 +2667,7 @@ class LinkAwareTextView: NSTextView {
             return
         }
         let content = storage.string
-        let needle = query.lowercased()
-        var matches: [NSRange] = []
-        var searchStart = content.startIndex
-        while searchStart < content.endIndex,
-              let range = content.range(of: needle, options: .caseInsensitive, range: searchStart..<content.endIndex) {
-            matches.append(NSRange(range, in: content))
-            searchStart = range.upperBound
-            if matches.count > 2000 { break }
-        }
+        let (matches, totalMatches) = content.synapseSearchMatchRanges(caseInsensitive: query, maxStored: 2000)
 
         let dimHighlight = NSColor.yellow.withAlphaComponent(0.30)
         let focusHighlight = NSColor.yellow
@@ -2694,8 +2692,8 @@ class LinkAwareTextView: NSTextView {
         lastSearchHighlightRanges = matches
         lastSearchFocusIndex = focusIndex
 
-        // Report match count back to SwiftUI
-        onMatchCountUpdate?(matches.count)
+        // Report navigable (highlighted) count and true total so Replace All scope is never understated.
+        onMatchCountUpdate?(matches.count, totalMatches)
 
         // Scroll focused match into view (don't select — selection rendering overwrites highlight attributes)
         if matches.indices.contains(focusIndex) {
@@ -2714,6 +2712,7 @@ class LinkAwareTextView: NSTextView {
         storage.endEditing()
         lastSearchHighlightRanges = []
         lastSearchFocusIndex = -1
+        onMatchCountUpdate?(0, 0)
         applyMarkdownStyling()
     }
 
@@ -2773,14 +2772,7 @@ class LinkAwareTextView: NSTextView {
     private func nextMatchIndex(forQuery query: String, after location: Int) -> Int {
         guard let storage = textStorage else { return 0 }
         let content = storage.string
-        var matches: [NSRange] = []
-        var searchStart = content.startIndex
-        while searchStart < content.endIndex,
-              let r = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
-            matches.append(NSRange(r, in: content))
-            searchStart = r.upperBound
-            if matches.count > 2000 { break }
-        }
+        let (matches, _) = content.synapseSearchMatchRanges(caseInsensitive: query, maxStored: 2000)
         if matches.isEmpty { return 0 }
         if let idx = matches.firstIndex(where: { $0.location >= location }) {
             return idx
@@ -5540,5 +5532,28 @@ struct MarkdownPreviewView: NSViewRepresentable {
         </body>
         </html>
         """
+    }
+}
+
+// MARK: - Find in note: match scan (capped highlight list + true total)
+
+extension String {
+    /// Case-insensitive search: returns at most `maxStored` UTF-16 ranges for highlighting and
+    /// the full number of matches (used so Replace All cannot mislead when total exceeds the cap).
+    func synapseSearchMatchRanges(caseInsensitive query: String, maxStored: Int) -> (ranges: [NSRange], total: Int) {
+        guard !query.isEmpty else { return ([], 0) }
+        let needle = query.lowercased()
+        var matches: [NSRange] = []
+        var totalMatches = 0
+        var searchStart = startIndex
+        while searchStart < endIndex,
+              let range = range(of: needle, options: .caseInsensitive, range: searchStart..<endIndex) {
+            totalMatches += 1
+            if matches.count < maxStored {
+                matches.append(NSRange(range, in: self))
+            }
+            searchStart = range.upperBound
+        }
+        return (matches, totalMatches)
     }
 }
