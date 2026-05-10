@@ -233,7 +233,10 @@ class AppState: ObservableObject {
     // Current-file find state (shared so CMD-G works globally)
     @Published var searchQuery: String = ""
     @Published var searchMatchIndex: Int = 0
+    /// Number of matches that have highlight ranges (capped); used for ⌘G navigation wrapping.
     @Published var searchMatchCount: Int = 0
+    /// Full-document match count for the current query (may exceed `searchMatchCount` when over highlight cap).
+    @Published var searchMatchTotal: Int = 0
     @Published var isReplaceVisible: Bool = false
     @Published var replaceText: String = ""
 
@@ -2279,6 +2282,9 @@ class AppState: ObservableObject {
         isSearchPresented = false
         isReplaceVisible = false
         replaceText = ""
+        searchMatchTotal = 0
+        searchMatchIndex = 0
+        searchMatchCount = 0
     }
 
     func presentRootNoteSheet(in directory: URL? = nil) {
