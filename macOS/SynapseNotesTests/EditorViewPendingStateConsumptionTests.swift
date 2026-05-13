@@ -91,4 +91,42 @@ final class EditorViewPendingStateConsumptionTests: XCTestCase {
         let maxOffset = max(0, textView.bounds.height - scrollView.contentView.bounds.height)
         XCTAssertEqual(scrollView.contentView.bounds.origin.y, maxOffset, accuracy: 0.5)
     }
+
+    /// Editing the note while the find bar stays open does not repost `scrollToSearchMatch`.
+    /// Debounced markdown restyle re-applies highlights but skips out-of-bounds cached ranges
+    /// without removing them, so Replace must not call `replaceCharacters` with a stale NSRange.
+    func test_replaceCurrentMatch_doesNotCrashWhenCachedHighlightRangeIsStaleAfterBodyEdit() {
+        let textView = RawEditor.configuredTextView(isEditable: true, settings: nil)
+        textView.participatesInGlobalSearch = true
+        textView.installSearchObservers()
+
+        textView.setPlainText("aaaaaaaaaahello")
+        NotificationCenter.default.post(
+            name: .scrollToSearchMatch,
+            object: nil,
+            userInfo: [SearchMatchKey.query: "hello", SearchMatchKey.matchIndex: 0]
+        )
+
+        guard let storage = textView.textStorage else {
+            XCTFail("expected text storage")
+            return
+        }
+        storage.beginEditing()
+        storage.replaceCharacters(in: NSRange(location: 0, length: storage.length), with: "no")
+        storage.endEditing()
+        textView.didChangeText()
+
+        NotificationCenter.default.post(
+            name: .replaceCurrentMatch,
+            object: nil,
+            userInfo: [
+                SearchMatchKey.query: "hello",
+                SearchMatchKey.matchIndex: 0,
+                SearchMatchKey.replacement: "x",
+                SearchMatchKey.advanceAfter: false,
+            ]
+        )
+
+        XCTAssertEqual(textView.string, "no")
+    }
 }
