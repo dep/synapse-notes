@@ -2719,10 +2719,20 @@ class LinkAwareTextView: NSTextView {
 
     private func replaceCurrentMatch(query: String, focusIndex: Int, replacement: String, advanceAfter: Bool) {
         guard !query.isEmpty,
-              lastSearchHighlightRanges.indices.contains(focusIndex) else { return }
-        let range = lastSearchHighlightRanges[focusIndex]
+              lastSearchHighlightRanges.indices.contains(focusIndex),
+              let storage = textStorage else { return }
+        var range = lastSearchHighlightRanges[focusIndex]
+        // Body edits do not repost the find query; debounced restyle only skips stale highlight
+        // ranges in `reapplySearchHighlights` without shrinking `lastSearchHighlightRanges`.
+        // Replacing with an out-of-bounds NSRange throws NSRangeException — resync first.
+        if NSMaxRange(range) > storage.length {
+            applySearchHighlights(query: query, focusIndex: focusIndex)
+            guard lastSearchHighlightRanges.indices.contains(focusIndex) else { return }
+            range = lastSearchHighlightRanges[focusIndex]
+            guard NSMaxRange(range) <= storage.length else { return }
+        }
         guard shouldChangeText(in: range, replacementString: replacement) else { return }
-        textStorage?.replaceCharacters(in: range, with: replacement)
+        storage.replaceCharacters(in: range, with: replacement)
         didChangeText()
 
         // Recompute matches against new text. Anchor on the position of the replacement
