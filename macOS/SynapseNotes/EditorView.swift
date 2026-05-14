@@ -2721,8 +2721,15 @@ class LinkAwareTextView: NSTextView {
         guard !query.isEmpty,
               lastSearchHighlightRanges.indices.contains(focusIndex) else { return }
         let range = lastSearchHighlightRanges[focusIndex]
+        // `reapplySearchHighlights()` skips stale ranges but does not prune
+        // `lastSearchHighlightRanges`. A manual edit can leave an out-of-bounds
+        // range here; `replaceCharacters` would raise NSRangeException.
+        guard let storage = textStorage, NSMaxRange(range) <= storage.length else {
+            applySearchHighlights(query: query, focusIndex: focusIndex)
+            return
+        }
         guard shouldChangeText(in: range, replacementString: replacement) else { return }
-        textStorage?.replaceCharacters(in: range, with: replacement)
+        storage.replaceCharacters(in: range, with: replacement)
         didChangeText()
 
         // Recompute matches against new text. Anchor on the position of the replacement
