@@ -225,6 +225,7 @@
 		F228B8C0174B187AF8E91BB3 /* MiniBrowserURLNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08CB0284C3C5D4EE5C720C7 /* MiniBrowserURLNormalizer.swift */; };
 		F2C9C4B772AEAA1E6CB07B04 /* FolderAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00CA4844F0E36301A2C61A6 /* FolderAppearance.swift */; };
 		F3D098320828F15946A3146B /* SearchNotificationConstantsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626454D7EB8684347CE78962 /* SearchNotificationConstantsTests.swift */; };
+		7F8E9D0C1B2A394857463524 /* FindReplaceStaleHighlightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E5D4C3B2A19081726354657 /* FindReplaceStaleHighlightTests.swift */; };
 		F4163BF689BE7BC5A40BCB43 /* AppStatePendingSearchQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F638E6858D9C03A15E702690 /* AppStatePendingSearchQueryTests.swift */; };
 		F422146CA313257EAB4ABEAF /* AppStateWikiLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6820DD3112C970C66C5BD3 /* AppStateWikiLinkTests.swift */; };
 		F50070470A90436FCBDC6B9B /* AppStateEditModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125FEE59A72FC5BB02643BBC /* AppStateEditModeTests.swift */; };
@@ -328,6 +329,7 @@
 		62195C34AC61C3601DA4E5F9 /* CriticalSidebarAndEditorRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriticalSidebarAndEditorRoutingTests.swift; sourceTree = "<group>"; };
 		621DD480ABAE023F532B8613 /* FolderPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPickerView.swift; sourceTree = "<group>"; };
 		626454D7EB8684347CE78962 /* SearchNotificationConstantsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchNotificationConstantsTests.swift; sourceTree = "<group>"; };
+		6E5D4C3B2A19081726354657 /* FindReplaceStaleHighlightTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindReplaceStaleHighlightTests.swift; sourceTree = "<group>"; };
 		6429DBD855DC174CAA00D16F /* SaveButtonVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveButtonVisibilityTests.swift; sourceTree = "<group>"; };
 		658EA3321387C8DF857E0932 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		66D30F1B11D472332E215555 /* MarkdownEditorSemanticStylesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditorSemanticStylesTests.swift; sourceTree = "<group>"; };
@@ -624,6 +626,7 @@
 				26CB9DF00BA64A1F3AEB042E /* PullAndRefreshWIPAutoSaveTests.swift */,
 				01F60B6E95850384FC16643E /* RespectGitignoreSettingTests.swift */,
 				6429DBD855DC174CAA00D16F /* SaveButtonVisibilityTests.swift */,
+				6E5D4C3B2A19081726354657 /* FindReplaceStaleHighlightTests.swift */,
 				4A54A8F1A063C6DB71E6A58C /* SearchIndexTests.swift */,
 				626454D7EB8684347CE78962 /* SearchNotificationConstantsTests.swift */,
 				703D69E0596A8F0C009BA65F /* SettingsManagerApplyPaneAssignmentsTests.swift */,
@@ -1044,6 +1047,7 @@
 				6CDFC82E14665A2F8E4224EC /* PullAndRefreshWIPAutoSaveTests.swift in Sources */,
 				1C1DDE1D7852ACB813AFDC4B /* RespectGitignoreSettingTests.swift in Sources */,
 				8C86B3AA977FBBA2C09822B0 /* SaveButtonVisibilityTests.swift in Sources */,
+				7F8E9D0C1B2A394857463524 /* FindReplaceStaleHighlightTests.swift in Sources */,
 				D336C7BB900A385C187FCEA5 /* SearchIndexTests.swift in Sources */,
 				F3D098320828F15946A3146B /* SearchNotificationConstantsTests.swift in Sources */,
 				C42C30EBF243BBE671B3D4FB /* SettingsManagerApplyPaneAssignmentsTests.swift in Sources */,
