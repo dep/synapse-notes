@@ -2655,21 +2655,33 @@ class LinkAwareTextView: NSTextView {
         }
     }
 
+    /// Non-overlapping UTF-16 `NSRange`s of `query` in `content` using a single case-folding
+    /// strategy (`.caseInsensitive`). Shared by find highlights, Replace All, and next-match so
+    /// the UI never disagrees with what replace operations will touch.
+    internal static func caseInsensitiveNonOverlappingMatchRanges(
+        in content: String,
+        query: String,
+        maxCount: Int? = nil
+    ) -> [NSRange] {
+        guard !query.isEmpty else { return [] }
+        var matches: [NSRange] = []
+        var searchStart = content.startIndex
+        while searchStart < content.endIndex,
+              let range = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
+            matches.append(NSRange(range, in: content))
+            searchStart = range.upperBound
+            if let maxCount, matches.count >= maxCount { break }
+        }
+        return matches
+    }
+
     private func applySearchHighlights(query: String, focusIndex: Int) {
         guard let storage = textStorage, !query.isEmpty else {
             clearSearchHighlights()
             return
         }
         let content = storage.string
-        let needle = query.lowercased()
-        var matches: [NSRange] = []
-        var searchStart = content.startIndex
-        while searchStart < content.endIndex,
-              let range = content.range(of: needle, options: .caseInsensitive, range: searchStart..<content.endIndex) {
-            matches.append(NSRange(range, in: content))
-            searchStart = range.upperBound
-            if matches.count > 2000 { break }
-        }
+        let matches = Self.caseInsensitiveNonOverlappingMatchRanges(in: content, query: query, maxCount: 2000)
 
         let dimHighlight = NSColor.yellow.withAlphaComponent(0.30)
         let focusHighlight = NSColor.yellow
@@ -2740,13 +2752,7 @@ class LinkAwareTextView: NSTextView {
     private func replaceAllMatches(query: String, replacement: String) {
         guard !query.isEmpty, let storage = textStorage else { return }
         let content = storage.string
-        var matches: [NSRange] = []
-        var searchStart = content.startIndex
-        while searchStart < content.endIndex,
-              let r = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
-            matches.append(NSRange(r, in: content))
-            searchStart = r.upperBound
-        }
+        let matches = Self.caseInsensitiveNonOverlappingMatchRanges(in: content, query: query, maxCount: nil)
         guard !matches.isEmpty else { return }
 
         // Build the post-replace string in one shot, then ask the delegate to permit a
@@ -2773,14 +2779,7 @@ class LinkAwareTextView: NSTextView {
     private func nextMatchIndex(forQuery query: String, after location: Int) -> Int {
         guard let storage = textStorage else { return 0 }
         let content = storage.string
-        var matches: [NSRange] = []
-        var searchStart = content.startIndex
-        while searchStart < content.endIndex,
-              let r = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
-            matches.append(NSRange(r, in: content))
-            searchStart = r.upperBound
-            if matches.count > 2000 { break }
-        }
+        let matches = Self.caseInsensitiveNonOverlappingMatchRanges(in: content, query: query, maxCount: 2000)
         if matches.isEmpty { return 0 }
         if let idx = matches.firstIndex(where: { $0.location >= location }) {
             return idx
