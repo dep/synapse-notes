@@ -2718,9 +2718,23 @@ class LinkAwareTextView: NSTextView {
     }
 
     private func replaceCurrentMatch(query: String, focusIndex: Int, replacement: String, advanceAfter: Bool) {
-        guard !query.isEmpty,
-              lastSearchHighlightRanges.indices.contains(focusIndex) else { return }
-        let range = lastSearchHighlightRanges[focusIndex]
+        guard !query.isEmpty, let storage = textStorage else { return }
+        // Recompute match ranges from live text. Cached `lastSearchHighlightRanges`
+        // becomes stale after any edit while the find bar stays open; using it would
+        // replace the wrong substring or pass an out-of-bounds range to the storage.
+        let content = storage.string
+        let needle = query.lowercased()
+        var matches: [NSRange] = []
+        var searchStart = content.startIndex
+        while searchStart < content.endIndex,
+              let r = content.range(of: needle, options: .caseInsensitive, range: searchStart..<content.endIndex) {
+            matches.append(NSRange(r, in: content))
+            searchStart = r.upperBound
+            if matches.count > 2000 { break }
+        }
+        guard matches.indices.contains(focusIndex) else { return }
+        let range = matches[focusIndex]
+        guard NSMaxRange(range) <= storage.length else { return }
         guard shouldChangeText(in: range, replacementString: replacement) else { return }
         textStorage?.replaceCharacters(in: range, with: replacement)
         didChangeText()
@@ -2773,10 +2787,11 @@ class LinkAwareTextView: NSTextView {
     private func nextMatchIndex(forQuery query: String, after location: Int) -> Int {
         guard let storage = textStorage else { return 0 }
         let content = storage.string
+        let needle = query.lowercased()
         var matches: [NSRange] = []
         var searchStart = content.startIndex
         while searchStart < content.endIndex,
-              let r = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
+              let r = content.range(of: needle, options: .caseInsensitive, range: searchStart..<content.endIndex) {
             matches.append(NSRange(r, in: content))
             searchStart = r.upperBound
             if matches.count > 2000 { break }
