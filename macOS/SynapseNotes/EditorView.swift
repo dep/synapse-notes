@@ -1266,7 +1266,24 @@ struct MarkdownTheme {
     static func lineHeightMultiple(for settings: SettingsManager) -> CGFloat {
         max(0.8, min(3.0, CGFloat(settings.editorLineHeight)))
     }
-    
+
+    /// Paragraph style whose line box matches CSS `line-height: multiple` — i.e. a
+    /// multiple of the FONT SIZE, not of the font's natural line height. NSTextView's
+    /// natural line height already bakes in the font's intrinsic leading (~1.18× for
+    /// SF), so multiplying that by the user's multiple over-spaced lines versus the
+    /// HTML preview. We set the line box directly to `fontSize * multiple`, floored at
+    /// the natural height so small multiples never clip glyphs (CSS overlaps instead of
+    /// cropping; a hard maximumLineHeight below natural would crop).
+    static func paragraphStyle(font: NSFont, lineHeightMultiple multiple: CGFloat) -> NSMutableParagraphStyle {
+        let naturalLineHeight = font.ascender - font.descender + font.leading
+        let targetLineHeight = font.pointSize * multiple
+        let style = NSMutableParagraphStyle()
+        style.minimumLineHeight = targetLineHeight
+        style.maximumLineHeight = max(targetLineHeight, naturalLineHeight)
+        style.lineSpacing = 0
+        return style
+    }
+
     // MARK: - Legacy static constants (for backward compatibility)
     
     static let body = NSFont.systemFont(ofSize: 15)
@@ -1753,13 +1770,7 @@ extension LinkAwareTextView {
             return NSFont(descriptor: desc, size: 15) ?? MarkdownTheme.body
         }()
         let lineHeightMultiple = settings != nil ? MarkdownTheme.lineHeightMultiple(for: settings!) : 1.6
-        let naturalLineHeight = bodyFont.ascender - bodyFont.descender + bodyFont.leading
-        let desiredLineHeight = naturalLineHeight * lineHeightMultiple
-        let extraSpacing = max(0, desiredLineHeight - naturalLineHeight)
-        let baseParagraphStyle = NSMutableParagraphStyle()
-        baseParagraphStyle.minimumLineHeight = naturalLineHeight
-        baseParagraphStyle.maximumLineHeight = naturalLineHeight
-        baseParagraphStyle.lineSpacing = extraSpacing
+        let baseParagraphStyle = MarkdownTheme.paragraphStyle(font: bodyFont, lineHeightMultiple: lineHeightMultiple)
 
         storage.setAttributes([
             .font: bodyFont,
@@ -1776,13 +1787,7 @@ extension LinkAwareTextView {
             case 3: font = h3Font
             default: font = h4Font
             }
-            let headingNaturalHeight = font.ascender - font.descender + font.leading
-            let headingDesiredHeight = headingNaturalHeight * lineHeightMultiple
-            let headingExtraSpacing = max(0, headingDesiredHeight - headingNaturalHeight)
-            let headingParaStyle = NSMutableParagraphStyle()
-            headingParaStyle.minimumLineHeight = headingNaturalHeight
-            headingParaStyle.maximumLineHeight = headingNaturalHeight
-            headingParaStyle.lineSpacing = headingExtraSpacing
+            let headingParaStyle = MarkdownTheme.paragraphStyle(font: font, lineHeightMultiple: lineHeightMultiple)
             storage.addAttributes([.font: font, .paragraphStyle: headingParaStyle], range: heading.range)
             storage.addAttribute(.foregroundColor, value: MarkdownTheme.dimColor, range: heading.markerRange)
         }
@@ -1906,14 +1911,7 @@ extension LinkAwareTextView {
             if NSIntersectionRange(frontmatter.contentRange, scopeRange).length > 0 {
                 // Use a static/fixed line height for frontmatter that doesn't change with user settings
                 let frontmatterFont = NSFont.systemFont(ofSize: 11)
-                let naturalLineHeight = frontmatterFont.ascender - frontmatterFont.descender + frontmatterFont.leading
-                let staticLineHeightMultiple: CGFloat = 1.2
-                let desiredLineHeight = naturalLineHeight * staticLineHeightMultiple
-                let extraSpacing = max(0, desiredLineHeight - naturalLineHeight)
-                let frontmatterParagraphStyle = NSMutableParagraphStyle()
-                frontmatterParagraphStyle.minimumLineHeight = naturalLineHeight
-                frontmatterParagraphStyle.maximumLineHeight = naturalLineHeight
-                frontmatterParagraphStyle.lineSpacing = extraSpacing
+                let frontmatterParagraphStyle = MarkdownTheme.paragraphStyle(font: frontmatterFont, lineHeightMultiple: 1.2)
                 storage.addAttributes([
                     .font: frontmatterFont,
                     .foregroundColor: SynapseTheme.editorMuted,
