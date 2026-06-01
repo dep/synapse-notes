@@ -2029,8 +2029,10 @@ class AppState: ObservableObject {
         let settingsSnapshot = settings  // strong ref; safe because SettingsManager is main-actor
 
         /// Core scan work: runs the enumeration and delivers results via the given commit closure.
-        /// `commit` is called with (project, visible) and runs on whatever thread is appropriate.
-        let scan: (([URL], [URL]) -> Void) -> Void = { [weak self] commit in
+        /// `commit` is called with (project, visible, noteIndex) and runs on whatever thread is
+        /// appropriate. The note index is built here, off the main thread in production, so the
+        /// main thread no longer re-sorts the file list with `localizedStandardCompare` on commit.
+        let scan: (([URL], [URL], [String: URL]) -> Void) -> Void = { [weak self] commit in
             guard let self else { return }
 
             let fm = FileManager.default
@@ -2086,17 +2088,21 @@ class AppState: ObservableObject {
 
             let project = discoveredFiles
             let visible = discoveredFiles.filter { settingsSnapshot.shouldShowFile($0, relativeTo: root) }
-            commit(project, visible)
+            // `visible` is already sorted (filtering preserves order), but buildNoteIndex
+            // sorts defensively for its other callers; computing it here keeps that work
+            // off the main thread for the scan path.
+            let noteIndex = self.buildNoteIndex(from: visible)
+            commit(project, visible, noteIndex)
         }
 
         if isTestEnv {
             // Run synchronously and assign directly on the calling (main) thread so that
             // test assertions see results immediately without needing async expectations.
-            scan { [weak self] project, visible in
+            scan { [weak self] project, visible, noteIndex in
                 guard let self, self.scanGeneration == generation else { return }
                 self.allProjectFiles = project
                 self.allFiles = visible
-                self.cachedNoteIndex = self.buildNoteIndex(from: visible)
+                self.cachedNoteIndex = noteIndex
                 self.vaultIndex.notifyFilesDidChange()
                 self.refreshGitDateCache()
                 // In tests: run the indexing pass synchronously on the same thread so
@@ -2130,12 +2136,12 @@ class AppState: ObservableObject {
             }
         } else {
             scanQueue.async { [weak self] in
-                scan { project, visible in
+                scan { project, visible, noteIndex in
                     DispatchQueue.main.async { [weak self] in
                         guard let self, self.scanGeneration == generation else { return }
                         self.allProjectFiles = project
                         self.allFiles = visible
-                        self.cachedNoteIndex = self.buildNoteIndex(from: visible)
+                        self.cachedNoteIndex = noteIndex
                         self.vaultIndex.notifyFilesDidChange()
                         self.refreshGitDateCache()
                         // Kick off background indexing pass; file tree is usable immediately.

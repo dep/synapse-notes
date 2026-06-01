@@ -9,15 +9,27 @@ struct TabBarView: View {
                 // Empty state - show placeholder or nothing
                 EmptyView()
             } else {
-                ForEach(Array(appState.tabs.enumerated()), id: \.offset) { index, tab in
+                // Identity is keyed on the tab itself (TabItem is Hashable and
+                // deduplicated at every append site), NOT on array position.
+                // Position-based identity made closing a tab shift every later
+                // tab's identity, forcing SwiftUI to tear down and rebuild the
+                // wrong views and reset their @State (e.g. hover/close state).
+                ForEach(appState.tabs, id: \.self) { tab in
                     TabItemView(
                         tab: tab,
                         displayName: tab.displayName,
-                        isActive: index == appState.activeTabIndex,
-                        onSelect: { appState.switchTab(to: index) },
-                        onClose: { appState.closeTab(at: index) }
+                        isActive: appState.tabs.firstIndex(of: tab) == appState.activeTabIndex,
+                        onSelect: {
+                            if let index = appState.tabs.firstIndex(of: tab) {
+                                appState.switchTab(to: index)
+                            }
+                        },
+                        onClose: {
+                            if let index = appState.tabs.firstIndex(of: tab) {
+                                appState.closeTab(at: index)
+                            }
+                        }
                     )
-                    .id(index)
                 }
             }
 

@@ -953,6 +953,7 @@ struct RawEditor: NSViewRepresentable {
         private var pendingRefreshRequest: (oldText: String, newText: String, editedRange: NSRange, changeInLength: Int)?
         private var hasCoalescedEdits = false
         private var stylingWorkItem: DispatchWorkItem?
+        private var selectionStylingWorkItem: DispatchWorkItem?
         private static let stylingDebounceInterval: TimeInterval = 0.08
 
         init(_ parent: RawEditor) { self.parent = parent }
@@ -1062,13 +1063,31 @@ struct RawEditor: NSViewRepresentable {
         func textViewDidChangeSelection(_ notification: Notification) {
             guard parent.appState.settings.hideMarkdownWhileEditing,
                   let tv = textView else { return }
-            if tv.lastAppliedEditorDisplayMode == .preview {
-                suppressSync = true
+
+            // Revealing the raw markdown under the caret is the immediate visual
+            // feedback the user expects, so it runs synchronously on every move.
+            tv.revealSemanticInlineMarkdownAtCursor()
+
+            // Re-hiding the markdown the caret just *left* is the expensive part
+            // (a full applyMarkdownStyling + applyPreviewStyling sweep). During fast
+            // typing the selection changes on every keystroke, so running this
+            // synchronously here piled an un-coalesced full re-style on top of the
+            // already-debounced text-change pass. Debounce + coalesce it instead —
+            // a sub-frame delay before stale reveals are re-hidden is imperceptible.
+            guard tv.lastAppliedEditorDisplayMode == .preview else { return }
+            selectionStylingWorkItem?.cancel()
+            let work = DispatchWorkItem { [weak self, weak tv] in
+                guard let self, let tv,
+                      self.parent.appState.settings.hideMarkdownWhileEditing,
+                      tv.lastAppliedEditorDisplayMode == .preview else { return }
+                self.selectionStylingWorkItem = nil
+                self.suppressSync = true
                 tv.applyMarkdownStyling(deferRedraw: true)
                 tv.applyPreviewStyling(editingSessionOpen: true)
-                suppressSync = false
+                self.suppressSync = false
             }
-            tv.revealSemanticInlineMarkdownAtCursor()
+            selectionStylingWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + Coordinator.stylingDebounceInterval, execute: work)
         }
     }
 }
@@ -1494,7 +1513,7 @@ extension LinkAwareTextView {
         ]
 
         func hide(_ pattern: String, options: NSRegularExpression.Options = []) {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return }
+            guard let regex = cachedRegex(pattern, options: options) else { return }
             regex.enumerateMatches(in: text, options: [], range: searchRange) { match, _, _ in
                 guard let range = match?.range else { return }
                 storage.addAttributes(hiddenAttrs, range: range)
@@ -1502,7 +1521,7 @@ extension LinkAwareTextView {
         }
 
         func hideGroup(_ pattern: String, group: Int, options: NSRegularExpression.Options = []) {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return }
+            guard let regex = cachedRegex(pattern, options: options) else { return }
             regex.enumerateMatches(in: text, options: [], range: searchRange) { match, _, _ in
                 guard let match, match.numberOfRanges > group else { return }
                 let r = match.range(at: group)
@@ -1558,7 +1577,7 @@ extension LinkAwareTextView {
         hideGroup("(?<!\\*)(\\*)(?!\\*)(.+?)(?<!\\*)(\\*)(?!\\*)", group: 3)
 
         // Inline code `code` — hide the backtick delimiters
-        if let regex = try? NSRegularExpression(pattern: "(`)((?:[^`\\n])+)(`)") {
+        if let regex = cachedRegex("(`)((?:[^`\\n])+)(`)") {
             regex.enumerateMatches(in: text, options: [], range: searchRange) { match, _, _ in
                 guard let match, match.numberOfRanges > 3 else { return }
                 let openRange = match.range(at: 1)
@@ -1578,7 +1597,7 @@ extension LinkAwareTextView {
         hideGroup("(!\\[)([^\\]]+)(\\]\\([^)]+\\))", group: 3)
 
         // Dim caption text for image embeds
-        let imageCaptionRegex = try? NSRegularExpression(pattern: "!\\[([^\\]]+)\\]\\([^)]+\\)")
+        let imageCaptionRegex = cachedRegex("!\\[([^\\]]+)\\]\\([^)]+\\)")
         imageCaptionRegex?.enumerateMatches(in: text, options: [], range: searchRange) { match, _, _ in
             guard let match, match.numberOfRanges > 1 else { return }
             let captionRange = match.range(at: 1)
