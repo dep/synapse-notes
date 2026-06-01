@@ -1066,6 +1066,8 @@ struct RawEditor: NSViewRepresentable {
 
             // Revealing the raw markdown under the caret is the immediate visual
             // feedback the user expects, so it runs synchronously on every move.
+            // The block reveal no-ops while the caret stays within one block.
+            tv.revealCurrentBlockMarkdownAtCursor()
             tv.revealSemanticInlineMarkdownAtCursor()
 
             // Re-hiding the markdown the caret just *left* is the expensive part
@@ -1084,6 +1086,11 @@ struct RawEditor: NSViewRepresentable {
                 self.suppressSync = true
                 tv.applyMarkdownStyling(deferRedraw: true)
                 tv.applyPreviewStyling(editingSessionOpen: true)
+                // applyPreviewStyling re-hid the whole document (including the caret's
+                // current block). Reset the gate and re-reveal so the block the caret is
+                // in stays open; the block it *left* remains correctly re-hidden.
+                tv.invalidateRevealedBlock()
+                tv.revealCurrentBlockMarkdownAtCursor()
                 self.suppressSync = false
             }
             selectionStylingWorkItem = work
@@ -1476,6 +1483,9 @@ extension LinkAwareTextView {
         // Stale ranges from a previous file would crash reapplySearchHighlights
         lastSearchHighlightRanges = []
         lastSearchFocusIndex = -1
+        // New content invalidates the revealed-block gate so the next caret move
+        // re-evaluates against the new document.
+        lastRevealedBlockRange = nil
         storage.beginEditing()
         storage.setAttributedString(NSAttributedString(string: plain))
         storage.endEditing()
@@ -1613,6 +1623,10 @@ extension LinkAwareTextView {
         refreshTaskCheckboxButtons()
 
         // After hiding, reveal the wikilink/image embed the cursor is currently inside.
+        // NOTE: the *block* reveal is intentionally NOT triggered here. applyPreviewStyling
+        // is a pure "hide everything" pass (also used for read-only rendering and initial
+        // load, where the caret sits at 0 inside the first block). Block reveal is a
+        // response to caret movement and is driven from textViewDidChangeSelection instead.
         if isEditable {
             revealSemanticInlineMarkdownAtCursor()
             revealCalloutHeaderAtCursor(document: parsedDocument)
@@ -1655,6 +1669,48 @@ extension LinkAwareTextView {
             storage.addAttributes(visibleAttrs, range: range)
         }
         storage.endEditing()
+    }
+
+    /// Reveals the raw markdown syntax (dimmed) for the entire parsed block the caret
+    /// is in, so editing always shows the syntax for the block being edited. Re-hiding
+    /// of the block the caret *left* is handled by the next full applyPreviewStyling pass.
+    /// No-ops when the caret stays within the same block as the previous call.
+    func revealCurrentBlockMarkdownAtCursor(document: MarkdownDocument? = nil) {
+        guard isEditable, let storage = textStorage else { return }
+        let cursor = selectedRange().location
+        // The optional `document` lets callers avoid an extra parse when they already
+        // hold one (its `source` is authoritative); otherwise read the live storage.
+        let source = document?.source ?? storage.string
+        let reveal = MarkdownPreviewBlockReveal.make(from: source, cursorLocation: cursor, isEditable: isEditable)
+
+        // Block-change gating: if the caret is still in the same block we revealed last
+        // time, there is nothing new to reveal.
+        if let last = lastRevealedBlockRange, let current = reveal.blockRange, NSEqualRanges(last, current) {
+            return
+        }
+        lastRevealedBlockRange = reveal.blockRange
+
+        guard !reveal.revealedRanges.isEmpty else { return }
+
+        // The hidden delimiters were zeroed to systemFont(0.001); restore a visible
+        // body-sized font and dim color. Body font reads cleanly for every delimiter
+        // kind (**, *, `, [, ]], #, ```); surrounding content keeps its own font from
+        // applyMarkdownStyling.
+        let revealFont = settings != nil ? MarkdownTheme.bodyFont(for: settings!) : MarkdownTheme.body
+
+        storage.beginEditing()
+        for range in reveal.revealedRanges {
+            let safeLoc = max(0, min(range.location, storage.length))
+            let safeLen = min(range.length, storage.length - safeLoc)
+            guard safeLen > 0 else { continue }
+            let safeRange = NSRange(location: safeLoc, length: safeLen)
+            storage.addAttributes([
+                .font: revealFont,
+                .foregroundColor: MarkdownTheme.dimColor,
+            ], range: safeRange)
+        }
+        storage.endEditing()
+        requestImmediateRedraw(for: reveal.blockRange ?? NSRange(location: cursor, length: 0))
     }
 
     func applyMarkdownStyling(document: MarkdownDocument? = nil, refreshPlan: MarkdownEditorRefreshPlan = .fullDocument, deferRedraw: Bool = false) {
@@ -2630,6 +2686,15 @@ class LinkAwareTextView: NSTextView {
     private var replaceAllObserver: Any?
     private var lastSearchHighlightRanges: [NSRange] = []
     private var lastSearchFocusIndex: Int = -1
+    /// The parsed block range whose markdown is currently revealed under the caret.
+    /// Used to skip re-revealing while the caret stays within one block.
+    private var lastRevealedBlockRange: NSRange?
+
+    /// Clears the revealed-block gate so the next revealCurrentBlockMarkdownAtCursor()
+    /// recomputes. Used after a full re-hide sweep that invalidated the visible reveal.
+    func invalidateRevealedBlock() {
+        lastRevealedBlockRange = nil
+    }
 
     func installSearchObservers() {
         guard searchObserver == nil else { return }
