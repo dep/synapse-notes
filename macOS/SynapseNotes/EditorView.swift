@@ -2464,9 +2464,14 @@ class LinkAwareTextView: NSTextView {
         }
 
         if let target = wikilinkTarget(at: point) {
-            let openInNewTab = event.modifierFlags.contains(.command)
-            _ = handleLinkClick(target, openInNewTab: openInNewTab)
-            return
+            if wikilinkMarkdownIsHidden(at: point) {
+                let openInNewTab = event.modifierFlags.contains(.command)
+                _ = handleLinkClick(target, openInNewTab: openInNewTab)
+                return
+            }
+            // Markdown is exposed (always-on markdown mode, or the caret's active
+            // block under hide-while-typing): fall through so the click places the
+            // caret for editing instead of navigating.
         }
 
         // Check if clicking on a tag
@@ -2573,6 +2578,37 @@ class LinkAwareTextView: NSTextView {
         guard glyphRect.contains(containerPoint) else { return nil }
 
         return textStorage?.attribute(.wikilinkTarget, at: charIndex, effectiveRange: nil) as? String
+    }
+
+    /// Whether the `[[...]]` markdown for the link at `viewPoint` is currently hidden,
+    /// which is the only case a WikiLink click should navigate. The markdown is hidden
+    /// only when hide-while-typing is on AND the click lands outside the caret's block
+    /// (the caret's block is revealed/exposed). In always-on markdown mode the syntax is
+    /// visible everywhere, so this returns false and clicks never navigate.
+    func wikilinkMarkdownIsHidden(at viewPoint: NSPoint) -> Bool {
+        guard settings?.hideMarkdownWhileEditing == true else { return false }
+        guard let layout = layoutManager, let container = textContainer else { return true }
+
+        let containerPoint = NSPoint(
+            x: viewPoint.x - textContainerOrigin.x,
+            y: viewPoint.y - textContainerOrigin.y
+        )
+        var fraction: CGFloat = 0
+        let charIndex = layout.characterIndex(
+            for: containerPoint,
+            in: container,
+            fractionOfDistanceBetweenInsertionPoints: &fraction
+        )
+
+        // The caret's block has its markdown revealed; every other block is collapsed.
+        // No active block (read-only / unfocused pane) ⇒ all links collapsed ⇒ clickable.
+        let reveal = MarkdownPreviewBlockReveal.make(
+            from: textStorage?.string ?? string,
+            cursorLocation: selectedRange().location,
+            isEditable: isEditable
+        )
+        guard let blockRange = reveal.blockRange else { return true }
+        return !NSLocationInRange(charIndex, blockRange)
     }
 
     func tagTarget(at viewPoint: NSPoint) -> String? {
