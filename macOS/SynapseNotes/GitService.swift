@@ -124,7 +124,8 @@ final class GitService {
             args: ["clone", remoteURL, localURL.path],
             directory: nil,
             operation: "Clone",
-            timeout: 120
+            timeout: 120,
+            needsCredentials: true
         )
     }
 
@@ -148,9 +149,9 @@ final class GitService {
 
     func commit(message: String) throws { try run(["commit", "-m", message]) }
 
-    func push() throws { try run(["push"], operation: "Push", timeout: 60) }
+    func push() throws { try run(["push"], operation: "Push", timeout: 60, needsCredentials: true) }
 
-    func pullRebase() throws { try run(Self.pullRebaseArguments, operation: "Pull", timeout: 60) }
+    func pullRebase() throws { try run(Self.pullRebaseArguments, operation: "Pull", timeout: 60, needsCredentials: true) }
 
     func hasConflicts() -> Bool {
         let out = (try? run(["status", "--porcelain"])) ?? ""
@@ -359,13 +360,14 @@ final class GitService {
     // MARK: Private
 
     @discardableResult
-    func run(_ args: [String], operation: String = "Git", timeout: TimeInterval = 15) throws -> String {
+    func run(_ args: [String], operation: String = "Git", timeout: TimeInterval = 15, needsCredentials: Bool = false) throws -> String {
         try GitService.runProcess(
             executable: gitPath,
             args: args,
             directory: repoURL,
             operation: operation,
-            timeout: timeout
+            timeout: timeout,
+            needsCredentials: needsCredentials
         )
     }
 
@@ -375,7 +377,8 @@ final class GitService {
         args: [String],
         directory: URL?,
         operation: String,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        needsCredentials: Bool = false
     ) throws -> String {
         let appEnv = ProcessInfo.processInfo.environment
         let process = Process()
@@ -403,9 +406,12 @@ final class GitService {
             env["SSH_AUTH_SOCK"] = sock
             process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = args
-        } else {
+        } else if needsCredentials {
             // Option 1: run git through the user's interactive login shell so
             // it inherits SSH_AUTH_SOCK (and everything else) from their profile.
+            // Only network operations (push/pull/fetch/clone) need this — sourcing
+            // the full profile costs hundreds of ms, so we pay it ONLY when an SSH
+            // agent is actually required.
             //
             // -i  interactive: sources .zshrc / .bashrc (where SSH_AUTH_SOCK lives)
             // -l  login: sources .zprofile / .bash_profile (PATH, etc.)
@@ -417,6 +423,12 @@ final class GitService {
             process.arguments = shellName == "fish"
                 ? ["-c", quotedCommand]
                 : ["-i", "-l", "-c", quotedCommand]
+        } else {
+            // Local, read-only commands (log/status/rev-parse/show/…) never touch the
+            // network and so never need the SSH agent. Run git directly to avoid the
+            // interactive-login-shell startup tax on the hot path.
+            process.executableURL = URL(fileURLWithPath: executable)
+            process.arguments = args
         }
 
         if let directory { process.currentDirectoryURL = directory }

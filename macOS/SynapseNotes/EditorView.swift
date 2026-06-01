@@ -449,27 +449,25 @@ struct EditorView: View {
     // MARK: - File History Helpers
 
     private func loadFileHistory(for file: URL) {
-        print("[DEBUG] Loading file history for: \(file.path)")
-        print("[DEBUG] appState.rootURL: \(String(describing: appState.rootURL))")
-
-        guard let rootURL = appState.rootURL else {
-            print("[DEBUG] No rootURL available")
+        guard let rootURL = appState.rootURL,
+              let gitService = try? GitService(repoURL: rootURL) else {
             fileHistory = []
             return
         }
 
-        print("[DEBUG] Attempting to create GitService with: \(rootURL.path)")
-        print("[DEBUG] Is git repo: \(GitService.isGitRepo(at: rootURL))")
-
-        guard let gitService = try? GitService(repoURL: rootURL) else {
-            print("[DEBUG] Failed to create GitService")
-            fileHistory = []
-            return
+        // `git log` is comparatively cheap now that local reads no longer spawn an
+        // interactive login shell, but it is still a process fork that should never
+        // block the main thread on the open/tab-switch hot path. Run it off-main and
+        // publish back on the main actor, guarding against a fast switch-away so we
+        // don't clobber the newly active tab's history.
+        Task.detached(priority: .utility) {
+            let history = gitService.getFileHistory(for: file)
+            await MainActor.run {
+                if displayFile == file {
+                    fileHistory = history
+                }
+            }
         }
-
-        let history = gitService.getFileHistory(for: file)
-        print("[DEBUG] Found \(history.count) commits")
-        fileHistory = history
     }
 
     private func selectCommit(_ commit: GitService.FileCommit) {
