@@ -7,6 +7,27 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.4.2</title>
+      <pubDate>Mon, 01 Jun 2026 18:22:22 +0000</pubDate>
+      <sparkle:version>13</sparkle:version>
+      <sparkle:shortVersionString>1.4.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's new</h3>
+        <ul>
+          <li><strong>WikiLink editing fix</strong> — clicking a wikilink whose <code>[[...]]</code> markdown is exposed (in markdown mode, or in the active block while hide-markdown-while-typing is on) now places the cursor for editing instead of navigating. Links stay clickable in collapsed/inactive blocks.</li>
+          <li><strong>Editor line-height fix</strong> — edit-mode line spacing now matches the rendered preview, following CSS <code>line-height</code> semantics instead of over-spacing lines.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/1.4.2/Synapse.Notes-1.4.2.dmg"
+        sparkle:edSignature="9L1h4kJPm2F+FsI6OHlIFvrqzPnZhB/9Oo6moF25h/Zp8sh2sYy2M8Hjitqs9bIOmV+FIDItVityj1Ucx4lMCA=="
+        length="6682925"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+    <item>
       <title>Version 1.4.1</title>
       <pubDate>Mon, 01 Jun 2026 13:11:29 +0000</pubDate>
       <sparkle:version>12</sparkle:version>
