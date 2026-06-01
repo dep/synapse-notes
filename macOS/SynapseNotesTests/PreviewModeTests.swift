@@ -399,6 +399,42 @@ final class PreviewModeTests: XCTestCase {
         }
     }
 
+    /// Returns the font point size at `index`, or nil if no font is set.
+    private func fontSize(at index: Int) -> CGFloat? {
+        guard let storage = textView.textStorage, index < storage.length else { return nil }
+        return (storage.attribute(.font, at: index, effectiveRange: nil) as? NSFont)?.pointSize
+    }
+
+    func test_revealedWikilink_keepsConfiguredBodyFontSize() {
+        // Regression: revealing a wikilink under the caret used the fixed 15pt legacy
+        // MarkdownTheme.body, shrinking the link when the user's editor font was larger.
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try! FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let settings = SettingsManager(configPath: tempDir.appendingPathComponent("settings.yml").path)
+        settings.editorFontSize = 20
+
+        let text = "See [[Target|Shown]] now"
+        textView.isEditable = true
+        textView.settings = settings
+        textView.setPlainText(text)
+
+        let ns = text as NSString
+        let aliasRange = ns.range(of: "Shown")
+        textView.setSelectedRange(NSRange(location: aliasRange.location + 1, length: 0))
+        textView.applyMarkdownStyling()
+        textView.applyPreviewStyling()
+
+        // Every character of the revealed token (delimiters + visible text) should be at
+        // the configured 20pt body size, not the fixed 15pt legacy constant.
+        let tokenRange = ns.range(of: "[[Target|Shown]]")
+        for i in tokenRange.location ..< (tokenRange.location + tokenRange.length) {
+            let size = fontSize(at: i) ?? -1
+            XCTAssertEqual(size, 20, accuracy: 0.01,
+                           "Revealed wikilink char at \(i) should keep the configured 20pt body size")
+        }
+    }
+
 }
 
 private final class RedrawTrackingTextView: LinkAwareTextView {

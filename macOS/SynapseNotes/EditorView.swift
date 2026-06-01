@@ -1641,8 +1641,10 @@ extension LinkAwareTextView {
         let callouts = parsedDocument.blocks.compactMap { MarkdownCalloutDetector.detect(in: $0, source: parsedDocument.source) }
         guard let callout = callouts.first(where: { NSLocationInRange(cursor, $0.headerRange) }) else { return }
 
+        // Configured body font, not the fixed 15pt legacy constant (see
+        // revealSemanticInlineMarkdownAtCursor for why).
         let visibleAttrs: [NSAttributedString.Key: Any] = [
-            .font: MarkdownTheme.body,
+            .font: settings != nil ? MarkdownTheme.bodyFont(for: settings!) : MarkdownTheme.body,
             .foregroundColor: MarkdownTheme.dimColor,
         ]
         storage.beginEditing()
@@ -1659,8 +1661,10 @@ extension LinkAwareTextView {
         )
         guard !reveal.revealedRanges.isEmpty else { return }
 
+        // Use the configured body font, NOT the fixed 15pt legacy MarkdownTheme.body —
+        // otherwise revealing a token shrinks it whenever the user's editor font ≠ 15.
         let visibleAttrs: [NSAttributedString.Key: Any] = [
-            .font: MarkdownTheme.body,
+            .font: settings != nil ? MarkdownTheme.bodyFont(for: settings!) : MarkdownTheme.body,
             .foregroundColor: MarkdownTheme.dimColor,
         ]
 
