@@ -7,6 +7,26 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.4.1</title>
+      <pubDate>Mon, 01 Jun 2026 13:11:29 +0000</pubDate>
+      <sparkle:version>12</sparkle:version>
+      <sparkle:shortVersionString>1.4.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>Performance</h3>
+        <ul>
+          <li><strong>Instant note switching</strong> — eliminated a ~1.5s stall on every note open and tab switch. The culprit was <code>git log</code> running synchronously through an interactive login shell, sourcing your full shell profile on every invocation. Local git operations now run directly (~0.02s vs ~1.8s).</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/v1.4.1/SynapseNotes-1.4.1.dmg"
+        sparkle:edSignature="kgCUiJSt7RTTHWzhAGdh2m/AGDzrn9mK+jMlVZYnb+KFf8uhUpUbeWAhd6NWX9qwHvKlGaNijR9/78RZTfv2Aw=="
+        length="6682102"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+    <item>
       <title>Version 1.4.0</title>
       <pubDate>Mon, 01 Jun 2026 11:36:53 +0000</pubDate>
       <sparkle:version>11</sparkle:version>
