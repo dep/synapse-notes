@@ -15,7 +15,7 @@
 ## File Structure
 
 - **Create** `macOS/SynapseNotes/MarkdownPreviewBlockReveal.swift` — pure struct: `(source, cursorLocation, isEditable) -> revealedRanges` for the caret's block. Mirrors `MarkdownPreviewCursorReveal` / `MarkdownPreviewSemanticHiding`.
-- **Create** `macOS/SynapseNotesTests/MarkdownPreviewBlockRevealTests.swift` — unit tests for the pure struct.
+- **Create** `macOS/SynapseTests/MarkdownPreviewBlockRevealTests.swift` — unit tests for the pure struct.
 - **Modify** `macOS/SynapseNotes/EditorView.swift` — add `revealCurrentBlockMarkdownAtCursor(document:)` + `lastRevealedBlockRange` to `LinkAwareTextView`; call it from `applyPreviewStyling`'s tail, from `textViewDidChangeSelection` (instant), and reset it in `setPlainText`.
 
 Note: the bold/italic/code delimiter regexes are duplicated between `applyPreviewStyling` (hide) and `MarkdownPreviewBlockReveal` (reveal). Both use the same patterns so they stay in lockstep; the patterns are copied verbatim (DRY is served by them being identical literals derived from the same source of truth — the hide pass — not by premature extraction that would entangle `LinkAwareTextView` internals).
@@ -26,11 +26,11 @@ Note: the bold/italic/code delimiter regexes are duplicated between `applyPrevie
 
 **Files:**
 - Create: `macOS/SynapseNotes/MarkdownPreviewBlockReveal.swift`
-- Test: `macOS/SynapseNotesTests/MarkdownPreviewBlockRevealTests.swift`
+- Test: `macOS/SynapseTests/MarkdownPreviewBlockRevealTests.swift`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `macOS/SynapseNotesTests/MarkdownPreviewBlockRevealTests.swift`:
+Create `macOS/SynapseTests/MarkdownPreviewBlockRevealTests.swift`:
 
 ```swift
 import XCTest
@@ -104,7 +104,7 @@ final class MarkdownPreviewBlockRevealTests: XCTestCase {
 
 Run:
 ```bash
-cd "/Users/dep/Sites/synapse-notes/macOS" && xcodegen generate && xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" test -only-testing:SynapseNotesTests/MarkdownPreviewBlockRevealTests 2>&1 | tail -30
+cd "/Users/dep/Sites/synapse-notes/macOS" && xcodegen generate && xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" test -only-testing:SynapseTests/MarkdownPreviewBlockRevealTests 2>&1 | tail -30
 ```
 Expected: FAIL — compile error `Cannot find 'MarkdownPreviewBlockReveal' in scope`.
 
@@ -206,14 +206,14 @@ struct MarkdownPreviewBlockReveal {
 
 Run:
 ```bash
-cd "/Users/dep/Sites/synapse-notes/macOS" && xcodegen generate && xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" test -only-testing:SynapseNotesTests/MarkdownPreviewBlockRevealTests 2>&1 | tail -30
+cd "/Users/dep/Sites/synapse-notes/macOS" && xcodegen generate && xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" test -only-testing:SynapseTests/MarkdownPreviewBlockRevealTests 2>&1 | tail -30
 ```
 Expected: PASS — all 6 tests in `MarkdownPreviewBlockRevealTests` succeed (`** TEST SUCCEEDED **`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/dep/Sites/synapse-notes" && git add "macOS/SynapseNotes/MarkdownPreviewBlockReveal.swift" "macOS/SynapseNotesTests/MarkdownPreviewBlockRevealTests.swift" "macOS/Synapse Notes.xcodeproj/project.pbxproj" && git commit -m "$(printf 'feat(macOS): pure block-reveal range computation for hide-markdown\n\nComputes the markdown syntax ranges to un-hide for the parsed block the\ncaret is in (inverse of the applyPreviewStyling hide pass). Pure and\nunit-tested, mirroring MarkdownPreviewCursorReveal.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>')"
+cd "/Users/dep/Sites/synapse-notes" && git add "macOS/SynapseNotes/MarkdownPreviewBlockReveal.swift" "macOS/SynapseTests/MarkdownPreviewBlockRevealTests.swift" "macOS/Synapse Notes.xcodeproj/project.pbxproj" && git commit -m "$(printf 'feat(macOS): pure block-reveal range computation for hide-markdown\n\nComputes the markdown syntax ranges to un-hide for the parsed block the\ncaret is in (inverse of the applyPreviewStyling hide pass). Pure and\nunit-tested, mirroring MarkdownPreviewCursorReveal.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>')"
 ```
 
 ---
@@ -373,7 +373,7 @@ cd "/Users/dep/Sites/synapse-notes" && git add "macOS/SynapseNotes/EditorView.sw
 
 Run:
 ```bash
-cd "/Users/dep/Sites/synapse-notes/macOS" && xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" test -only-testing:SynapseNotesTests/MarkdownPreviewBlockRevealTests -only-testing:SynapseNotesTests/MarkdownPreviewSemanticHidingTests -only-testing:SynapseNotesTests/MarkdownPreviewCursorRevealTests -only-testing:SynapseNotesTests/PreviewModeTests 2>&1 | tail -20
+cd "/Users/dep/Sites/synapse-notes/macOS" && xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" test -only-testing:SynapseTests/MarkdownPreviewBlockRevealTests -only-testing:SynapseTests/MarkdownPreviewSemanticHidingTests -only-testing:SynapseTests/MarkdownPreviewCursorRevealTests -only-testing:SynapseTests/PreviewModeTests 2>&1 | tail -20
 ```
 Expected: `** TEST SUCCEEDED **` — no regressions in the existing hide/reveal/preview tests.
 
