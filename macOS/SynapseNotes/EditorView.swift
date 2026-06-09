@@ -1012,6 +1012,9 @@ struct RawEditor: NSViewRepresentable {
                 tv.applyPreviewStyling(document: document, refreshPlan: refreshPlan, editingSessionOpen: true)
             }
             suppressSync = false
+            // The blanket restyle above wipes transient AI diff colors; restore
+            // them so they don't flicker between streaming deltas.
+            tv.reapplyAIDiffColorsIfActive()
         }
 
         func textStorage(_ textStorage: NSTextStorage, didProcessEditing editedMask: NSTextStorageEditActions, range editedRange: NSRange, changeInLength delta: Int) {
@@ -1497,6 +1500,10 @@ extension LinkAwareTextView {
 
     func setPlainText(_ plain: String) {
         guard let storage = textStorage else { return }
+        // Tear down any in-flight/pending AI session BEFORE the storage is
+        // replaced — stale ranges would corrupt the new note or crash on
+        // accept/reject, and the floating bar would linger over new content.
+        teardownAISession()
         // Stale ranges from a previous file would crash reapplySearchHighlights
         lastSearchHighlightRanges = []
         lastSearchFocusIndex = -1
@@ -2339,6 +2346,29 @@ extension LinkAwareTextView {
         aiBarHostingView?.removeFromSuperview(); aiBarHostingView = nil
         aiBarModel = nil
         refreshAISparkle()
+    }
+
+    /// Tears down any in-flight or pending inline-AI session. Called when the
+    /// document is swapped (note/tab switch) so stale ranges can't corrupt the
+    /// new note or crash on accept/reject. Does NOT touch storage: the
+    /// about-to-run setPlainText replaces the whole attributed string, so old
+    /// diff colors vanish with it.
+    func teardownAISession() {
+        guard aiBarHostingView != nil || inlineAIController.mode != .idle else { return }
+        aiStreamTask?.cancel()
+        aiStreamTask = nil
+        aiBarHostingView?.removeFromSuperview()
+        aiBarHostingView = nil
+        aiBarModel = nil
+        inlineAIController.resetWithoutMutating()
+    }
+
+    /// Re-applies transient AI diff colors after a styling pass, if a session is active.
+    /// The normal markdown restyle blanket-sets foreground colors, wiping the diff
+    /// colors; this restores them so they don't flicker mid-stream.
+    func reapplyAIDiffColorsIfActive() {
+        guard inlineAIController.mode != .idle else { return }
+        applyAIDiffColors()
     }
 
     private func startAIStream(prompt: String, model: AIModel, mode: InlineAIBarMode, selection sel: NSRange) {

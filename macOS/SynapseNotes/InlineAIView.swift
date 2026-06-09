@@ -125,6 +125,15 @@ struct InlineAIBarView: View {
                 }
             }
 
+            // Invisible Esc handler for the non-pending states (Reject owns Esc when pending).
+            if !model.awaitingAcceptReject {
+                Button("") { model.onCancel?() }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
+
             if let err = model.errorMessage {
                 Text(err).font(.caption).foregroundColor(.red)
             }

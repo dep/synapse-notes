@@ -91,4 +91,13 @@ final class InlineAIController: ObservableObject {
         storage.replaceCharacters(in: nr, with: "")
         mode = .idle; originalRange = nil; newRange = nil
     }
+
+    /// Clears all session state WITHOUT mutating the text storage. Use when the
+    /// underlying document is being replaced wholesale (note/tab switch), where
+    /// touching the old ranges would corrupt the new document or crash.
+    func resetWithoutMutating() {
+        mode = .idle
+        originalRange = nil
+        newRange = nil
+    }
 }
