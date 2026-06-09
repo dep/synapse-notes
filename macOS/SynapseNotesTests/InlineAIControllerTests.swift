@@ -86,4 +86,50 @@ final class InlineAIControllerTests: XCTestCase {
         c.reject()
         XCTAssertEqual(storage.string, "Hello WORLD!")
     }
+
+    // MARK: fixed behaviors
+
+    func test_appendDelta_beforeBegin_isNoOp() {
+        let storage = makeStorage("abc")
+        let c = InlineAIController()
+        c.appendDelta("X")
+        XCTAssertEqual(storage.string, "abc")
+    }
+
+    func test_accept_inGenerateMode_doesNotMutate() {
+        let storage = makeStorage("abc")
+        let c = InlineAIController()
+        c.beginGenerate(in: storage, at: 3)
+        c.appendDelta("XY")          // "abcXY"
+        c.accept()                   // wrong mode for accept → no-op
+        XCTAssertEqual(storage.string, "abcXY")
+    }
+
+    func test_beginRewrite_whileActive_isIgnored() {
+        let storage = makeStorage("Hello WORLD!")
+        let c = InlineAIController()
+        c.beginRewrite(in: storage, selection: NSRange(location: 6, length: 5))
+        c.appendDelta("earth")       // "Hello WORLDearth!", original (6,5)
+        // A second begin must be ignored so the first session's ranges stay intact.
+        c.beginRewrite(in: storage, selection: NSRange(location: 0, length: 5))
+        c.accept()                   // resolves the FIRST session
+        XCTAssertEqual(storage.string, "Hello earth!")
+    }
+
+    func test_appendDelta_multibyteEmoji_tracksUTF16Length() {
+        let storage = makeStorage("ab")
+        let c = InlineAIController()
+        c.beginRewrite(in: storage, selection: NSRange(location: 0, length: 2))
+        c.appendDelta("👩‍🚀")          // family/ZWJ emoji: NSString length 5
+        c.accept()                   // deletes original "ab", leaves the emoji
+        XCTAssertEqual(storage.string, "👩‍🚀")
+    }
+
+    func test_reject_withNoDeltas_isSafeNoOpOnNewText() {
+        let storage = makeStorage("keep me")
+        let c = InlineAIController()
+        c.beginRewrite(in: storage, selection: NSRange(location: 0, length: 4)) // "keep"
+        c.reject()                   // zero deltas appended; deleting empty newRange is safe
+        XCTAssertEqual(storage.string, "keep me")
+    }
 }

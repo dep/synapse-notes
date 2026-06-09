@@ -23,6 +23,7 @@ final class InlineAIController: ObservableObject {
     // MARK: Generate
 
     func beginGenerate(in storage: NSTextStorage, at location: Int) {
+        guard mode == .idle else { return }
         self.storage = storage
         mode = .generate
         originalRange = nil
@@ -32,6 +33,7 @@ final class InlineAIController: ObservableObject {
     // MARK: Rewrite
 
     func beginRewrite(in storage: NSTextStorage, selection: NSRange) {
+        guard mode == .idle else { return }
         self.storage = storage
         mode = .rewrite
         originalRange = selection
@@ -65,27 +67,28 @@ final class InlineAIController: ObservableObject {
         newRange = nil
     }
 
-    /// Rewrite accept: delete the original, keep the new text.
+    /// Rewrite accept: delete the original, keep the new text. No-op in any other mode.
     func accept() {
-        guard mode == .rewrite, let storage, let orig = originalRange else {
-            finishGenerate(); return
+        guard mode == .rewrite else { return }
+        guard let storage, let orig = originalRange else {
+            // Defensive: rewrite mode but no storage/range — clear and bail.
+            mode = .idle; originalRange = nil; newRange = nil
+            return
         }
-        // The new text sits immediately after the original. Deleting the original
+        // The new text sits immediately after the original; deleting the original
         // shifts the new text left into the original's place.
         storage.replaceCharacters(in: orig, with: "")
-        mode = .idle
-        originalRange = nil
-        newRange = nil
+        mode = .idle; originalRange = nil; newRange = nil
     }
 
-    /// Rewrite reject: delete the streamed new text, restore the original.
+    /// Rewrite reject: delete the streamed new text, restore the original. No-op in any other mode.
     func reject() {
-        guard mode == .rewrite, let storage, let nr = newRange else {
-            finishGenerate(); return
+        guard mode == .rewrite else { return }
+        guard let storage, let nr = newRange else {
+            mode = .idle; originalRange = nil; newRange = nil
+            return
         }
         storage.replaceCharacters(in: nr, with: "")
-        mode = .idle
-        originalRange = nil
-        newRange = nil
+        mode = .idle; originalRange = nil; newRange = nil
     }
 }
