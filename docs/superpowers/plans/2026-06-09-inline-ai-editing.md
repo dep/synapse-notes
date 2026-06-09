@@ -22,7 +22,7 @@ cd /Users/dep/Sites/synapse-notes/macOS && xcodegen generate
 **Run a single test** (regenerate first if you added the test file this session):
 ```bash
 cd /Users/dep/Sites/synapse-notes/macOS && xcodegen generate && \
-xcodebuild test -project "Synapse Notes.xcodeproj" -scheme "Synapse Notes" \
+xcodebuild test -project "Synapse Notes.xcodeproj" -scheme "Synapse" \
   -destination "platform=macOS" \
   -only-testing:"SynapseTests/<TestClass>/<testMethod>" 2>&1 | tail -30
 ```
@@ -33,7 +33,7 @@ xcodebuild test -project "Synapse Notes.xcodeproj" -scheme "Synapse Notes" \
 ```bash
 pkill -9 "Synapse Notes" || true && sleep 1 && cd /Users/dep/Sites/synapse-notes/macOS && \
 xcodegen generate && \
-xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse Notes" -destination "platform=macOS" build && \
+xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build && \
 for app in ~/Library/Developer/Xcode/DerivedData/Synapse*-*/Build/Products/Debug/"Synapse Notes.app"; do [ -e "$app" ] && open "$app" && break; done
 ```
 
@@ -1355,7 +1355,7 @@ struct InlineAIBarView: View {
 Run:
 ```bash
 cd /Users/dep/Sites/synapse-notes/macOS && xcodegen generate && \
-xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse Notes" -destination "platform=macOS" build 2>&1 | tail -20
+xcodebuild -project "Synapse Notes.xcodeproj" -scheme "Synapse" -destination "platform=macOS" build 2>&1 | tail -20
 ```
 Expected: BUILD SUCCEEDED. (If `commandPaletteScoreByFilename` has a different parameter label, fix the call to match `CommandPaletteView.swift:15`.)
 
