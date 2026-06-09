@@ -100,4 +100,19 @@ final class InlineAIController: ObservableObject {
         originalRange = nil
         newRange = nil
     }
+
+    /// Removes the streamed output and returns to idle, leaving the document as it
+    /// was *before* this session's generation. In generate mode this deletes the
+    /// inserted text; in rewrite mode it deletes the new text and keeps the original
+    /// (same end state as `reject()`). Used by Retry so a re-run starts clean instead
+    /// of appending onto the previous output.
+    func discardOutput() {
+        guard mode != .idle else { return }
+        if let storage, let nr = newRange, nr.length > 0, NSMaxRange(nr) <= storage.length {
+            storage.replaceCharacters(in: nr, with: "")
+        }
+        mode = .idle
+        originalRange = nil
+        newRange = nil
+    }
 }

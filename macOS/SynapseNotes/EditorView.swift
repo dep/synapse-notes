@@ -2312,12 +2312,21 @@ extension LinkAwareTextView {
 
     private func presentAIBar(mode: InlineAIBarMode, at sel: NSRange) {
         dismissAIBar()
+        aiBarOriginalSelection = sel
 
         let defaultModel = AIModel(apiID: settings?.aiDefaultModel ?? AIModel.default.apiID)
         let model = InlineAIBarModel(mode: mode, model: defaultModel)
         model.allFiles = aiAppState?.allFiles ?? []
 
         model.onSubmit = { [weak self] prompt, chosen in
+            self?.startAIStream(prompt: prompt, model: chosen, mode: mode, selection: sel)
+        }
+        model.onRetry = { [weak self] prompt, chosen in
+            // Discard the previous output so the re-run replaces it instead of
+            // appending, then stream fresh from the original anchor/selection.
+            self?.inlineAIController.discardOutput()
+            self?.clearAIDiffColors()
+            self?.aiBarModel?.awaitingAcceptReject = false
             self?.startAIStream(prompt: prompt, model: chosen, mode: mode, selection: sel)
         }
         model.onStop   = { [weak self] in self?.stopAIStream() }
@@ -2333,16 +2342,51 @@ extension LinkAwareTextView {
         refreshAISparkle()
     }
 
+    /// Frame for the AI bar. Anchored just below the bottom of the affected region so it
+    /// never overlaps the streamed text/diff (the region is the end of the streamed
+    /// `newRange`/`originalRange` once streaming starts, else the selection/cursor). If
+    /// placing it below would push it past the bottom of the visible viewport (a long
+    /// diff), it is placed ABOVE the top of the affected region instead, so it stays on
+    /// screen and still clears the diff.
     private func aiBarFrame(below sel: NSRange) -> NSRect {
         guard let layoutManager, let textContainer else { return .zero }
-        let anchor = sel.length > 0 ? sel.location + sel.length : sel.location
-        let safe = max(0, min(anchor, (string as NSString).length))
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: NSRange(location: safe, length: 0), actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-        rect.origin.x += textContainerOrigin.x
-        rect.origin.y += textContainerOrigin.y
+        let ns = string as NSString
+        let barHeight: CGFloat = 80
         let width = min(bounds.width - 24, 520)
-        return NSRect(x: 12, y: rect.maxY + 4, width: width, height: 80)
+
+        func yOffset(forCharacterIndex index: Int) -> (top: CGFloat, bottom: CGFloat) {
+            let safe = max(0, min(index, ns.length))
+            let gr = layoutManager.glyphRange(forCharacterRange: NSRange(location: safe, length: 0), actualCharacterRange: nil)
+            var r = layoutManager.boundingRect(forGlyphRange: gr, in: textContainer)
+            r.origin.y += textContainerOrigin.y
+            return (r.minY, r.maxY)
+        }
+
+        // Bottom of the affected region (prefer streamed text) and top of it (for the
+        // above-placement fallback).
+        var bottomAnchor = sel.length > 0 ? sel.location + sel.length : sel.location
+        if let nr = inlineAIController.newRange { bottomAnchor = max(bottomAnchor, NSMaxRange(nr)) }
+        if let orig = inlineAIController.originalRange { bottomAnchor = max(bottomAnchor, NSMaxRange(orig)) }
+        let topAnchor = min(sel.location, inlineAIController.originalRange?.location ?? sel.location)
+
+        let belowY = yOffset(forCharacterIndex: bottomAnchor).bottom + 6
+        let visible = enclosingScrollView?.documentVisibleRect ?? visibleRect
+
+        // If the bar placed below would run past the visible area, place it above the region.
+        if belowY + barHeight > visible.maxY {
+            let aboveY = yOffset(forCharacterIndex: topAnchor).top - barHeight - 6
+            let clampedY = max(visible.minY + 6, aboveY)
+            return NSRect(x: 12, y: clampedY, width: width, height: barHeight)
+        }
+        return NSRect(x: 12, y: belowY, width: width, height: barHeight)
+    }
+
+    /// Re-anchors the bar below the current affected region (called as text streams in
+    /// and when streaming finishes) so it tracks the growing diff instead of covering it.
+    private func repositionAIBar() {
+        guard let host = aiBarHostingView else { return }
+        let sel = aiBarOriginalSelection
+        host.frame = aiBarFrame(below: sel)
     }
 
     private func dismissAIBar() {
@@ -2415,6 +2459,7 @@ extension LinkAwareTextView {
                         self?.inlineAIController.appendDelta(delta)
                         self?.applyAIDiffColors()
                         self?.didChangeText()
+                        self?.repositionAIBar()
                     }
                 }
                 await MainActor.run { self?.finishAIStream(mode: mode) }
@@ -2440,6 +2485,7 @@ extension LinkAwareTextView {
             dismissAIBar()
         }
         applyAIDiffColors()
+        repositionAIBar()
     }
 
     private func handleAIError(_ error: Error) {
@@ -2601,6 +2647,9 @@ class LinkAwareTextView: NSTextView {
     private var aiBarHostingView: NSHostingView<InlineAIBarView>?
     private var aiBarModel: InlineAIBarModel?
     private var aiStreamTask: Task<Void, Never>?
+    /// The selection/cursor captured when the bar opened — used to re-anchor the bar
+    /// below the affected region as text streams in.
+    private var aiBarOriginalSelection: NSRange = NSRange(location: 0, length: 0)
     /// Injected at setup; source of vault files for @-context.
     weak var aiAppState: AppState?
 

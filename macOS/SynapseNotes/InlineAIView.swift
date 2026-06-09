@@ -49,6 +49,7 @@ final class InlineAIBarModel: ObservableObject {
 
     // Callbacks wired by the host (Task 9).
     var onSubmit: ((String, AIModel) -> Void)?
+    var onRetry: ((String, AIModel) -> Void)?   // re-run, replacing the previous output
     var onStop: (() -> Void)?
     var onAccept: (() -> Void)?
     var onReject: (() -> Void)?
@@ -120,7 +121,10 @@ struct InlineAIBarView: View {
                 } else if model.awaitingAcceptReject {
                     Button("Accept") { model.onAccept?() }.keyboardShortcut(.return, modifiers: [])
                     Button("Reject") { model.onReject?() }.keyboardShortcut(.escape, modifiers: [])
-                    Button("Retry") { submit() }
+                    Button("Retry") {
+                        guard !model.prompt.isEmpty else { return }
+                        model.onRetry?(model.prompt, model.model)
+                    }
                 } else {
                     Button("Generate") { submit() }.disabled(model.prompt.isEmpty)
                 }

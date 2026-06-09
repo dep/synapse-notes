@@ -132,4 +132,59 @@ final class InlineAIControllerTests: XCTestCase {
         c.reject()                   // zero deltas appended; deleting empty newRange is safe
         XCTAssertEqual(storage.string, "keep me")
     }
+
+    // MARK: discardOutput (Retry support)
+
+    func test_discardOutput_generate_removesInsertedTextAndIdles() {
+        let storage = makeStorage("ab")
+        let c = InlineAIController()
+        c.beginGenerate(in: storage, at: 2)
+        c.appendDelta("XYZ")         // "abXYZ"
+        c.discardOutput()
+        XCTAssertEqual(storage.string, "ab")
+        XCTAssertEqual(c.mode, .idle)
+    }
+
+    func test_discardOutput_rewrite_removesNewTextKeepsOriginal() {
+        let storage = makeStorage("The fox.")
+        let c = InlineAIController()
+        c.beginRewrite(in: storage, selection: NSRange(location: 0, length: 8))
+        c.appendDelta("A fox.")      // "The fox.A fox."
+        c.discardOutput()
+        XCTAssertEqual(storage.string, "The fox.")
+        XCTAssertEqual(c.mode, .idle)
+    }
+
+    func test_retryFlow_generate_replacesRatherThanAppends() {
+        // Simulates Retry: discard the first generation, then re-begin and stream again.
+        // Regression test for the bug where Retry appended onto the previous output.
+        let storage = makeStorage("Start: ")
+        let c = InlineAIController()
+        c.beginGenerate(in: storage, at: 7)
+        c.appendDelta("first attempt")   // "Start: first attempt"
+        c.discardOutput()                // back to "Start: "
+        c.beginGenerate(in: storage, at: 7)
+        c.appendDelta("second attempt")
+        XCTAssertEqual(storage.string, "Start: second attempt")
+    }
+
+    func test_retryFlow_rewrite_replacesRatherThanAppends() {
+        let storage = makeStorage("Hello WORLD!")
+        let c = InlineAIController()
+        c.beginRewrite(in: storage, selection: NSRange(location: 6, length: 5)) // "WORLD"
+        c.appendDelta("earth")           // "Hello WORLDearth!"
+        c.discardOutput()                // back to "Hello WORLD!"
+        c.beginRewrite(in: storage, selection: NSRange(location: 6, length: 5))
+        c.appendDelta("mars")
+        c.accept()
+        XCTAssertEqual(storage.string, "Hello mars!")
+    }
+
+    func test_discardOutput_whenIdle_isNoOp() {
+        let storage = makeStorage("untouched")
+        let c = InlineAIController()
+        c.discardOutput()
+        XCTAssertEqual(storage.string, "untouched")
+        XCTAssertEqual(c.mode, .idle)
+    }
 }
