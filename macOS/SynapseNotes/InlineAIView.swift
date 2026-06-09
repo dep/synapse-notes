@@ -8,6 +8,7 @@ final class AISparkleButton: NSControl {
         super.init(frame: frame)
         wantsLayer = true
         toolTip = "Ask AI"
+        focusRingType = .none
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
@@ -23,6 +24,10 @@ final class AISparkleButton: NSControl {
 
     override func mouseDown(with event: NSEvent) {
         sendAction(action, to: target)
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
     }
 }
 
@@ -62,12 +67,13 @@ final class InlineAIBarModel: ObservableObject {
         }
         // Score candidate URLs by the same algorithm wiki-link autocomplete uses,
         // then surface the matched file stems.
-        atSuggestions = allFiles
+        let scored: [(url: URL, score: Int)] = allFiles
             .map { ($0, commandPaletteScoreByFilename(forURL: $0, needle: token)) }
             .filter { $0.1 > 0 }
-            .sorted { $0.1 > $1.1 }
+        atSuggestions = scored
+            .sorted { $0.score > $1.score }
             .prefix(8)
-            .map { $0.0.deletingPathExtension().lastPathComponent }
+            .map { $0.url.deletingPathExtension().lastPathComponent }
     }
 
     /// Extracts the in-progress @token at the end of the prompt, if any.
