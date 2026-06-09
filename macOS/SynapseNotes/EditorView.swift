@@ -738,6 +738,7 @@ struct RawEditor: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let textView = Self.configuredTextView(isEditable: isEditable, settings: appState.settings)
+        textView.aiAppState = appState
         textView.delegate = context.coordinator
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
 
@@ -1059,8 +1060,9 @@ struct RawEditor: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            guard parent.appState.settings.hideMarkdownWhileEditing,
-                  let tv = textView else { return }
+            guard let tv = textView else { return }
+            tv.refreshAISparkle()
+            guard parent.appState.settings.hideMarkdownWhileEditing else { return }
 
             // Revealing the raw markdown under the caret is the immediate visual
             // feedback the user expects, so it runs synchronously on every move.
@@ -2240,6 +2242,218 @@ extension LinkAwareTextView {
             button.action = #selector(collapsibleToggleTapped(_:))
             button.identifier = NSUserInterfaceItemIdentifier(capturedId)
         }
+
+        refreshAISparkle()
+    }
+
+    // MARK: - Inline AI editing
+
+    /// Positions a single reused ✨ button at the end of the caret's line, or just
+    /// past the selection when text is selected. Cheap: one glyph-rect lookup, no parsing.
+    func refreshAISparkle() {
+        guard let layoutManager, let textContainer else { return }
+        let sel = selectedRange()
+        let ns = string as NSString
+
+        let anchorIndex: Int
+        if sel.length > 0 {
+            anchorIndex = sel.location + sel.length
+        } else {
+            let lineRange = ns.lineRange(for: NSRange(location: min(sel.location, ns.length), length: 0))
+            var end = lineRange.location + lineRange.length
+            if end > lineRange.location,
+               ns.substring(with: NSRange(location: end - 1, length: 1)).rangeOfCharacter(from: .newlines) != nil {
+                end -= 1
+            }
+            anchorIndex = end
+        }
+
+        let safe = max(0, min(anchorIndex, ns.length))
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: NSRange(location: max(0, safe - 1), length: safe > 0 ? 1 : 0),
+            actualCharacterRange: nil)
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+
+        let size: CGFloat = 18
+        let frame = NSRect(x: rect.maxX + 4, y: rect.minY + (rect.height - size) / 2, width: size, height: size)
+
+        let button: AISparkleButton
+        if let existing = aiSparkleButton {
+            button = existing
+        } else {
+            button = AISparkleButton(frame: frame)
+            button.target = self
+            button.action = #selector(aiSparkleTapped)
+            addSubview(button)
+            aiSparkleButton = button
+        }
+        button.frame = frame
+        button.isHidden = (aiBarHostingView != nil)   // hide while the bar is open
+    }
+
+    @objc private func aiSparkleTapped() {
+        let sel = selectedRange()
+        let mode: InlineAIBarMode = sel.length > 0 ? .rewrite : .generate
+        presentAIBar(mode: mode, at: sel)
+    }
+
+    private func presentAIBar(mode: InlineAIBarMode, at sel: NSRange) {
+        dismissAIBar()
+
+        let defaultModel = AIModel(apiID: settings?.aiDefaultModel ?? AIModel.default.apiID)
+        let model = InlineAIBarModel(mode: mode, model: defaultModel)
+        model.allFiles = aiAppState?.allFiles ?? []
+
+        model.onSubmit = { [weak self] prompt, chosen in
+            self?.startAIStream(prompt: prompt, model: chosen, mode: mode, selection: sel)
+        }
+        model.onStop   = { [weak self] in self?.stopAIStream() }
+        model.onAccept = { [weak self] in self?.acceptAI() }
+        model.onReject = { [weak self] in self?.rejectAI() }
+        model.onCancel = { [weak self] in self?.dismissAIBar() }
+        aiBarModel = model
+
+        let host = NSHostingView(rootView: InlineAIBarView(model: model))
+        host.frame = aiBarFrame(below: sel)
+        addSubview(host)
+        aiBarHostingView = host
+        refreshAISparkle()
+    }
+
+    private func aiBarFrame(below sel: NSRange) -> NSRect {
+        guard let layoutManager, let textContainer else { return .zero }
+        let anchor = sel.length > 0 ? sel.location + sel.length : sel.location
+        let safe = max(0, min(anchor, (string as NSString).length))
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: NSRange(location: safe, length: 0), actualCharacterRange: nil)
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+        let width = min(bounds.width - 24, 520)
+        return NSRect(x: 12, y: rect.maxY + 4, width: width, height: 80)
+    }
+
+    private func dismissAIBar() {
+        aiStreamTask?.cancel(); aiStreamTask = nil
+        aiBarHostingView?.removeFromSuperview(); aiBarHostingView = nil
+        aiBarModel = nil
+        refreshAISparkle()
+    }
+
+    private func startAIStream(prompt: String, model: AIModel, mode: InlineAIBarMode, selection sel: NSRange) {
+        guard let storage = textStorage else { return }
+        guard let key = KeychainStore().get(), !key.isEmpty else {
+            aiBarModel?.errorMessage = "Add your Anthropic API key in Settings →"
+            return
+        }
+
+        let files = aiAppState?.allFiles ?? []
+        let resolver = AIContextResolver(allFiles: files, readContents: { try? String(contentsOf: $0, encoding: .utf8) })
+        let resolved = resolver.resolve(prompt: prompt)
+
+        if mode == .generate {
+            inlineAIController.beginGenerate(in: storage, at: sel.location)
+        } else {
+            inlineAIController.beginRewrite(in: storage, selection: sel)
+        }
+
+        let selectionText = mode == .rewrite ? (string as NSString).substring(with: sel) : nil
+        let body = AIRequestBuilder.build(
+            mode: mode == .generate ? .generate : .rewrite,
+            prompt: prompt, noteText: string,
+            selection: selectionText, context: resolved.blocks, model: model)
+
+        aiBarModel?.isStreaming = true
+        if resolved.truncated {
+            aiBarModel?.errorMessage = "Context truncated to fit."
+        } else if !resolved.missing.isEmpty {
+            aiBarModel?.errorMessage = "\(resolved.missing.count) reference(s) not found."
+        } else {
+            aiBarModel?.errorMessage = nil
+        }
+
+        let client = AnthropicClient(apiKey: key)
+        aiStreamTask = Task { [weak self] in
+            do {
+                for try await delta in client.stream(body: body) {
+                    await MainActor.run {
+                        self?.inlineAIController.appendDelta(delta)
+                        self?.applyAIDiffColors()
+                        self?.didChangeText()
+                    }
+                }
+                await MainActor.run { self?.finishAIStream(mode: mode) }
+            } catch {
+                await MainActor.run { self?.handleAIError(error) }
+            }
+        }
+    }
+
+    private func stopAIStream() {
+        aiStreamTask?.cancel(); aiStreamTask = nil
+        let mode = aiBarModel?.mode ?? .generate
+        if mode == .generate { inlineAIController.cancel() }
+        finishAIStream(mode: mode)
+    }
+
+    private func finishAIStream(mode: InlineAIBarMode) {
+        aiBarModel?.isStreaming = false
+        if mode == .rewrite {
+            aiBarModel?.awaitingAcceptReject = true
+        } else {
+            inlineAIController.cancel()
+            dismissAIBar()
+        }
+        applyAIDiffColors()
+    }
+
+    private func handleAIError(_ error: Error) {
+        aiBarModel?.isStreaming = false
+        if let e = error as? AnthropicClient.ClientError {
+            switch e {
+            case .invalidKey: aiBarModel?.errorMessage = "Invalid API key — check Settings."
+            case .server(let s): aiBarModel?.errorMessage = "Server error (\(s)). Try again."
+            case .badResponse: aiBarModel?.errorMessage = "Unexpected response. Try again."
+            }
+        } else {
+            aiBarModel?.errorMessage = "Network error. Try again."
+        }
+        if aiBarModel?.mode == .rewrite { aiBarModel?.awaitingAcceptReject = true }
+    }
+
+    private func acceptAI() {
+        inlineAIController.accept()
+        clearAIDiffColors()
+        didChangeText()
+        dismissAIBar()
+    }
+
+    private func rejectAI() {
+        inlineAIController.reject()
+        clearAIDiffColors()
+        didChangeText()
+        dismissAIBar()
+    }
+
+    private func applyAIDiffColors() {
+        guard let storage = textStorage else { return }
+        if let orig = inlineAIController.originalRange, orig.length > 0,
+           NSMaxRange(orig) <= storage.length {
+            storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: orig)
+            storage.addAttribute(.foregroundColor, value: NSColor.systemRed, range: orig)
+        }
+        if let nr = inlineAIController.newRange, nr.length > 0,
+           NSMaxRange(nr) <= storage.length {
+            storage.addAttribute(.foregroundColor, value: NSColor.systemGreen, range: nr)
+        }
+    }
+
+    private func clearAIDiffColors() {
+        guard let storage = textStorage else { return }
+        let full = NSRange(location: 0, length: storage.length)
+        storage.removeAttribute(.strikethroughStyle, range: full)
+        refreshEditorForCurrentDisplayMode(self)
     }
 
     @objc private func collapsibleToggleTapped(_ sender: NSControl) {
@@ -2340,6 +2554,15 @@ class LinkAwareTextView: NSTextView {
     private let collapsibleStateManager = CollapsibleStateManager()
     /// Toggle buttons keyed by section identifier ("headerOffset-headerLength")
     private var collapsibleToggleButtons: [String: CollapsibleToggleButton] = [:]
+
+    // MARK: - Inline AI editing
+    let inlineAIController = InlineAIController()
+    private var aiSparkleButton: AISparkleButton?
+    private var aiBarHostingView: NSHostingView<InlineAIBarView>?
+    private var aiBarModel: InlineAIBarModel?
+    private var aiStreamTask: Task<Void, Never>?
+    /// Injected at setup; source of vault files for @-context.
+    weak var aiAppState: AppState?
 
     // MARK: - Embedded Notes (for side panel)
     private static let embedRegex = try? NSRegularExpression(pattern: #"!\[\[([^\]]+)\]\]"#)
