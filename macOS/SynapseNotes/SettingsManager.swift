@@ -274,6 +274,10 @@ class SettingsManager: ObservableObject {
     @Published var githubPAT: String {
         didSet { save() }
     }
+    /// Default Anthropic model (API ID) for inline AI editing (machine-local).
+    @Published var aiDefaultModel: String {
+        didSet { save() }
+    }
     @Published var fileTreeMode: FileTreeMode {
         didSet { save() }
     }
@@ -514,6 +518,7 @@ class SettingsManager: ObservableObject {
         /// Pane assignments: maps sidebar UUID string -> [SidebarPane]
         var sidebarPaneAssignments: [String: [SidebarPaneItem]]?
         var githubPAT: String?
+        var aiDefaultModel: String?
         var fileTreeMode: String?
         var pinnedItems: [PinnedItem]?
         var defaultEditMode: Bool?
@@ -544,6 +549,7 @@ class SettingsManager: ObservableObject {
             collapsedSidebarIDs = try container.decodeIfPresent([String].self, forKey: .collapsedSidebarIDs)
             sidebarPaneAssignments = try container.decodeIfPresent([String: [SidebarPaneItem]].self, forKey: .sidebarPaneAssignments)
             githubPAT = try container.decodeIfPresent(String.self, forKey: .githubPAT)
+            aiDefaultModel = try container.decodeIfPresent(String.self, forKey: .aiDefaultModel)
             fileTreeMode = try container.decodeIfPresent(String.self, forKey: .fileTreeMode)
             pinnedItems = try container.decodeIfPresent([PinnedItem].self, forKey: .pinnedItems)
             defaultEditMode = try container.decodeIfPresent(Bool.self, forKey: .defaultEditMode)
@@ -668,6 +674,7 @@ class SettingsManager: ObservableObject {
     /// Config for machine-local settings only
     private struct GlobalConfig: Codable {
         var githubPAT: String?
+        var aiDefaultModel: String?
         var sidebarPaneHeights: [String: CGFloat]?
         var collapsedPanes: [String]?
         var collapsedSidebarIDs: [String]?
@@ -682,6 +689,7 @@ class SettingsManager: ObservableObject {
 
         init(
             githubPAT: String?,
+            aiDefaultModel: String? = nil,
             sidebarPaneHeights: [String: CGFloat]?,
             collapsedPanes: [String]?,
             collapsedSidebarIDs: [String]?,
@@ -691,6 +699,7 @@ class SettingsManager: ObservableObject {
             lastNoteFolderPerVault: [String: String]? = nil
         ) {
             self.githubPAT = githubPAT
+            self.aiDefaultModel = aiDefaultModel
             self.sidebarPaneHeights = sidebarPaneHeights
             self.collapsedPanes = collapsedPanes
             self.collapsedSidebarIDs = collapsedSidebarIDs
@@ -704,6 +713,7 @@ class SettingsManager: ObservableObject {
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             githubPAT = try container.decodeIfPresent(String.self, forKey: .githubPAT)
+            aiDefaultModel = try container.decodeIfPresent(String.self, forKey: .aiDefaultModel)
             sidebarPaneHeights = try container.decodeIfPresent([String: CGFloat].self, forKey: .sidebarPaneHeights)
             collapsedPanes = try container.decodeIfPresent([String].self, forKey: .collapsedPanes)
             collapsedSidebarIDs = try container.decodeIfPresent([String].self, forKey: .collapsedSidebarIDs)
@@ -746,6 +756,7 @@ class SettingsManager: ObservableObject {
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         self.githubPAT = ""
+        self.aiDefaultModel = "claude-sonnet-4-6"
         self.fileTreeMode = .folder
         self.pinnedItems = []
         self.defaultEditMode = true
@@ -804,6 +815,7 @@ class SettingsManager: ObservableObject {
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         self.githubPAT = ""
+        self.aiDefaultModel = "claude-sonnet-4-6"
         self.fileTreeMode = .folder
         self.pinnedItems = []
         self.defaultEditMode = true
@@ -874,6 +886,7 @@ class SettingsManager: ObservableObject {
                 collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
             }
             githubPAT = config.githubPAT ?? ""
+            aiDefaultModel = config.aiDefaultModel ?? "claude-sonnet-4-6"
             fileTreeMode = FileTreeMode(rawValue: config.fileTreeMode ?? "") ?? .folder
             pinnedItems = config.pinnedItems ?? []
             defaultEditMode = config.defaultEditMode ?? true
@@ -904,6 +917,7 @@ class SettingsManager: ObservableObject {
         collapsedPanes = []
         collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         githubPAT = ""
+        aiDefaultModel = "claude-sonnet-4-6"
         fileTreeMode = .folder
         pinnedItems = []
         defaultEditMode = true
@@ -1005,6 +1019,7 @@ class SettingsManager: ObservableObject {
 
     private func applyGlobalConfig(_ globalConfig: GlobalConfig?) {
         githubPAT = globalConfig?.githubPAT ?? ""
+        aiDefaultModel = globalConfig?.aiDefaultModel ?? "claude-sonnet-4-6"
         sidebars = Self.applyPaneAssignments(globalConfig?.sidebarPaneAssignments)
         sidebarPaneHeights = globalConfig?.sidebarPaneHeights ?? Self.defaultPaneHeights
         collapsedPanes = Set(globalConfig?.collapsedPanes ?? [])
@@ -1184,6 +1199,7 @@ class SettingsManager: ObservableObject {
         let collapsedPanes: [String]
         let collapsedSidebarIDs: [String]
         let githubPAT: String
+        let aiDefaultModel: String
         let fileTreeMode: FileTreeMode
         let pinnedItems: [PinnedItem]
         let defaultEditMode: Bool
@@ -1222,6 +1238,7 @@ class SettingsManager: ObservableObject {
             collapsedPanes        = Array(s.collapsedPanes)
             collapsedSidebarIDs   = Array(s.collapsedSidebarIDs)
             githubPAT             = s.githubPAT
+            aiDefaultModel        = s.aiDefaultModel
             fileTreeMode          = s.fileTreeMode
             pinnedItems           = s.pinnedItems
             defaultEditMode       = s.defaultEditMode
@@ -1257,6 +1274,7 @@ class SettingsManager: ObservableObject {
             guard let globalConfigPath else { return }
             let globalConfig = GlobalConfig(
                 githubPAT: githubPAT.isEmpty ? nil : githubPAT,
+                aiDefaultModel: aiDefaultModel,
                 sidebarPaneHeights: sidebarPaneHeights.isEmpty ? nil : sidebarPaneHeights,
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
                 collapsedSidebarIDs: collapsedSidebarIDs.isEmpty ? nil : collapsedSidebarIDs,
@@ -1291,6 +1309,7 @@ class SettingsManager: ObservableObject {
                 var collapsedPanes: [String]?
                 var collapsedSidebarIDs: [String]?
                 var githubPAT: String?
+                var aiDefaultModel: String?
                 var fileTreeMode: String?
                 var pinnedItems: [PinnedItem]?
                 var defaultEditMode: Bool?
@@ -1320,6 +1339,7 @@ class SettingsManager: ObservableObject {
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
                 collapsedSidebarIDs: collapsedSidebarIDs.isEmpty ? nil : collapsedSidebarIDs,
                 githubPAT: githubPAT.isEmpty ? nil : githubPAT,
+                aiDefaultModel: aiDefaultModel.isEmpty ? nil : aiDefaultModel,
                 fileTreeMode: fileTreeMode.rawValue,
                 pinnedItems: pinnedItems.isEmpty ? nil : pinnedItems,
                 defaultEditMode: defaultEditMode,
@@ -1376,6 +1396,7 @@ class SettingsManager: ObservableObject {
             guard let globalConfigPath else { return }
             let globalConfig = GlobalConfig(
                 githubPAT: githubPAT.isEmpty ? nil : githubPAT,
+                aiDefaultModel: aiDefaultModel,
                 sidebarPaneHeights: sidebarPaneHeights.isEmpty ? nil : sidebarPaneHeights,
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
                 collapsedSidebarIDs: collapsedSidebarIDs.isEmpty ? nil : collapsedSidebarIDs,
