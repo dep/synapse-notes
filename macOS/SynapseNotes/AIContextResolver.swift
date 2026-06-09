@@ -24,8 +24,17 @@ struct AIContextResolver {
     }
 
     /// Matches `@token` where token is letters/digits/_/-/space-free path-ish chars.
-    private static let tokenRegex = try! NSRegularExpression(pattern: "@([\\w./-]+)")
+    /// Negative lookbehind prevents matching emails (e.g. `foo@bar.com`).
+    /// Trailing dots are excluded from the capture (e.g. `@budget.` captures `budget`).
+    private static let tokenRegex = try! NSRegularExpression(pattern: "(?<![\\w])@([\\w/-]+(?:\\.[\\w/-]+)*)")
 
+    /// Resolves `@name` tokens to note bodies, capped at `charCap` total characters.
+    ///
+    /// Tokens are matched case-insensitively by file stem and de-duplicated. Unmatched
+    /// tokens are listed in `missing` (preserving original case). When the cumulative
+    /// body size would exceed `charCap`, the overflowing block is truncated to fit,
+    /// `truncated` is set, and any tokens appearing *after* that point are not processed
+    /// (they appear in neither `blocks` nor `missing`).
     func resolve(prompt: String) -> Result {
         let ns = prompt as NSString
         let matches = Self.tokenRegex.matches(in: prompt, range: NSRange(location: 0, length: ns.length))

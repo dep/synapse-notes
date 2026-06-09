@@ -50,4 +50,37 @@ final class AIContextResolverTests: XCTestCase {
         let result = r.resolve(prompt: "@Foo and again @foo")
         XCTAssertEqual(result.blocks.count, 1)
     }
+
+    func test_emptyPrompt_returnsEmptyResult() {
+        let r = makeResolver(["Foo": "x"])
+        let result = r.resolve(prompt: "")
+        XCTAssertTrue(result.blocks.isEmpty)
+        XCTAssertTrue(result.missing.isEmpty)
+        XCTAssertFalse(result.truncated)
+    }
+
+    func test_trailingPunctuation_doesNotBreakMatch() {
+        let r = makeResolver(["Budget": "budget body"])
+        // "@Budget." at a sentence end must still resolve to "Budget".
+        let result = r.resolve(prompt: "see @Budget.")
+        XCTAssertEqual(result.blocks.map(\.name), ["Budget"])
+        XCTAssertTrue(result.missing.isEmpty)
+    }
+
+    func test_emailAddress_isNotTreatedAsAtToken() {
+        let r = makeResolver(["Bar": "bar body"])
+        // "foo@bar.com" is an email — the @ is preceded by a word char, so no token.
+        let result = r.resolve(prompt: "reply to foo@bar.com please")
+        XCTAssertTrue(result.blocks.isEmpty)
+        XCTAssertTrue(result.missing.isEmpty)
+    }
+
+    func test_exactCapBoundary_keepsFirstBlockOnly() {
+        let exact = String(repeating: "a", count: 100_000)
+        let r = makeResolver(["One": exact, "Two": "more"], cap: 100_000)
+        let result = r.resolve(prompt: "@One @Two")
+        XCTAssertEqual(result.blocks.map(\.name), ["One"])
+        // The whole first block fits exactly; the second is dropped by the cap.
+        XCTAssertEqual(result.blocks[0].body.count, 100_000)
+    }
 }
