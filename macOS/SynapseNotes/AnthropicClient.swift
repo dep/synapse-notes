@@ -18,6 +18,13 @@ struct AnthropicClient {
     /// or end of stream, and throws `ClientError` on a non-2xx status.
     func stream(body: [String: Any]) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
+            let httpBody: Data
+            do {
+                httpBody = try JSONSerialization.data(withJSONObject: body)
+            } catch {
+                continuation.finish(throwing: error)
+                return
+            }
             let task = Task {
                 do {
                     var request = URLRequest(url: Self.endpoint)
@@ -25,7 +32,7 @@ struct AnthropicClient {
                     request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
                     request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
                     request.setValue("application/json", forHTTPHeaderField: "content-type")
-                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    request.httpBody = httpBody
 
                     let (bytes, response) = try await urlSession.bytes(for: request)
 
@@ -33,8 +40,6 @@ struct AnthropicClient {
                         throw ClientError.badResponse
                     }
                     guard (200...299).contains(http.statusCode) else {
-                        // Drain so the connection closes cleanly.
-                        for try await _ in bytes.lines {}
                         if http.statusCode == 401 { throw ClientError.invalidKey }
                         throw ClientError.server(status: http.statusCode)
                     }

@@ -19,6 +19,20 @@ private final class MockSSEURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+private final class MockNonHTTPURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        // A plain URLResponse (not HTTPURLResponse) triggers .badResponse.
+        let response = URLResponse(url: request.url!, mimeType: "text/plain",
+                                   expectedContentLength: 0, textEncodingName: nil)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data())
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 final class AnthropicClientTests: XCTestCase {
     private func makeClient() -> AnthropicClient {
         let config = URLSessionConfiguration.ephemeral
@@ -89,5 +103,32 @@ final class AnthropicClientTests: XCTestCase {
         } catch {
             XCTFail("wrong error type: \(error)")
         }
+    }
+
+    func test_nonHTTPResponse_throwsBadResponse() async {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockNonHTTPURLProtocol.self]
+        let client = AnthropicClient(apiKey: "sk-test", urlSession: URLSession(configuration: config))
+        do {
+            for try await _ in client.stream(body: [:]) {}
+            XCTFail("expected throw")
+        } catch let error as AnthropicClient.ClientError {
+            XCTAssertEqual(error, .badResponse)
+        } catch {
+            XCTFail("wrong error type: \(error)")
+        }
+    }
+
+    func test_nonJSONDataLine_isIgnored() async throws {
+        MockSSEURLProtocol.responseStatus = 200
+        MockSSEURLProtocol.bodyData = sse([
+            "data: [DONE]",
+            #"data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Y"}}"#,
+            #"data: {"type":"message_stop"}"#
+        ])
+        let client = makeClient()
+        var collected = ""
+        for try await delta in client.stream(body: [:]) { collected += delta }
+        XCTAssertEqual(collected, "Y")
     }
 }
