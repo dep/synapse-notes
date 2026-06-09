@@ -83,4 +83,32 @@ final class AIContextResolverTests: XCTestCase {
         // The whole first block fits exactly; the second is dropped by the cap.
         XCTAssertEqual(result.blocks[0].body.count, 100_000)
     }
+
+    func test_bracketedToken_withSpaces_resolves() {
+        let r = makeResolver(["My Note": "spaced body"])
+        let result = r.resolve(prompt: "see @[My Note] please")
+        XCTAssertEqual(result.blocks.map(\.name), ["My Note"])
+        XCTAssertEqual(result.blocks[0].body, "spaced body")
+        XCTAssertTrue(result.missing.isEmpty)
+    }
+
+    func test_bracketedToken_caseInsensitive() {
+        let r = makeResolver(["Weekly Review": "x"])
+        let result = r.resolve(prompt: "@[weekly review]")
+        XCTAssertEqual(result.blocks.map(\.name), ["Weekly Review"])
+    }
+
+    func test_bareToken_stillWorksAlongsideBracket() {
+        let r = makeResolver(["Foo": "f", "My Note": "m"])
+        let result = r.resolve(prompt: "@Foo and @[My Note]")
+        XCTAssertEqual(Set(result.blocks.map(\.name)), Set(["Foo", "My Note"]))
+        XCTAssertTrue(result.missing.isEmpty)
+    }
+
+    func test_bracketedMissing_isReported() {
+        let r = makeResolver(["Foo": "f"])
+        let result = r.resolve(prompt: "@[No Such Note]")
+        XCTAssertEqual(result.missing, ["No Such Note"])
+        XCTAssertTrue(result.blocks.isEmpty)
+    }
 }

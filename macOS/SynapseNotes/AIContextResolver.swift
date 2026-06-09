@@ -23,10 +23,10 @@ struct AIContextResolver {
         self.readContents = readContents
     }
 
-    /// Matches `@token` where token is letters/digits/_/-/space-free path-ish chars.
-    /// Negative lookbehind prevents matching emails (e.g. `foo@bar.com`).
-    /// Trailing dots are excluded from the capture (e.g. `@budget.` captures `budget`).
-    private static let tokenRegex = try! NSRegularExpression(pattern: "(?<![\\w])@([\\w/-]+(?:\\.[\\w/-]+)*)")
+    // Matches @[Multi Word Name] (group 1) or a bare @token (group 2).
+    // The bracket form supports filenames with spaces; the bare form keeps the
+    // common case terse. The negative lookbehind skips emails (foo@bar).
+    private static let tokenRegex = try! NSRegularExpression(pattern: "(?<![\\w])@(?:\\[([^\\]]+)\\]|([\\w/-]+(?:\\.[\\w/-]+)*))")
 
     /// Resolves `@name` tokens to note bodies, capped at `charCap` total characters.
     ///
@@ -46,7 +46,16 @@ struct AIContextResolver {
         var used = 0
 
         for match in matches {
-            let token = ns.substring(with: match.range(at: 1))
+            let bracketRange = match.range(at: 1)
+            let bareRange = match.range(at: 2)
+            let token: String
+            if bracketRange.location != NSNotFound {
+                token = ns.substring(with: bracketRange)
+            } else if bareRange.location != NSNotFound {
+                token = ns.substring(with: bareRange)
+            } else {
+                continue
+            }
             let key = token.lowercased()
             guard !seen.contains(key) else { continue }
             seen.insert(key)

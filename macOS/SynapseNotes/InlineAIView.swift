@@ -88,7 +88,8 @@ final class InlineAIBarModel: ObservableObject {
     /// Replace the active @token with the chosen stem.
     func applySuggestion(_ stem: String) {
         guard let atIndex = prompt.lastIndex(of: "@") else { return }
-        prompt = String(prompt[..<atIndex]) + "@" + stem + " "
+        let token = stem.contains(" ") ? "@[\(stem)] " : "@\(stem) "
+        prompt = String(prompt[..<atIndex]) + token
         atSuggestions = []
     }
 }

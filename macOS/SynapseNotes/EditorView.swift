@@ -1022,7 +1022,11 @@ struct RawEditor: NSViewRepresentable {
             guard let tv = textView else { return }
             let oldText = parent.text
             let newText = tv.string
-            if parent.text != newText {
+            // While a rewrite diff is pending, the buffer holds BOTH the struck-through
+            // original and the new text. Don't sync that half-diff to the binding (or mark
+            // dirty / trigger autosave). acceptAI/rejectAI call didChangeText() once resolved,
+            // which syncs the final text (mode back to .idle, so hasPendingAIDiff is false).
+            if !tv.hasPendingAIDiff, parent.text != newText {
                 parent.text = newText
                 if let onDidEdit = parent.onDidEdit {
                     onDidEdit()
@@ -2449,6 +2453,9 @@ extension LinkAwareTextView {
         } else {
             aiBarModel?.errorMessage = "Network error. Try again."
         }
+        if aiBarModel?.mode == .generate {
+            inlineAIController.cancel()   // generate: reset to idle so a retry starts clean
+        }
         if aiBarModel?.mode == .rewrite { aiBarModel?.awaitingAcceptReject = true }
     }
 
@@ -2587,6 +2594,9 @@ class LinkAwareTextView: NSTextView {
 
     // MARK: - Inline AI editing
     let inlineAIController = InlineAIController()
+    /// True while a rewrite diff is on screen awaiting accept/reject — the buffer
+    /// holds both original and new text, which must not be synced/saved as-is.
+    var hasPendingAIDiff: Bool { inlineAIController.mode == .rewrite }
     private var aiSparkleButton: AISparkleButton?
     private var aiBarHostingView: NSHostingView<InlineAIBarView>?
     private var aiBarModel: InlineAIBarModel?
