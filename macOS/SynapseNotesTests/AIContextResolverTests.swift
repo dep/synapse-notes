@@ -111,4 +111,71 @@ final class AIContextResolverTests: XCTestCase {
         XCTAssertEqual(result.missing, ["No Such Note"])
         XCTAssertTrue(result.blocks.isEmpty)
     }
+
+    // MARK: Folder resolution
+
+    /// Builds a resolver where files live at explicit paths and folders are provided.
+    private func makeFolderResolver(
+        files: [String: String],   // absolute path -> body
+        folders: [String]          // absolute folder paths
+    ) -> AIContextResolver {
+        let fileURLs = files.keys.map { URL(fileURLWithPath: $0) }
+        let folderURLs = folders.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        return AIContextResolver(
+            allFiles: fileURLs,
+            allFolders: folderURLs,
+            readContents: { url in files[url.path] }
+        )
+    }
+
+    func test_folderToken_concatenatesDirectChildren() {
+        let r = makeFolderResolver(
+            files: [
+                "/vault/Weekly Summaries/Mon.md": "monday",
+                "/vault/Weekly Summaries/Tue.md": "tuesday",
+                "/vault/Other/Skip.md": "nope"
+            ],
+            folders: ["/vault/Weekly Summaries", "/vault/Other"]
+        )
+        let result = r.resolve(prompt: "summarize @[Weekly Summaries]")
+        XCTAssertEqual(result.blocks.map(\.name), ["Weekly Summaries"])
+        let body = result.blocks[0].body
+        XCTAssertTrue(body.contains("monday"))
+        XCTAssertTrue(body.contains("tuesday"))
+        XCTAssertFalse(body.contains("nope"))   // not a child of this folder
+        XCTAssertTrue(result.missing.isEmpty)
+    }
+
+    func test_folderToken_caseInsensitive() {
+        let r = makeFolderResolver(
+            files: ["/vault/Weekly Summaries/A.md": "alpha"],
+            folders: ["/vault/Weekly Summaries"]
+        )
+        let result = r.resolve(prompt: "@[weekly summaries]")
+        XCTAssertEqual(result.blocks.map(\.name), ["Weekly Summaries"])
+        XCTAssertTrue(result.blocks[0].body.contains("alpha"))
+    }
+
+    func test_emptyFolder_isReportedMissing() {
+        let r = makeFolderResolver(
+            files: [:],
+            folders: ["/vault/Empty"]
+        )
+        let result = r.resolve(prompt: "@Empty")
+        XCTAssertEqual(result.missing, ["Empty"])
+        XCTAssertTrue(result.blocks.isEmpty)
+    }
+
+    func test_fileWins_overFolderOfSameName() {
+        let r = makeFolderResolver(
+            files: [
+                "/vault/Notes.md": "the file",
+                "/vault/Notes/child.md": "the folder child"
+            ],
+            folders: ["/vault/Notes"]
+        )
+        let result = r.resolve(prompt: "@Notes")
+        XCTAssertEqual(result.blocks.map(\.name), ["Notes"])
+        XCTAssertEqual(result.blocks[0].body, "the file")   // file preferred
+    }
 }

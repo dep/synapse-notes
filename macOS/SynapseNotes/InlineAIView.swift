@@ -34,6 +34,15 @@ final class AISparkleButton: NSControl {
 /// Whether the bar opens to generate at the cursor or rewrite a selection.
 enum InlineAIBarMode { case generate, rewrite }
 
+/// An @-autocomplete suggestion: a vault note or a folder.
+struct AISuggestion: Identifiable, Equatable {
+    enum Kind { case file, folder }
+    let name: String      // stem (file) or folder name
+    let kind: Kind
+    var id: String { "\(kind == .folder ? "dir:" : "file:")\(name)" }
+    var systemImage: String { kind == .folder ? "folder" : "doc.text" }
+}
+
 /// View model backing the inline AI bar.
 final class InlineAIBarModel: ObservableObject {
     @Published var prompt: String = ""
@@ -41,11 +50,13 @@ final class InlineAIBarModel: ObservableObject {
     @Published var isStreaming: Bool = false
     @Published var errorMessage: String?
     @Published var awaitingAcceptReject: Bool = false   // rewrite finished, awaiting decision
-    @Published var atSuggestions: [String] = []         // file stems matching the active @token
+    @Published var atSuggestions: [AISuggestion] = []   // notes + folders matching the active @token
 
     let mode: InlineAIBarMode
     /// Vault note file URLs, for @-autocomplete scoring.
     var allFiles: [URL] = []
+    /// Vault folder URLs, for @-autocomplete scoring.
+    var allFolders: [URL] = []
 
     // Callbacks wired by the host (Task 9).
     var onSubmit: ((String, AIModel) -> Void)?
@@ -54,42 +65,65 @@ final class InlineAIBarModel: ObservableObject {
     var onAccept: (() -> Void)?
     var onReject: (() -> Void)?
     var onCancel: (() -> Void)?   // Esc with nothing pending → close the bar
+    var onDrag: ((CGSize) -> Void)?       // drag-handle translation (global coords)
+    var onDragEnded: (() -> Void)?
+    var onContentSizeMayHaveChanged: (() -> Void)?   // prompt grew / suggestions toggled
 
     init(mode: InlineAIBarMode, model: AIModel) {
         self.mode = mode
         self.model = model
     }
 
-    /// Recompute @-autocomplete suggestions for the current prompt.
+    /// Recompute @-autocomplete suggestions for the current prompt — notes and folders,
+    /// scored by the same algorithm the wiki-link autocomplete uses.
     func updateSuggestions() {
         guard let token = activeAtToken(in: prompt), !token.isEmpty else {
             atSuggestions = []
             return
         }
-        // Score candidate URLs by the same algorithm wiki-link autocomplete uses,
-        // then surface the matched file stems.
-        let scored: [(url: URL, score: Int)] = allFiles
-            .map { ($0, commandPaletteScoreByFilename(forURL: $0, needle: token)) }
-            .filter { $0.1 > 0 }
-        atSuggestions = scored
-            .sorted { $0.score > $1.score }
+        let fileScored: [(AISuggestion, Int)] = allFiles.compactMap {
+            let score = commandPaletteScoreByFilename(forURL: $0, needle: token)
+            guard score > 0 else { return nil }
+            return (AISuggestion(name: $0.deletingPathExtension().lastPathComponent, kind: .file), score)
+        }
+        let folderScored: [(AISuggestion, Int)] = allFolders.compactMap {
+            let score = commandPaletteScoreByFolderName(forURL: $0, needle: token)
+            guard score > 0 else { return nil }
+            return (AISuggestion(name: $0.lastPathComponent, kind: .folder), score)
+        }
+        var seenIDs = Set<String>()
+        atSuggestions = (fileScored + folderScored)
+            .sorted { $0.1 > $1.1 }
+            .map { $0.0 }
+            .filter { seenIDs.insert($0.id).inserted }   // de-dup by id, keep highest score
             .prefix(8)
-            .map { $0.url.deletingPathExtension().lastPathComponent }
+            .map { $0 }
     }
 
     /// Extracts the in-progress @token at the end of the prompt, if any.
+    /// Supports a bracket form `@[Multi Word` (still being typed) so folder/note names
+    /// with spaces can be filtered as the user types inside the brackets.
     private func activeAtToken(in text: String) -> String? {
         guard let atIndex = text.lastIndex(of: "@") else { return nil }
-        let after = text[text.index(after: atIndex)...]
-        // No spaces inside a token; a space after @ means the token is complete.
+        var after = Substring(text[text.index(after: atIndex)...])
+        if after.first == "[" {
+            after = after.dropFirst()
+            if let close = after.firstIndex(of: "]") {
+                // A closed bracket means the token is complete — no live suggestions.
+                if after.index(after: close) <= after.endIndex { return nil }
+            }
+            return String(after)   // may contain spaces — that's the point
+        }
+        // Bare token: no spaces.
         if after.contains(" ") { return nil }
         return String(after)
     }
 
-    /// Replace the active @token with the chosen stem.
-    func applySuggestion(_ stem: String) {
+    /// Replace the active @token with the chosen suggestion (bracketed if it has spaces).
+    func applySuggestion(_ suggestion: AISuggestion) {
         guard let atIndex = prompt.lastIndex(of: "@") else { return }
-        let token = stem.contains(" ") ? "@[\(stem)] " : "@\(stem) "
+        let name = suggestion.name
+        let token = name.contains(" ") ? "@[\(name)] " : "@\(name) "
         prompt = String(prompt[..<atIndex]) + token
         atSuggestions = []
     }
@@ -101,10 +135,16 @@ struct InlineAIBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
+            // Drag handle — click-drag to move the bar.
+            dragHandle
+
+            HStack(alignment: .top, spacing: 8) {
                 Text("✨")
+                    .padding(.top, 2)
+                // Multi-line prompt: Enter submits, Shift+Enter inserts a newline.
                 TextField(model.mode == .generate ? "Ask AI to write…" : "Ask AI to edit…",
-                          text: $model.prompt)
+                          text: $model.prompt, axis: .vertical)
+                    .lineLimit(1...6)
                     .textFieldStyle(.plain)
                     .focused($promptFocused)
                     .onChange(of: model.prompt) { _ in model.updateSuggestions() }
@@ -130,41 +170,88 @@ struct InlineAIBarView: View {
                 }
             }
 
-            // Invisible Esc handler for the non-pending states (Reject owns Esc when pending).
-            if !model.awaitingAcceptReject {
-                Button("") { model.onCancel?() }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .opacity(0)
-                    .frame(width: 0, height: 0)
-                    .accessibilityHidden(true)
-            }
-
             if let err = model.errorMessage {
                 Text(err).font(.caption).foregroundColor(.red)
             }
 
             if !model.atSuggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(model.atSuggestions, id: \.self) { stem in
-                        Button {
-                            model.applySuggestion(stem)
-                            promptFocused = true
-                        } label: {
-                            HStack { Text("@\(stem)"); Spacer() }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(6)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .cornerRadius(6)
+                suggestionList
             }
         }
         .padding(8)
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 1))
         .cornerRadius(8)
+        // Esc handler as a non-layout background so it never intercepts row clicks.
+        .background(escHandler)
         .onAppear { promptFocused = true }
+        // One signal that the bar's height may have changed (prompt grew, suggestions
+        // toggled, error shown, accept/reject row swapped in) → host re-fits.
+        .onChange(of: contentSizeSignal) { _ in model.onContentSizeMayHaveChanged?() }
+    }
+
+    /// A single value that changes whenever the bar's layout footprint might change,
+    /// so one `.onChange` covers prompt growth, suggestion toggles, and state swaps.
+    private var contentSizeSignal: String {
+        "\(model.prompt.count)|\(model.atSuggestions.count)|\(model.errorMessage ?? "")|\(model.awaitingAcceptReject)|\(model.isStreaming)"
+    }
+
+    private var dragHandle: some View {
+        HStack {
+            Spacer()
+            Image(systemName: "ellipsis")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.6))
+            Spacer()
+        }
+        .frame(height: 12)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { value in
+                    model.onDrag?(value.translation)
+                }
+                .onEnded { _ in model.onDragEnded?() }
+        )
+        .help("Drag to move")
+    }
+
+    @ViewBuilder private var suggestionList: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            ForEach(model.atSuggestions) { suggestion in
+                Button {
+                    model.applySuggestion(suggestion)
+                    promptFocused = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: suggestion.systemImage)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .frame(width: 14)
+                        Text(suggestion.name)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 4)
+                    .contentShape(Rectangle())   // whole row is hit-testable
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(6)
+    }
+
+    // A zero-size, non-layout button that owns Esc-to-close when nothing is pending.
+    @ViewBuilder private var escHandler: some View {
+        if !model.awaitingAcceptReject {
+            Button("") { model.onCancel?() }
+                .keyboardShortcut(.escape, modifiers: [])
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     private func submit() {

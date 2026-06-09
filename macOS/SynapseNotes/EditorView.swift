@@ -2313,10 +2313,13 @@ extension LinkAwareTextView {
     private func presentAIBar(mode: InlineAIBarMode, at sel: NSRange) {
         dismissAIBar()
         aiBarOriginalSelection = sel
+        aiBarUserMoved = false
+        aiBarDragStartOrigin = nil
 
         let defaultModel = AIModel(apiID: settings?.aiDefaultModel ?? AIModel.default.apiID)
         let model = InlineAIBarModel(mode: mode, model: defaultModel)
         model.allFiles = aiAppState?.allFiles ?? []
+        model.allFolders = aiAppState?.allFolders() ?? []
 
         model.onSubmit = { [weak self] prompt, chosen in
             self?.startAIStream(prompt: prompt, model: chosen, mode: mode, selection: sel)
@@ -2333,6 +2336,9 @@ extension LinkAwareTextView {
         model.onAccept = { [weak self] in self?.acceptAI() }
         model.onReject = { [weak self] in self?.rejectAI() }
         model.onCancel = { [weak self] in self?.dismissAIBar() }
+        model.onDrag = { [weak self] translation in self?.dragAIBar(by: translation) }
+        model.onDragEnded = { [weak self] in self?.aiBarDragStartOrigin = nil }
+        model.onContentSizeMayHaveChanged = { [weak self] in self?.resizeAIBarToFit() }
         aiBarModel = model
 
         let host = NSHostingView(rootView: InlineAIBarView(model: model))
@@ -2351,8 +2357,15 @@ extension LinkAwareTextView {
     private func aiBarFrame(below sel: NSRange) -> NSRect {
         guard let layoutManager, let textContainer else { return .zero }
         let ns = string as NSString
-        let barHeight: CGFloat = 80
         let width = min(bounds.width - 24, 520)
+        // Size to the bar's content (drag handle + growing prompt + suggestion list),
+        // so nothing is clipped. fittingSize needs the target width set first.
+        var barHeight: CGFloat = 80
+        if let host = aiBarHostingView {
+            host.frame.size.width = width
+            let fitting = host.fittingSize.height
+            if fitting > 0 { barHeight = max(60, min(fitting, 360)) }
+        }
 
         func yOffset(forCharacterIndex index: Int) -> (top: CGFloat, bottom: CGFloat) {
             let safe = max(0, min(index, ns.length))
@@ -2383,10 +2396,42 @@ extension LinkAwareTextView {
 
     /// Re-anchors the bar below the current affected region (called as text streams in
     /// and when streaming finishes) so it tracks the growing diff instead of covering it.
+    /// No-op once the user has dragged the bar to a manual position.
     private func repositionAIBar() {
+        guard let host = aiBarHostingView, !aiBarUserMoved else { return }
+        host.frame = aiBarFrame(below: aiBarOriginalSelection)
+    }
+
+    /// Resizes the bar to fit its content (prompt growth, suggestion list). Preserves the
+    /// user-dragged origin if they moved it; otherwise re-anchors below the affected region.
+    private func resizeAIBarToFit() {
         guard let host = aiBarHostingView else { return }
-        let sel = aiBarOriginalSelection
-        host.frame = aiBarFrame(below: sel)
+        if aiBarUserMoved {
+            let width = min(bounds.width - 24, 520)
+            host.frame.size.width = width
+            let fitting = host.fittingSize.height
+            host.frame.size.height = max(60, min(fitting > 0 ? fitting : 80, 360))
+        } else {
+            host.frame = aiBarFrame(below: aiBarOriginalSelection)
+        }
+    }
+
+    /// Moves the bar by a drag-handle translation. `translation` is SwiftUI global-space
+    /// (y grows downward); this view is an unflipped NSView (y grows upward), so the y
+    /// delta is negated. The translation is cumulative from drag start, so we offset the
+    /// origin captured when the drag began.
+    private func dragAIBar(by translation: CGSize) {
+        guard let host = aiBarHostingView else { return }
+        aiBarUserMoved = true
+        let start = aiBarDragStartOrigin ?? host.frame.origin
+        if aiBarDragStartOrigin == nil { aiBarDragStartOrigin = start }
+        let newOrigin = NSPoint(x: start.x + translation.width,
+                                y: start.y - translation.height)
+        // Keep the bar within the visible area.
+        let visible = enclosingScrollView?.documentVisibleRect ?? visibleRect
+        let clampedX = min(max(newOrigin.x, visible.minX + 4), visible.maxX - host.frame.width - 4)
+        let clampedY = min(max(newOrigin.y, visible.minY + 4), visible.maxY - host.frame.height - 4)
+        host.frame.origin = NSPoint(x: clampedX, y: clampedY)
     }
 
     private func dismissAIBar() {
@@ -2427,7 +2472,11 @@ extension LinkAwareTextView {
         }
 
         let files = aiAppState?.allFiles ?? []
-        let resolver = AIContextResolver(allFiles: files, readContents: { try? String(contentsOf: $0, encoding: .utf8) })
+        let folders = aiAppState?.allFolders() ?? []
+        let resolver = AIContextResolver(
+            allFiles: files,
+            allFolders: folders,
+            readContents: { try? String(contentsOf: $0, encoding: .utf8) })
         let resolved = resolver.resolve(prompt: prompt)
 
         if mode == .generate {
@@ -2650,6 +2699,10 @@ class LinkAwareTextView: NSTextView {
     /// The selection/cursor captured when the bar opened — used to re-anchor the bar
     /// below the affected region as text streams in.
     private var aiBarOriginalSelection: NSRange = NSRange(location: 0, length: 0)
+    /// The bar's origin captured at the start of a drag (nil when not dragging).
+    private var aiBarDragStartOrigin: NSPoint?
+    /// Once the user drags the bar, stop auto-repositioning it below the streamed text.
+    private var aiBarUserMoved = false
     /// Injected at setup; source of vault files for @-context.
     weak var aiAppState: AppState?
 
