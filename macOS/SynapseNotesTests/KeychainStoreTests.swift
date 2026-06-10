@@ -61,4 +61,15 @@ final class KeychainStoreTests: XCTestCase {
         let seeded = InMemorySecretStore("preset")
         XCTAssertEqual(seeded.get(), "preset")
     }
+
+    /// The real KeychainStore must be inert inside a test host: the ad-hoc-signed
+    /// runner triggers a login-password prompt on any SecItem access, and the app
+    /// (as TEST_HOST) reads the key eagerly via SettingsView. Under XCTest, get
+    /// returns nil and set/delete are no-ops — no prompt, no keychain mutation.
+    func test_realKeychainStore_isInertUnderTests() {
+        let real = KeychainStore(service: "com.SynapseNotes.tests", account: "inert")
+        real.set("must-not-be-stored")
+        XCTAssertNil(real.get())
+        real.delete()
+    }
 }
