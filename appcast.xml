@@ -7,6 +7,41 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.5.0</title>
+      <pubDate>Wed, 10 Jun 2026 17:25:06 +0000</pubDate>
+      <sparkle:version>14</sparkle:version>
+      <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>Inline AI Editing</h3>
+        <ul>
+          <li><strong>⌥J shortcut</strong> — opens an inline AI bar for AI-assisted editing directly in the editor</li>
+          <li><strong>@-mention context</strong> — reference notes and folders in your prompt with <code>@note</code> syntax</li>
+          <li><strong>Streaming responses</strong> — accept or reject AI edits, fully undoable</li>
+          <li><strong>Draggable bar, multiline prompts, Retry</strong> — Shift+Enter for newlines; Retry replaces previous output cleanly</li>
+          <li><strong>Anthropic API key</strong> — stored securely in the Keychain, configure in Settings</li>
+        </ul>
+        <h3>Performance</h3>
+        <ul>
+          <li>Eliminated per-keystroke view-tree re-renders</li>
+          <li>Cached gitignore scan with incremental single-file re-indexing</li>
+          <li>Skip redundant caret-move reveal work in preview mode</li>
+        </ul>
+        <h3>Fixes</h3>
+        <ul>
+          <li>GitHub PAT stored in Keychain and scrubbed from memory</li>
+          <li>Git failures surfaced to the UI</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/v1.5.0/SynapseNotes-1.5.0.dmg"
+        sparkle:edSignature="7FWH5jAekNhhqTrrkrPuIxXyvcKF5yRpVJf2dBx4w4+rBDIUdHUHYm+qK7njl2gKXvgZn3PHZD4d2BzkeMuJCQ=="
+        length="6842377"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+    <item>
       <title>Version 1.4.2</title>
       <pubDate>Mon, 01 Jun 2026 18:22:22 +0000</pubDate>
       <sparkle:version>13</sparkle:version>
