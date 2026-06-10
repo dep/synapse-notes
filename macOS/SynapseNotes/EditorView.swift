@@ -244,14 +244,11 @@ struct EditorView: View {
                                 },
                                 onToggleCheckbox: { offset in
                                     guard !isReadOnly else { return }
-                                    var content = displayContent
-                                    let ns = content as NSString
-                                    guard offset + 3 <= ns.length else { return }
-                                    let marker = ns.substring(with: NSRange(location: offset, length: 3))
-                                    let replacement = marker == "[ ]" ? "[x]" : "[ ]"
-                                    let range = Range(NSRange(location: offset, length: 3), in: content)!
-                                    content.replaceSubrange(range, with: replacement)
-                                    activeTextBinding.wrappedValue = content
+                                    guard let toggled = MarkdownTaskCheckboxInteraction.togglingMarker(
+                                        in: displayContent,
+                                        atUTF16Offset: offset
+                                    ) else { return }
+                                    activeTextBinding.wrappedValue = toggled
                                     appState.isDirty = true
                                 }
                             )

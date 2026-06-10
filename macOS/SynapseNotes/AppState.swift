@@ -1813,9 +1813,24 @@ class AppState: ObservableObject {
         autoSaveTimer = timer
     }
 
+    /// Whether a new sync operation may start. `.error` is retryable — the next
+    /// attempt either succeeds (clearing the error) or refreshes the message —
+    /// while in-progress and conflict states still block re-entry (Issue #255).
+    private var canStartGitSync: Bool {
+        switch gitSyncStatus {
+        case .idle, .error: return true
+        default: return false
+        }
+    }
+
+    /// Resets a stale `.error` badge once a later git operation succeeds.
+    private func clearGitErrorStatus() {
+        if case .error = gitSyncStatus { gitSyncStatus = .idle }
+    }
+
     func pullLatest() {
         guard let git = gitService else { return }
-        guard case .idle = gitSyncStatus else { return }
+        guard canStartGitSync else { return }
         // hasRemote() spawns a git subprocess, so probe it on the git queue rather than
         // on the main thread (pullLatest is called synchronously from setupGit/openFolder,
         // Issue #257). The status stays .idle for local-only repos, exactly as before.
@@ -1826,7 +1841,7 @@ class AppState: ObservableObject {
             // remote, then claim the .pulling state and run the pull on the git queue.
             DispatchQueue.main.async {
                 guard self.gitService === git else { return }
-                guard case .idle = self.gitSyncStatus else { return }
+                guard self.canStartGitSync else { return }
                 self.gitSyncStatus = .pulling
                 self.performPull(git: git)
             }
@@ -1856,7 +1871,7 @@ class AppState: ObservableObject {
                     self.gitSyncStatus = .idle
                 }
             } catch {
-                DispatchQueue.main.async { self.gitSyncStatus = .idle }
+                DispatchQueue.main.async { self.gitSyncStatus = .error(error.localizedDescription) }
             }
         }
     }
@@ -1976,7 +1991,7 @@ class AppState: ObservableObject {
             return
         }
 
-        guard case .idle = gitSyncStatus else {
+        guard canStartGitSync else {
             // Already syncing — just refresh the file list
             refreshAllFiles()
             return
@@ -1986,13 +2001,22 @@ class AppState: ObservableObject {
             // Local-only repo: still auto-commit any uncommitted work, then refresh.
             gitQueue.async { [weak self] in
                 guard let self else { return }
-                if git.hasChanges() {
-                    try? git.stageAll()
-                    try? git.commit(message: "WIP: auto-save before refresh")
-                }
-                DispatchQueue.main.async {
-                    self.refreshAllFiles()
-                    self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                do {
+                    if git.hasChanges() {
+                        try git.stageAll()
+                        try git.commit(message: "WIP: auto-save before refresh")
+                    }
+                    DispatchQueue.main.async {
+                        self.clearGitErrorStatus()
+                        self.refreshAllFiles()
+                        self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        self.gitSyncStatus = .error(error.localizedDescription)
+                        self.refreshAllFiles()
+                        self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                    }
                 }
             }
             return
@@ -2025,7 +2049,7 @@ class AppState: ObservableObject {
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self.gitSyncStatus = .idle
+                    self.gitSyncStatus = .error(error.localizedDescription)
                     self.refreshAllFiles()
                 }
             }
@@ -3149,12 +3173,19 @@ class AppState: ObservableObject {
     private func stageGitChanges() {
         guard settings.autoPush, let git = gitService else { return }
 
-        gitQueue.async {
+        gitQueue.async { [weak self] in
             do {
                 if git.hasChanges() {
                     try git.stageAll()
                 }
-            } catch {}
+                DispatchQueue.main.async { self?.clearGitErrorStatus() }
+            } catch {
+                // Staging is the first link in the auto-push chain — if it fails,
+                // notes silently stop being backed up, so surface it (Issue #255).
+                DispatchQueue.main.async {
+                    self?.gitSyncStatus = .error("Auto-save staging failed: \(error.localizedDescription)")
+                }
+            }
         }
     }
 
