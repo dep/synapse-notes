@@ -290,6 +290,10 @@ class SettingsManager: ObservableObject {
     @Published var hideMarkdownWhileEditing: Bool {
         didSet { save() }
     }
+    /// Whether the inline AI ✨ affordance is shown at the cursor/selection.
+    @Published var showAISparkle: Bool {
+        didSet { save() }
+    }
     @Published var browserStartupURL: String {
         didSet { save() }
     }
@@ -523,6 +527,7 @@ class SettingsManager: ObservableObject {
         var pinnedItems: [PinnedItem]?
         var defaultEditMode: Bool?
         var hideMarkdownWhileEditing: Bool?
+        var showAISparkle: Bool?
         var browserStartupURL: String?
         var editorBodyFontFamily: String?
         var editorMonospaceFontFamily: String?
@@ -554,6 +559,7 @@ class SettingsManager: ObservableObject {
             pinnedItems = try container.decodeIfPresent([PinnedItem].self, forKey: .pinnedItems)
             defaultEditMode = try container.decodeIfPresent(Bool.self, forKey: .defaultEditMode)
             hideMarkdownWhileEditing = try container.decodeIfPresent(Bool.self, forKey: .hideMarkdownWhileEditing)
+            showAISparkle = try container.decodeIfPresent(Bool.self, forKey: .showAISparkle)
             browserStartupURL = try container.decodeIfPresent(String.self, forKey: .browserStartupURL)
             editorBodyFontFamily = try container.decodeIfPresent(String.self, forKey: .editorBodyFontFamily)
             editorMonospaceFontFamily = try container.decodeIfPresent(String.self, forKey: .editorMonospaceFontFamily)
@@ -580,6 +586,7 @@ class SettingsManager: ObservableObject {
         var pinnedItems: [PinnedItem]?
         var defaultEditMode: Bool?
         var hideMarkdownWhileEditing: Bool?
+        var showAISparkle: Bool?
         var browserStartupURL: String?
         var editorBodyFontFamily: String?
         var editorMonospaceFontFamily: String?
@@ -606,6 +613,7 @@ class SettingsManager: ObservableObject {
             pinnedItems: [PinnedItem]?,
             defaultEditMode: Bool?,
             hideMarkdownWhileEditing: Bool?,
+            showAISparkle: Bool?,
             browserStartupURL: String?,
             editorBodyFontFamily: String? = nil,
             editorMonospaceFontFamily: String? = nil,
@@ -631,6 +639,7 @@ class SettingsManager: ObservableObject {
             self.pinnedItems = pinnedItems
             self.defaultEditMode = defaultEditMode
             self.hideMarkdownWhileEditing = hideMarkdownWhileEditing
+            self.showAISparkle = showAISparkle
             self.browserStartupURL = browserStartupURL
             self.editorBodyFontFamily = editorBodyFontFamily
             self.editorMonospaceFontFamily = editorMonospaceFontFamily
@@ -659,6 +668,7 @@ class SettingsManager: ObservableObject {
             pinnedItems = try container.decodeIfPresent([PinnedItem].self, forKey: .pinnedItems)
             defaultEditMode = try container.decodeIfPresent(Bool.self, forKey: .defaultEditMode)
             hideMarkdownWhileEditing = try container.decodeIfPresent(Bool.self, forKey: .hideMarkdownWhileEditing)
+            showAISparkle = try container.decodeIfPresent(Bool.self, forKey: .showAISparkle)
             browserStartupURL = try container.decodeIfPresent(String.self, forKey: .browserStartupURL)
             editorBodyFontFamily = try container.decodeIfPresent(String.self, forKey: .editorBodyFontFamily)
             editorMonospaceFontFamily = try container.decodeIfPresent(String.self, forKey: .editorMonospaceFontFamily)
@@ -761,6 +771,7 @@ class SettingsManager: ObservableObject {
         self.pinnedItems = []
         self.defaultEditMode = true
         self.hideMarkdownWhileEditing = false
+        self.showAISparkle = true
         self.browserStartupURL = ""
         self.editorBodyFontFamily = "System"
         self.editorMonospaceFontFamily = "System Monospace"
@@ -820,6 +831,7 @@ class SettingsManager: ObservableObject {
         self.pinnedItems = []
         self.defaultEditMode = true
         self.hideMarkdownWhileEditing = false
+        self.showAISparkle = true
         self.browserStartupURL = ""
         self.editorBodyFontFamily = "System"
         self.editorMonospaceFontFamily = "System Monospace"
@@ -891,6 +903,7 @@ class SettingsManager: ObservableObject {
             pinnedItems = config.pinnedItems ?? []
             defaultEditMode = config.defaultEditMode ?? true
             hideMarkdownWhileEditing = config.hideMarkdownWhileEditing ?? false
+            showAISparkle = config.showAISparkle ?? true
             browserStartupURL = config.browserStartupURL ?? ""
             editorBodyFontFamily = config.editorBodyFontFamily ?? "System"
             editorMonospaceFontFamily = config.editorMonospaceFontFamily ?? "System Monospace"
@@ -922,6 +935,7 @@ class SettingsManager: ObservableObject {
         pinnedItems = []
         defaultEditMode = true
         hideMarkdownWhileEditing = false
+        showAISparkle = true
         browserStartupURL = ""
         editorBodyFontFamily = "System"
         editorMonospaceFontFamily = "System Monospace"
@@ -956,6 +970,7 @@ class SettingsManager: ObservableObject {
             pinnedItems = vaultConfig.pinnedItems ?? []
             defaultEditMode = vaultConfig.defaultEditMode ?? true
             hideMarkdownWhileEditing = vaultConfig.hideMarkdownWhileEditing ?? false
+            showAISparkle = vaultConfig.showAISparkle ?? true
             browserStartupURL = vaultConfig.browserStartupURL ?? ""
             editorBodyFontFamily = vaultConfig.editorBodyFontFamily ?? "System"
             editorMonospaceFontFamily = vaultConfig.editorMonospaceFontFamily ?? "System Monospace"
@@ -982,6 +997,7 @@ class SettingsManager: ObservableObject {
         pinnedItems = []
         defaultEditMode = true
         hideMarkdownWhileEditing = false
+        showAISparkle = true
         browserStartupURL = ""
         editorBodyFontFamily = "System"
         editorMonospaceFontFamily = "System Monospace"
@@ -1008,6 +1024,7 @@ class SettingsManager: ObservableObject {
         pinnedItems = []
         defaultEditMode = true
         hideMarkdownWhileEditing = false
+        showAISparkle = true
         browserStartupURL = ""
         editorBodyFontFamily = "System"
         editorMonospaceFontFamily = "System Monospace"
@@ -1204,6 +1221,7 @@ class SettingsManager: ObservableObject {
         let pinnedItems: [PinnedItem]
         let defaultEditMode: Bool
         let hideMarkdownWhileEditing: Bool
+        let showAISparkle: Bool
         let browserStartupURL: String
         let editorBodyFontFamily: String
         let editorMonospaceFontFamily: String
@@ -1243,6 +1261,7 @@ class SettingsManager: ObservableObject {
             pinnedItems           = s.pinnedItems
             defaultEditMode       = s.defaultEditMode
             hideMarkdownWhileEditing = s.hideMarkdownWhileEditing
+            showAISparkle = s.showAISparkle
             browserStartupURL     = s.browserStartupURL
             editorBodyFontFamily  = s.editorBodyFontFamily
             editorMonospaceFontFamily = s.editorMonospaceFontFamily
@@ -1314,6 +1333,7 @@ class SettingsManager: ObservableObject {
                 var pinnedItems: [PinnedItem]?
                 var defaultEditMode: Bool?
                 var hideMarkdownWhileEditing: Bool?
+        var showAISparkle: Bool?
                 var browserStartupURL: String?
                 var editorBodyFontFamily: String?
                 var editorMonospaceFontFamily: String?
@@ -1344,6 +1364,7 @@ class SettingsManager: ObservableObject {
                 pinnedItems: pinnedItems.isEmpty ? nil : pinnedItems,
                 defaultEditMode: defaultEditMode,
                 hideMarkdownWhileEditing: hideMarkdownWhileEditing ? true : nil,
+                showAISparkle: showAISparkle ? nil : false,
                 browserStartupURL: browserStartupURL.isEmpty ? nil : browserStartupURL,
                 editorBodyFontFamily: editorBodyFontFamily == "System" ? nil : editorBodyFontFamily,
                 editorMonospaceFontFamily: editorMonospaceFontFamily == "System Monospace" ? nil : editorMonospaceFontFamily,
@@ -1377,6 +1398,7 @@ class SettingsManager: ObservableObject {
                 pinnedItems: pinnedItems.isEmpty ? nil : pinnedItems,
                 defaultEditMode: defaultEditMode,
                 hideMarkdownWhileEditing: hideMarkdownWhileEditing ? true : nil,
+                showAISparkle: showAISparkle ? nil : false,
                 browserStartupURL: browserStartupURL.isEmpty ? nil : browserStartupURL,
                 editorBodyFontFamily: editorBodyFontFamily == "System" ? nil : editorBodyFontFamily,
                 editorMonospaceFontFamily: editorMonospaceFontFamily == "System Monospace" ? nil : editorMonospaceFontFamily,

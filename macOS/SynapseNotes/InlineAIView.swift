@@ -4,11 +4,16 @@ import AppKit
 /// The clickable ✨ overlay placed at the active line's end or past a selection.
 /// Mirrors the editor's existing NSControl-based overlay buttons (target/action).
 final class AISparkleButton: NSControl {
+    /// Resting transparency; goes opaque on hover for a subtle affordance.
+    private static let restingAlpha: CGFloat = 0.5
+    private var trackingArea: NSTrackingArea?
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        toolTip = "Ask AI"
+        toolTip = "Ask AI (⌥J)"
         focusRingType = .none
+        alphaValue = Self.restingAlpha
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
@@ -28,6 +33,27 @@ final class AISparkleButton: NSControl {
 
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    // Brighten on hover, dim back when the mouse leaves.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(rect: bounds,
+                                  options: [.mouseEnteredAndExited, .activeInActiveApp],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { animateAlpha(to: 1.0) }
+    override func mouseExited(with event: NSEvent) { animateAlpha(to: Self.restingAlpha) }
+
+    private func animateAlpha(to value: CGFloat) {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.12
+            animator().alphaValue = value
+        }
     }
 }
 

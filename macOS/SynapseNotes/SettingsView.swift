@@ -707,6 +707,17 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
+
+                    Divider()
+
+                    Toggle(isOn: $settings.showAISparkle) {
+                        Text("Show the ✨ button at the cursor")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                    }
+                    Text("When off, open inline AI editing with ⌥J instead.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 4)
             } header: {

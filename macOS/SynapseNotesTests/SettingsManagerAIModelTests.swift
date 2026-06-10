@@ -29,4 +29,16 @@ final class SettingsManagerAIModelTests: XCTestCase {
         let reloaded = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
         XCTAssertEqual(reloaded.aiDefaultModel, "claude-opus-4-8")
     }
+
+    func test_showAISparkle_defaultsToTrue() {
+        let mgr = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
+        XCTAssertTrue(mgr.showAISparkle)
+    }
+
+    func test_showAISparkle_persistsFalseAcrossReload() {
+        let mgr = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
+        mgr.showAISparkle = false
+        let reloaded = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
+        XCTAssertFalse(reloaded.showAISparkle)
+    }
 }

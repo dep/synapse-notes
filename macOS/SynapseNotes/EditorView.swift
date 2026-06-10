@@ -2265,6 +2265,11 @@ extension LinkAwareTextView {
     /// at the far right of the text container. Cheap: one layout lookup, no parsing.
     func refreshAISparkle() {
         guard let layoutManager, let textContainer else { return }
+        // Respect the user's show/hide preference (default on).
+        guard settings?.showAISparkle ?? true else {
+            aiSparkleButton?.isHidden = true
+            return
+        }
         let sel = selectedRange()
         let ns = string as NSString
 
@@ -3526,6 +3531,13 @@ class LinkAwareTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
+        // ⌥J opens the inline AI bar at the cursor/selection (same as clicking the ✨).
+        // Works even when the ✨ is hidden via Settings.
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == .option, event.charactersIgnoringModifiers?.lowercased() == "j" {
+            aiSparkleTapped()
+            return
+        }
         if let popover = completionPopover, popover.isShown {
             switch event.keyCode {
             case KeyCode.downArrow: completionVC?.moveSelection(by: 1);    return
