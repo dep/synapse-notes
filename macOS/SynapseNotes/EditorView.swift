@@ -324,9 +324,11 @@ struct EditorView: View {
     }
 
     private func markEditorDirty() {
+        // @Published fires objectWillChange even for value-preserving writes, so skip
+        // the re-set once dirty — otherwise every keystroke publishes twice (#258).
         if let editableIsDirty {
-            editableIsDirty.wrappedValue = true
-        } else {
+            if !editableIsDirty.wrappedValue { editableIsDirty.wrappedValue = true }
+        } else if !editorState.isDirty {
             editorState.isDirty = true
         }
     }
@@ -1021,7 +1023,9 @@ struct RawEditor: NSViewRepresentable {
                 parent.text = newText
                 if let onDidEdit = parent.onDidEdit {
                     onDidEdit()
-                } else {
+                } else if !parent.appState.isDirty {
+                    // Skip the value-preserving re-set: @Published would still fire
+                    // objectWillChange, doubling per-keystroke EditorState publishes (#258).
                     parent.appState.isDirty = true
                 }
             }
