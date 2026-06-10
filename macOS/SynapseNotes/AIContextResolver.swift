@@ -88,7 +88,6 @@ struct AIContextResolver {
                 truncated = true
                 if remaining > 0 {
                     blocks.append(Block(name: resolved.name, body: String(resolved.body.prefix(remaining))))
-                    used = charCap
                 }
                 break
             }

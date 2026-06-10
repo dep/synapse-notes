@@ -3,15 +3,10 @@ import Foundation
 /// Builds the Anthropic /v1/messages request body for the inline editor.
 /// Pure — returns a JSON-serializable dictionary.
 enum AIRequestBuilder {
-    enum Mode {
-        case generate   // insert new text at the cursor
-        case rewrite    // transform the selected text
-    }
-
     static let maxTokens = 4096
 
     static func build(
-        mode: Mode,
+        mode: InlineAIBarMode,
         prompt: String,
         noteText: String,
         selection: String?,

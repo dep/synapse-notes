@@ -2036,6 +2036,7 @@ extension LinkAwareTextView {
             self?.refreshInlineImagePreviews()
             self?.refreshCollapsibleToggles()
             self?.refreshCodeBlockCopyButtons()
+            self?.refreshAISparkle()
         }
     }
 
@@ -2253,8 +2254,6 @@ extension LinkAwareTextView {
             button.action = #selector(collapsibleToggleTapped(_:))
             button.identifier = NSUserInterfaceItemIdentifier(capturedId)
         }
-
-        refreshAISparkle()
     }
 
     // MARK: - Inline AI editing
@@ -2319,7 +2318,8 @@ extension LinkAwareTextView {
             addSubview(button)
             aiSparkleButton = button
         }
-        button.frame = frame
+        // This runs on every caret move; avoid needless invalidation when nothing moved.
+        if button.frame != frame { button.frame = frame }
         button.isHidden = (aiBarHostingView != nil)   // hide while the bar is open
     }
 
@@ -2373,18 +2373,12 @@ extension LinkAwareTextView {
     /// placing it below would push it past the bottom of the visible viewport (a long
     /// diff), it is placed ABOVE the top of the affected region instead, so it stays on
     /// screen and still clears the diff.
-    private func aiBarFrame(below sel: NSRange) -> NSRect {
+    private func aiBarFrame(below sel: NSRange, size: NSSize? = nil) -> NSRect {
         guard let layoutManager, let textContainer else { return .zero }
         let ns = string as NSString
-        let width = min(bounds.width - 24, 520)
-        // Size to the bar's content (drag handle + growing prompt + suggestion list),
-        // so nothing is clipped. fittingSize needs the target width set first.
-        var barHeight: CGFloat = 80
-        if let host = aiBarHostingView {
-            host.frame.size.width = width
-            let fitting = host.fittingSize.height
-            if fitting > 0 { barHeight = max(60, min(fitting, 360)) }
-        }
+        let barSize = size ?? aiBarFittedSize()
+        let width = barSize.width
+        let barHeight = barSize.height
 
         func yOffset(forCharacterIndex index: Int) -> (top: CGFloat, bottom: CGFloat) {
             let safe = max(0, min(index, ns.length))
@@ -2413,12 +2407,28 @@ extension LinkAwareTextView {
         return NSRect(x: 12, y: belowY, width: width, height: barHeight)
     }
 
+    /// The bar's content-fitted size (drag handle + growing prompt + suggestion list),
+    /// clamped to the editor width and a sane height range. fittingSize needs the
+    /// target width set on the host first.
+    private func aiBarFittedSize() -> NSSize {
+        let width = min(bounds.width - 24, 520)
+        var height: CGFloat = 80
+        if let host = aiBarHostingView {
+            host.frame.size.width = width
+            let fitting = host.fittingSize.height
+            if fitting > 0 { height = max(60, min(fitting, 360)) }
+        }
+        return NSSize(width: width, height: height)
+    }
+
     /// Re-anchors the bar below the current affected region (called as text streams in
     /// and when streaming finishes) so it tracks the growing diff instead of covering it.
     /// No-op once the user has dragged the bar to a manual position.
     private func repositionAIBar() {
         guard let host = aiBarHostingView, !aiBarUserMoved else { return }
-        host.frame = aiBarFrame(below: aiBarOriginalSelection)
+        // Streaming doesn't change the bar's content, so reuse its current size —
+        // avoids a full SwiftUI fitting pass per streamed delta.
+        host.frame = aiBarFrame(below: aiBarOriginalSelection, size: host.frame.size)
     }
 
     /// Resizes the bar to fit its content (prompt growth, suggestion list). Preserves the
@@ -2426,10 +2436,7 @@ extension LinkAwareTextView {
     private func resizeAIBarToFit() {
         guard let host = aiBarHostingView else { return }
         if aiBarUserMoved {
-            let width = min(bounds.width - 24, 520)
-            host.frame.size.width = width
-            let fitting = host.fittingSize.height
-            host.frame.size.height = max(60, min(fitting > 0 ? fitting : 80, 360))
+            host.frame.size = aiBarFittedSize()
         } else {
             host.frame = aiBarFrame(below: aiBarOriginalSelection)
         }
@@ -2453,11 +2460,17 @@ extension LinkAwareTextView {
         host.frame.origin = NSPoint(x: clampedX, y: clampedY)
     }
 
-    private func dismissAIBar() {
+    /// Shared teardown core: cancels any in-flight stream, closes the operation's
+    /// single undo group, and removes the bar.
+    private func cancelAIStreamAndRemoveBar() {
         aiStreamTask?.cancel(); aiStreamTask = nil
-        endAIUndoGroup()   // close the operation's single undo group
+        endAIUndoGroup()
         aiBarHostingView?.removeFromSuperview(); aiBarHostingView = nil
         aiBarModel = nil
+    }
+
+    private func dismissAIBar() {
+        cancelAIStreamAndRemoveBar()
         refreshAISparkle()
     }
 
@@ -2468,12 +2481,7 @@ extension LinkAwareTextView {
     /// diff colors vanish with it.
     func teardownAISession() {
         guard aiBarHostingView != nil || inlineAIController.mode != .idle else { return }
-        aiStreamTask?.cancel()
-        aiStreamTask = nil
-        endAIUndoGroup()
-        aiBarHostingView?.removeFromSuperview()
-        aiBarHostingView = nil
-        aiBarModel = nil
+        cancelAIStreamAndRemoveBar()
         inlineAIController.resetWithoutMutating()
     }
 
@@ -2523,11 +2531,11 @@ extension LinkAwareTextView {
             return
         }
 
-        let files = aiAppState?.allFiles ?? []
-        let folders = aiAppState?.allFolders() ?? []
+        // Reuse the vault lists captured when the bar was presented; allFolders()
+        // walks every file's ancestor chain, so don't recompute it per submit.
         let resolver = AIContextResolver(
-            allFiles: files,
-            allFolders: folders,
+            allFiles: aiBarModel?.allFiles ?? [],
+            allFolders: aiBarModel?.allFolders ?? [],
             readContents: { try? String(contentsOf: $0, encoding: .utf8) })
         let resolved = resolver.resolve(prompt: prompt)
 
@@ -2547,7 +2555,7 @@ extension LinkAwareTextView {
 
         let selectionText = mode == .rewrite ? (string as NSString).substring(with: sel) : nil
         let body = AIRequestBuilder.build(
-            mode: mode == .generate ? .generate : .rewrite,
+            mode: mode,
             prompt: prompt, noteText: string,
             selection: selectionText, context: resolved.blocks, model: model)
 
@@ -2567,7 +2575,7 @@ extension LinkAwareTextView {
                     await MainActor.run {
                         // appendDelta routes through performAIEdit, which calls didChangeText().
                         self?.inlineAIController.appendDelta(delta)
-                        self?.applyAIDiffColors()
+                        self?.colorAIDelta(appendedLength: (delta as NSString).length)
                         self?.repositionAIBar()
                     }
                 }
@@ -2580,9 +2588,9 @@ extension LinkAwareTextView {
 
     private func stopAIStream() {
         aiStreamTask?.cancel(); aiStreamTask = nil
-        let mode = aiBarModel?.mode ?? .generate
-        if mode == .generate { inlineAIController.cancel() }
-        finishAIStream(mode: mode)
+        // finishAIStream owns the per-mode end-of-session rules (generate: reset +
+        // dismiss; rewrite: await accept/reject).
+        finishAIStream(mode: aiBarModel?.mode ?? .generate)
     }
 
     private func finishAIStream(mode: InlineAIBarMode) {
@@ -2614,18 +2622,34 @@ extension LinkAwareTextView {
         if aiBarModel?.mode == .rewrite { aiBarModel?.awaitingAcceptReject = true }
     }
 
-    private func acceptAI() {
-        inlineAIController.accept()
+    /// Shared accept/reject epilogue: resolve the diff via the controller, restore
+    /// normal styling, sync the final text to the binding, and close the bar.
+    private func resolveAIRewrite(_ resolve: () -> Void) {
+        resolve()
         clearAIDiffColors()
         didChangeText()
         dismissAIBar()
     }
 
-    private func rejectAI() {
-        inlineAIController.reject()
-        clearAIDiffColors()
-        didChangeText()
-        dismissAIBar()
+    private func acceptAI() { resolveAIRewrite(inlineAIController.accept) }
+
+    private func rejectAI() { resolveAIRewrite(inlineAIController.reject) }
+
+    /// Colors only the newly appended streamed delta (green) — O(delta) per chunk
+    /// instead of re-coloring the whole accumulated diff (O(total), quadratic over a
+    /// stream). The first delta falls back to the full pass so the original range
+    /// gets its strikethrough/red at the same moment it always has; later wipes by
+    /// styling passes are restored by `reapplyAIDiffColorsIfActive`.
+    private func colorAIDelta(appendedLength: Int) {
+        guard let storage = textStorage,
+              let nr = inlineAIController.newRange, appendedLength > 0 else { return }
+        guard nr.length > appendedLength else {
+            applyAIDiffColors()
+            return
+        }
+        let sub = NSRange(location: NSMaxRange(nr) - appendedLength, length: appendedLength)
+        guard sub.location >= 0, NSMaxRange(sub) <= storage.length else { return }
+        storage.addAttribute(.foregroundColor, value: NSColor.systemGreen, range: sub)
     }
 
     private func applyAIDiffColors() {
@@ -3359,6 +3383,7 @@ class LinkAwareTextView: NSTextView {
             self?.refreshInlineImagePreviews()
             self?.refreshCollapsibleToggles()
             self?.refreshCodeBlockCopyButtons()
+            self?.refreshAISparkle()
         }
     }
 

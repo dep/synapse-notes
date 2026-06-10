@@ -57,7 +57,8 @@ final class AISparkleButton: NSControl {
     }
 }
 
-/// Whether the bar opens to generate at the cursor or rewrite a selection.
+/// Whether the AI session generates at the cursor or rewrites a selection.
+/// Shared by the bar UI and `AIRequestBuilder`.
 enum InlineAIBarMode { case generate, rewrite }
 
 /// An @-autocomplete suggestion: a vault note or a folder.
@@ -134,10 +135,8 @@ final class InlineAIBarModel: ObservableObject {
         var after = Substring(text[text.index(after: atIndex)...])
         if after.first == "[" {
             after = after.dropFirst()
-            if let close = after.firstIndex(of: "]") {
-                // A closed bracket means the token is complete — no live suggestions.
-                if after.index(after: close) <= after.endIndex { return nil }
-            }
+            // A closed bracket means the token is complete — no live suggestions.
+            if after.contains("]") { return nil }
             return String(after)   // may contain spaces — that's the point
         }
         // Bare token: no spaces.

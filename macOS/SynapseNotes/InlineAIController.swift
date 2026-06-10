@@ -70,46 +70,40 @@ final class InlineAIController: ObservableObject {
     /// Stops streaming. Generate finishes immediately (nothing to accept);
     /// rewrite remains pending so the user can accept/reject the partial.
     func cancel() {
-        if mode == .generate { finishGenerate() }
+        if mode == .generate { resetWithoutMutating() }
     }
 
     // MARK: Resolution
-
-    /// Generate has no diff — once done, there's nothing to accept; just clear state.
-    private func finishGenerate() {
-        mode = .idle
-        originalRange = nil
-        newRange = nil
-    }
 
     /// Rewrite accept: delete the original, keep the new text. No-op in any other mode.
     func accept() {
         guard mode == .rewrite else { return }
         guard let orig = originalRange else {
             // Defensive: rewrite mode but no range — clear and bail.
-            mode = .idle; originalRange = nil; newRange = nil
+            resetWithoutMutating()
             return
         }
         // The new text sits immediately after the original; deleting the original
         // shifts the new text left into the original's place.
         applyEdit(orig, "")
-        mode = .idle; originalRange = nil; newRange = nil
+        resetWithoutMutating()
     }
 
     /// Rewrite reject: delete the streamed new text, restore the original. No-op in any other mode.
     func reject() {
         guard mode == .rewrite else { return }
         guard let nr = newRange else {
-            mode = .idle; originalRange = nil; newRange = nil
+            resetWithoutMutating()
             return
         }
         applyEdit(nr, "")
-        mode = .idle; originalRange = nil; newRange = nil
+        resetWithoutMutating()
     }
 
-    /// Clears all session state WITHOUT mutating the text storage. Use when the
-    /// underlying document is being replaced wholesale (note/tab switch), where
-    /// touching the old ranges would corrupt the new document or crash.
+    /// Clears all session state WITHOUT mutating the text storage — the common
+    /// final step of every session end. Also safe when the underlying document
+    /// is being replaced wholesale (note/tab switch), where touching the old
+    /// ranges would corrupt the new document or crash.
     func resetWithoutMutating() {
         mode = .idle
         originalRange = nil
@@ -127,8 +121,6 @@ final class InlineAIController: ObservableObject {
            (storage == nil || NSMaxRange(nr) <= storage!.length) {
             applyEdit(nr, "")
         }
-        mode = .idle
-        originalRange = nil
-        newRange = nil
+        resetWithoutMutating()
     }
 }

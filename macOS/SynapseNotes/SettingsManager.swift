@@ -766,7 +766,7 @@ class SettingsManager: ObservableObject {
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         self.githubPAT = ""
-        self.aiDefaultModel = "claude-sonnet-4-6"
+        self.aiDefaultModel = AIModel.default.apiID
         self.fileTreeMode = .folder
         self.pinnedItems = []
         self.defaultEditMode = true
@@ -826,7 +826,7 @@ class SettingsManager: ObservableObject {
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         self.githubPAT = ""
-        self.aiDefaultModel = "claude-sonnet-4-6"
+        self.aiDefaultModel = AIModel.default.apiID
         self.fileTreeMode = .folder
         self.pinnedItems = []
         self.defaultEditMode = true
@@ -898,7 +898,7 @@ class SettingsManager: ObservableObject {
                 collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
             }
             githubPAT = config.githubPAT ?? ""
-            aiDefaultModel = config.aiDefaultModel ?? "claude-sonnet-4-6"
+            aiDefaultModel = config.aiDefaultModel ?? AIModel.default.apiID
             fileTreeMode = FileTreeMode(rawValue: config.fileTreeMode ?? "") ?? .folder
             pinnedItems = config.pinnedItems ?? []
             defaultEditMode = config.defaultEditMode ?? true
@@ -930,7 +930,7 @@ class SettingsManager: ObservableObject {
         collapsedPanes = []
         collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         githubPAT = ""
-        aiDefaultModel = "claude-sonnet-4-6"
+        aiDefaultModel = AIModel.default.apiID
         fileTreeMode = .folder
         pinnedItems = []
         defaultEditMode = true
@@ -1036,7 +1036,7 @@ class SettingsManager: ObservableObject {
 
     private func applyGlobalConfig(_ globalConfig: GlobalConfig?) {
         githubPAT = globalConfig?.githubPAT ?? ""
-        aiDefaultModel = globalConfig?.aiDefaultModel ?? "claude-sonnet-4-6"
+        aiDefaultModel = globalConfig?.aiDefaultModel ?? AIModel.default.apiID
         sidebars = Self.applyPaneAssignments(globalConfig?.sidebarPaneAssignments)
         sidebarPaneHeights = globalConfig?.sidebarPaneHeights ?? Self.defaultPaneHeights
         collapsedPanes = Set(globalConfig?.collapsedPanes ?? [])
