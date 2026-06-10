@@ -172,9 +172,9 @@ extension LinkAwareTextView {
         // Stale ranges from a previous file would crash reapplySearchHighlights
         lastSearchHighlightRanges = []
         lastSearchFocusIndex = -1
-        // New content invalidates the revealed-block gate so the next caret move
-        // re-evaluates against the new document.
-        lastRevealedBlockRange = nil
+        // New content invalidates the reveal memo (parse cache + revealed-block
+        // gate) so the next caret move re-evaluates against the new document.
+        previewRevealMemo.noteTextChanged()
         storage.beginEditing()
         storage.setAttributedString(NSAttributedString(string: plain))
         storage.endEditing()
@@ -317,7 +317,7 @@ extension LinkAwareTextView {
         // load, where the caret sits at 0 inside the first block). Block reveal is a
         // response to caret movement and is driven from textViewDidChangeSelection instead.
         if isEditable {
-            revealSemanticInlineMarkdownAtCursor()
+            revealSemanticInlineMarkdownAtCursor(document: parsedDocument)
             revealCalloutHeaderAtCursor(document: parsedDocument)
         }
     }
@@ -341,10 +341,13 @@ extension LinkAwareTextView {
         storage.endEditing()
     }
 
-    func revealSemanticInlineMarkdownAtCursor() {
-        guard let storage = textStorage else { return }
+    func revealSemanticInlineMarkdownAtCursor(document: MarkdownDocument? = nil) {
+        guard isEditable, let storage = textStorage else { return }
+        // Runs on every selection change: reuse the caller's parse, or the reveal
+        // memo's cached document (re-parsed only when the text actually changed).
+        let parsedDocument = document ?? previewRevealMemo.document(for: storage.string)
         let reveal = MarkdownPreviewCursorReveal.make(
-            from: storage.string,
+            document: parsedDocument,
             cursorLocation: selectedRange().location,
             isEditable: isEditable
         )
@@ -371,17 +374,18 @@ extension LinkAwareTextView {
     func revealCurrentBlockMarkdownAtCursor(document: MarkdownDocument? = nil) {
         guard isEditable, let storage = textStorage else { return }
         let cursor = selectedRange().location
-        // The optional `document` lets callers avoid an extra parse when they already
-        // hold one (its `source` is authoritative); otherwise read the live storage.
-        let source = document?.source ?? storage.string
-        let reveal = MarkdownPreviewBlockReveal.make(from: source, cursorLocation: cursor, isEditable: isEditable)
-
-        // Block-change gating: if the caret is still in the same block we revealed last
-        // time, there is nothing new to reveal.
-        if let last = lastRevealedBlockRange, let current = reveal.blockRange, NSEqualRanges(last, current) {
+        // Block-change gating BEFORE any parsing: if the text is unchanged and the
+        // caret is still inside the block we revealed last time, there is nothing new
+        // to reveal — the common case for the 1–2 selection changes per keystroke.
+        if previewRevealMemo.canSkipBlockReveal(cursorLocation: cursor) {
             return
         }
-        lastRevealedBlockRange = reveal.blockRange
+        // The optional `document` lets callers avoid an extra parse when they already
+        // hold one (its `source` is authoritative); otherwise the reveal memo's cached
+        // document is reused (re-parsed only when the text actually changed).
+        let parsedDocument = document ?? previewRevealMemo.document(for: storage.string)
+        let reveal = MarkdownPreviewBlockReveal.make(document: parsedDocument, cursorLocation: cursor, isEditable: isEditable)
+        previewRevealMemo.noteRevealedBlock(reveal.blockRange)
 
         guard !reveal.revealedRanges.isEmpty else { return }
 

@@ -478,14 +478,17 @@ class LinkAwareTextView: NSTextView {
     private var replaceAllObserver: Any?
     var lastSearchHighlightRanges: [NSRange] = []
     var lastSearchFocusIndex: Int = -1
-    /// The parsed block range whose markdown is currently revealed under the caret.
-    /// Used to skip re-revealing while the caret stays within one block.
-    var lastRevealedBlockRange: NSRange?
+    /// Caret-move reveal memo: caches the parsed document per text version and the
+    /// block range currently revealed under the caret, so the synchronous reveal
+    /// passes skip redundant parsing while the caret stays within one block.
+    /// `noteTextChanged()` is bumped on every character edit (Coordinator's
+    /// didProcessEditing and setPlainText), which invalidates both caches.
+    var previewRevealMemo = MarkdownPreviewRevealMemo()
 
     /// Clears the revealed-block gate so the next revealCurrentBlockMarkdownAtCursor()
     /// recomputes. Used after a full re-hide sweep that invalidated the visible reveal.
     func invalidateRevealedBlock() {
-        lastRevealedBlockRange = nil
+        previewRevealMemo.invalidateRevealedBlock()
     }
 
     func installSearchObservers() {

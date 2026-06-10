@@ -16,9 +16,17 @@ struct MarkdownPreviewBlockReveal {
         guard isEditable, cursorLocation != NSNotFound else {
             return MarkdownPreviewBlockReveal(revealedRanges: [], blockRange: nil)
         }
+        return make(document: parser.parse(source), cursorLocation: cursorLocation, isEditable: isEditable)
+    }
 
-        let document = parser.parse(source)
-        let ns = source as NSString
+    /// Variant for callers that already hold a parse of the current text (e.g. the
+    /// per-caret-move reveal path, which memoizes the document across selection changes).
+    static func make(document: MarkdownDocument, cursorLocation: Int, isEditable: Bool) -> MarkdownPreviewBlockReveal {
+        guard isEditable, cursorLocation != NSNotFound else {
+            return MarkdownPreviewBlockReveal(revealedRanges: [], blockRange: nil)
+        }
+
+        let ns = document.source as NSString
 
         // Find the block containing the caret. A caret exactly at a block's end
         // boundary still counts as inside that block (matches the inline-reveal rule).
@@ -45,7 +53,7 @@ struct MarkdownPreviewBlockReveal {
         let base = block.range.location
 
         func appendGroup(_ pattern: String, group: Int) {
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+            guard let regex = cachedRegex(pattern) else { return }
             let blockNS = blockText as NSString
             regex.enumerateMatches(in: blockText, options: [], range: NSRange(location: 0, length: blockNS.length)) { match, _, _ in
                 guard let match, match.numberOfRanges > group else { return }
@@ -73,6 +81,17 @@ struct MarkdownPreviewBlockReveal {
         }
 
         return MarkdownPreviewBlockReveal(revealedRanges: dedupe(ranges), blockRange: block.range)
+    }
+
+    /// Compiled-once regex cache — this runs on every caret-driven block reveal, and
+    /// recompiling the eight delimiter patterns per call dominated its cost.
+    private static var regexCache: [String: NSRegularExpression] = [:]
+
+    private static func cachedRegex(_ pattern: String) -> NSRegularExpression? {
+        if let cached = regexCache[pattern] { return cached }
+        guard let compiled = try? NSRegularExpression(pattern: pattern) else { return nil }
+        regexCache[pattern] = compiled
+        return compiled
     }
 
     private static func dedupe(_ ranges: [NSRange]) -> [NSRange] {

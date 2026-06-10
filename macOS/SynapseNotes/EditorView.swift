@@ -1011,6 +1011,11 @@ struct RawEditor: NSViewRepresentable {
         }
 
         func textStorage(_ textStorage: NSTextStorage, didProcessEditing editedMask: NSTextStorageEditActions, range editedRange: NSRange, changeInLength delta: Int) {
+            if editedMask.contains(.editedCharacters) {
+                // Character edits invalidate the caret-move reveal memo even while the
+                // binding sync is suppressed (programmatic replaces still reflow blocks).
+                textView?.previewRevealMemo.noteTextChanged()
+            }
             guard !suppressSync, editedMask.contains(.editedCharacters) else { return }
             guard let tv = textView else { return }
             let oldText = parent.text
