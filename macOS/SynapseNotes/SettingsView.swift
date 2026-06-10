@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var templateVarsExpanded = false
     @State private var themeImportError: String?
     @State private var showThemeImportError = false
+    @State private var anthropicKey: String = KeychainStore().get() ?? ""
 
     private let settingsFieldWidth: CGFloat = 440
 
@@ -669,6 +670,58 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
             } header: {
                 Text("GitHub Gist")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+
+            // MARK: - AI Section
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Anthropic API Key")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+
+                    SecureField("sk-ant-...", text: $anthropicKey)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: anthropicKey) { newValue in
+                            KeychainStore().set(newValue)
+                        }
+
+                    Text("Stored securely in your macOS Keychain. Used for inline AI editing (✨).")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("Default Model")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+
+                    Picker("Default Model", selection: Binding(
+                        get: { AIModel(apiID: settings.aiDefaultModel) },
+                        set: { settings.aiDefaultModel = $0.apiID }
+                    )) {
+                        ForEach(AIModel.allCases) { model in
+                            Text(model.displayName).tag(model)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+
+                    Divider()
+
+                    Toggle(isOn: $settings.showAISparkle) {
+                        Text("Show the ✨ button at the cursor")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                    }
+                    Text("When off, open inline AI editing with ⌥J instead.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("AI")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
             }
         }

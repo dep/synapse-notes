@@ -181,6 +181,11 @@ Synapse Notes relies heavily on keyboard shortcuts to help you navigate and edit
 | Split Horizontal | `CMD + SHIFT + D` |
 | Switch Panes | `CMD + OPT + Arrows` |
 
+### AI
+| Action | Shortcut |
+| --- | --- |
+| Open Inline AI Editing | `OPT + J` (or click the ✨ at the cursor) |
+
 ### Other
 | Action | Shortcut |
 | --- | --- |

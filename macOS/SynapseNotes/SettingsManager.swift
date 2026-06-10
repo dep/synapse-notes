@@ -274,6 +274,10 @@ class SettingsManager: ObservableObject {
     @Published var githubPAT: String {
         didSet { save() }
     }
+    /// Default Anthropic model (API ID) for inline AI editing (machine-local).
+    @Published var aiDefaultModel: String {
+        didSet { save() }
+    }
     @Published var fileTreeMode: FileTreeMode {
         didSet { save() }
     }
@@ -284,6 +288,10 @@ class SettingsManager: ObservableObject {
         didSet { save() }
     }
     @Published var hideMarkdownWhileEditing: Bool {
+        didSet { save() }
+    }
+    /// Whether the inline AI ✨ affordance is shown at the cursor/selection.
+    @Published var showAISparkle: Bool {
         didSet { save() }
     }
     @Published var browserStartupURL: String {
@@ -514,10 +522,12 @@ class SettingsManager: ObservableObject {
         /// Pane assignments: maps sidebar UUID string -> [SidebarPane]
         var sidebarPaneAssignments: [String: [SidebarPaneItem]]?
         var githubPAT: String?
+        var aiDefaultModel: String?
         var fileTreeMode: String?
         var pinnedItems: [PinnedItem]?
         var defaultEditMode: Bool?
         var hideMarkdownWhileEditing: Bool?
+        var showAISparkle: Bool?
         var browserStartupURL: String?
         var editorBodyFontFamily: String?
         var editorMonospaceFontFamily: String?
@@ -544,10 +554,12 @@ class SettingsManager: ObservableObject {
             collapsedSidebarIDs = try container.decodeIfPresent([String].self, forKey: .collapsedSidebarIDs)
             sidebarPaneAssignments = try container.decodeIfPresent([String: [SidebarPaneItem]].self, forKey: .sidebarPaneAssignments)
             githubPAT = try container.decodeIfPresent(String.self, forKey: .githubPAT)
+            aiDefaultModel = try container.decodeIfPresent(String.self, forKey: .aiDefaultModel)
             fileTreeMode = try container.decodeIfPresent(String.self, forKey: .fileTreeMode)
             pinnedItems = try container.decodeIfPresent([PinnedItem].self, forKey: .pinnedItems)
             defaultEditMode = try container.decodeIfPresent(Bool.self, forKey: .defaultEditMode)
             hideMarkdownWhileEditing = try container.decodeIfPresent(Bool.self, forKey: .hideMarkdownWhileEditing)
+            showAISparkle = try container.decodeIfPresent(Bool.self, forKey: .showAISparkle)
             browserStartupURL = try container.decodeIfPresent(String.self, forKey: .browserStartupURL)
             editorBodyFontFamily = try container.decodeIfPresent(String.self, forKey: .editorBodyFontFamily)
             editorMonospaceFontFamily = try container.decodeIfPresent(String.self, forKey: .editorMonospaceFontFamily)
@@ -574,6 +586,7 @@ class SettingsManager: ObservableObject {
         var pinnedItems: [PinnedItem]?
         var defaultEditMode: Bool?
         var hideMarkdownWhileEditing: Bool?
+        var showAISparkle: Bool?
         var browserStartupURL: String?
         var editorBodyFontFamily: String?
         var editorMonospaceFontFamily: String?
@@ -600,6 +613,7 @@ class SettingsManager: ObservableObject {
             pinnedItems: [PinnedItem]?,
             defaultEditMode: Bool?,
             hideMarkdownWhileEditing: Bool?,
+            showAISparkle: Bool?,
             browserStartupURL: String?,
             editorBodyFontFamily: String? = nil,
             editorMonospaceFontFamily: String? = nil,
@@ -625,6 +639,7 @@ class SettingsManager: ObservableObject {
             self.pinnedItems = pinnedItems
             self.defaultEditMode = defaultEditMode
             self.hideMarkdownWhileEditing = hideMarkdownWhileEditing
+            self.showAISparkle = showAISparkle
             self.browserStartupURL = browserStartupURL
             self.editorBodyFontFamily = editorBodyFontFamily
             self.editorMonospaceFontFamily = editorMonospaceFontFamily
@@ -653,6 +668,7 @@ class SettingsManager: ObservableObject {
             pinnedItems = try container.decodeIfPresent([PinnedItem].self, forKey: .pinnedItems)
             defaultEditMode = try container.decodeIfPresent(Bool.self, forKey: .defaultEditMode)
             hideMarkdownWhileEditing = try container.decodeIfPresent(Bool.self, forKey: .hideMarkdownWhileEditing)
+            showAISparkle = try container.decodeIfPresent(Bool.self, forKey: .showAISparkle)
             browserStartupURL = try container.decodeIfPresent(String.self, forKey: .browserStartupURL)
             editorBodyFontFamily = try container.decodeIfPresent(String.self, forKey: .editorBodyFontFamily)
             editorMonospaceFontFamily = try container.decodeIfPresent(String.self, forKey: .editorMonospaceFontFamily)
@@ -668,6 +684,7 @@ class SettingsManager: ObservableObject {
     /// Config for machine-local settings only
     private struct GlobalConfig: Codable {
         var githubPAT: String?
+        var aiDefaultModel: String?
         var sidebarPaneHeights: [String: CGFloat]?
         var collapsedPanes: [String]?
         var collapsedSidebarIDs: [String]?
@@ -682,6 +699,7 @@ class SettingsManager: ObservableObject {
 
         init(
             githubPAT: String?,
+            aiDefaultModel: String? = nil,
             sidebarPaneHeights: [String: CGFloat]?,
             collapsedPanes: [String]?,
             collapsedSidebarIDs: [String]?,
@@ -691,6 +709,7 @@ class SettingsManager: ObservableObject {
             lastNoteFolderPerVault: [String: String]? = nil
         ) {
             self.githubPAT = githubPAT
+            self.aiDefaultModel = aiDefaultModel
             self.sidebarPaneHeights = sidebarPaneHeights
             self.collapsedPanes = collapsedPanes
             self.collapsedSidebarIDs = collapsedSidebarIDs
@@ -704,6 +723,7 @@ class SettingsManager: ObservableObject {
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             githubPAT = try container.decodeIfPresent(String.self, forKey: .githubPAT)
+            aiDefaultModel = try container.decodeIfPresent(String.self, forKey: .aiDefaultModel)
             sidebarPaneHeights = try container.decodeIfPresent([String: CGFloat].self, forKey: .sidebarPaneHeights)
             collapsedPanes = try container.decodeIfPresent([String].self, forKey: .collapsedPanes)
             collapsedSidebarIDs = try container.decodeIfPresent([String].self, forKey: .collapsedSidebarIDs)
@@ -746,10 +766,12 @@ class SettingsManager: ObservableObject {
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         self.githubPAT = ""
+        self.aiDefaultModel = AIModel.default.apiID
         self.fileTreeMode = .folder
         self.pinnedItems = []
         self.defaultEditMode = true
         self.hideMarkdownWhileEditing = false
+        self.showAISparkle = true
         self.browserStartupURL = ""
         self.editorBodyFontFamily = "System"
         self.editorMonospaceFontFamily = "System Monospace"
@@ -804,10 +826,12 @@ class SettingsManager: ObservableObject {
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         self.githubPAT = ""
+        self.aiDefaultModel = AIModel.default.apiID
         self.fileTreeMode = .folder
         self.pinnedItems = []
         self.defaultEditMode = true
         self.hideMarkdownWhileEditing = false
+        self.showAISparkle = true
         self.browserStartupURL = ""
         self.editorBodyFontFamily = "System"
         self.editorMonospaceFontFamily = "System Monospace"
@@ -874,10 +898,12 @@ class SettingsManager: ObservableObject {
                 collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
             }
             githubPAT = config.githubPAT ?? ""
+            aiDefaultModel = config.aiDefaultModel ?? AIModel.default.apiID
             fileTreeMode = FileTreeMode(rawValue: config.fileTreeMode ?? "") ?? .folder
             pinnedItems = config.pinnedItems ?? []
             defaultEditMode = config.defaultEditMode ?? true
             hideMarkdownWhileEditing = config.hideMarkdownWhileEditing ?? false
+            showAISparkle = config.showAISparkle ?? true
             browserStartupURL = config.browserStartupURL ?? ""
             editorBodyFontFamily = config.editorBodyFontFamily ?? "System"
             editorMonospaceFontFamily = config.editorMonospaceFontFamily ?? "System Monospace"
@@ -904,10 +930,12 @@ class SettingsManager: ObservableObject {
         collapsedPanes = []
         collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
         githubPAT = ""
+        aiDefaultModel = AIModel.default.apiID
         fileTreeMode = .folder
         pinnedItems = []
         defaultEditMode = true
         hideMarkdownWhileEditing = false
+        showAISparkle = true
         browserStartupURL = ""
         editorBodyFontFamily = "System"
         editorMonospaceFontFamily = "System Monospace"
@@ -942,6 +970,7 @@ class SettingsManager: ObservableObject {
             pinnedItems = vaultConfig.pinnedItems ?? []
             defaultEditMode = vaultConfig.defaultEditMode ?? true
             hideMarkdownWhileEditing = vaultConfig.hideMarkdownWhileEditing ?? false
+            showAISparkle = vaultConfig.showAISparkle ?? true
             browserStartupURL = vaultConfig.browserStartupURL ?? ""
             editorBodyFontFamily = vaultConfig.editorBodyFontFamily ?? "System"
             editorMonospaceFontFamily = vaultConfig.editorMonospaceFontFamily ?? "System Monospace"
@@ -968,6 +997,7 @@ class SettingsManager: ObservableObject {
         pinnedItems = []
         defaultEditMode = true
         hideMarkdownWhileEditing = false
+        showAISparkle = true
         browserStartupURL = ""
         editorBodyFontFamily = "System"
         editorMonospaceFontFamily = "System Monospace"
@@ -994,6 +1024,7 @@ class SettingsManager: ObservableObject {
         pinnedItems = []
         defaultEditMode = true
         hideMarkdownWhileEditing = false
+        showAISparkle = true
         browserStartupURL = ""
         editorBodyFontFamily = "System"
         editorMonospaceFontFamily = "System Monospace"
@@ -1005,6 +1036,7 @@ class SettingsManager: ObservableObject {
 
     private func applyGlobalConfig(_ globalConfig: GlobalConfig?) {
         githubPAT = globalConfig?.githubPAT ?? ""
+        aiDefaultModel = globalConfig?.aiDefaultModel ?? AIModel.default.apiID
         sidebars = Self.applyPaneAssignments(globalConfig?.sidebarPaneAssignments)
         sidebarPaneHeights = globalConfig?.sidebarPaneHeights ?? Self.defaultPaneHeights
         collapsedPanes = Set(globalConfig?.collapsedPanes ?? [])
@@ -1184,10 +1216,12 @@ class SettingsManager: ObservableObject {
         let collapsedPanes: [String]
         let collapsedSidebarIDs: [String]
         let githubPAT: String
+        let aiDefaultModel: String
         let fileTreeMode: FileTreeMode
         let pinnedItems: [PinnedItem]
         let defaultEditMode: Bool
         let hideMarkdownWhileEditing: Bool
+        let showAISparkle: Bool
         let browserStartupURL: String
         let editorBodyFontFamily: String
         let editorMonospaceFontFamily: String
@@ -1222,10 +1256,12 @@ class SettingsManager: ObservableObject {
             collapsedPanes        = Array(s.collapsedPanes)
             collapsedSidebarIDs   = Array(s.collapsedSidebarIDs)
             githubPAT             = s.githubPAT
+            aiDefaultModel        = s.aiDefaultModel
             fileTreeMode          = s.fileTreeMode
             pinnedItems           = s.pinnedItems
             defaultEditMode       = s.defaultEditMode
             hideMarkdownWhileEditing = s.hideMarkdownWhileEditing
+            showAISparkle = s.showAISparkle
             browserStartupURL     = s.browserStartupURL
             editorBodyFontFamily  = s.editorBodyFontFamily
             editorMonospaceFontFamily = s.editorMonospaceFontFamily
@@ -1257,6 +1293,7 @@ class SettingsManager: ObservableObject {
             guard let globalConfigPath else { return }
             let globalConfig = GlobalConfig(
                 githubPAT: githubPAT.isEmpty ? nil : githubPAT,
+                aiDefaultModel: aiDefaultModel,
                 sidebarPaneHeights: sidebarPaneHeights.isEmpty ? nil : sidebarPaneHeights,
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
                 collapsedSidebarIDs: collapsedSidebarIDs.isEmpty ? nil : collapsedSidebarIDs,
@@ -1291,10 +1328,12 @@ class SettingsManager: ObservableObject {
                 var collapsedPanes: [String]?
                 var collapsedSidebarIDs: [String]?
                 var githubPAT: String?
+                var aiDefaultModel: String?
                 var fileTreeMode: String?
                 var pinnedItems: [PinnedItem]?
                 var defaultEditMode: Bool?
                 var hideMarkdownWhileEditing: Bool?
+        var showAISparkle: Bool?
                 var browserStartupURL: String?
                 var editorBodyFontFamily: String?
                 var editorMonospaceFontFamily: String?
@@ -1320,10 +1359,12 @@ class SettingsManager: ObservableObject {
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
                 collapsedSidebarIDs: collapsedSidebarIDs.isEmpty ? nil : collapsedSidebarIDs,
                 githubPAT: githubPAT.isEmpty ? nil : githubPAT,
+                aiDefaultModel: aiDefaultModel.isEmpty ? nil : aiDefaultModel,
                 fileTreeMode: fileTreeMode.rawValue,
                 pinnedItems: pinnedItems.isEmpty ? nil : pinnedItems,
                 defaultEditMode: defaultEditMode,
                 hideMarkdownWhileEditing: hideMarkdownWhileEditing ? true : nil,
+                showAISparkle: showAISparkle ? nil : false,
                 browserStartupURL: browserStartupURL.isEmpty ? nil : browserStartupURL,
                 editorBodyFontFamily: editorBodyFontFamily == "System" ? nil : editorBodyFontFamily,
                 editorMonospaceFontFamily: editorMonospaceFontFamily == "System Monospace" ? nil : editorMonospaceFontFamily,
@@ -1357,6 +1398,7 @@ class SettingsManager: ObservableObject {
                 pinnedItems: pinnedItems.isEmpty ? nil : pinnedItems,
                 defaultEditMode: defaultEditMode,
                 hideMarkdownWhileEditing: hideMarkdownWhileEditing ? true : nil,
+                showAISparkle: showAISparkle ? nil : false,
                 browserStartupURL: browserStartupURL.isEmpty ? nil : browserStartupURL,
                 editorBodyFontFamily: editorBodyFontFamily == "System" ? nil : editorBodyFontFamily,
                 editorMonospaceFontFamily: editorMonospaceFontFamily == "System Monospace" ? nil : editorMonospaceFontFamily,
@@ -1376,6 +1418,7 @@ class SettingsManager: ObservableObject {
             guard let globalConfigPath else { return }
             let globalConfig = GlobalConfig(
                 githubPAT: githubPAT.isEmpty ? nil : githubPAT,
+                aiDefaultModel: aiDefaultModel,
                 sidebarPaneHeights: sidebarPaneHeights.isEmpty ? nil : sidebarPaneHeights,
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
                 collapsedSidebarIDs: collapsedSidebarIDs.isEmpty ? nil : collapsedSidebarIDs,

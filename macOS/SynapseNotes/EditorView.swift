@@ -738,6 +738,7 @@ struct RawEditor: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let textView = Self.configuredTextView(isEditable: isEditable, settings: appState.settings)
+        textView.aiAppState = appState
         textView.delegate = context.coordinator
         textView.onActivatePane = isEditable ? nil : { appState.focusPane(paneIndex) }
 
@@ -1011,6 +1012,9 @@ struct RawEditor: NSViewRepresentable {
                 tv.applyPreviewStyling(document: document, refreshPlan: refreshPlan, editingSessionOpen: true)
             }
             suppressSync = false
+            // The blanket restyle above wipes transient AI diff colors; restore
+            // them so they don't flicker between streaming deltas.
+            tv.reapplyAIDiffColorsIfActive()
         }
 
         func textStorage(_ textStorage: NSTextStorage, didProcessEditing editedMask: NSTextStorageEditActions, range editedRange: NSRange, changeInLength delta: Int) {
@@ -1018,7 +1022,11 @@ struct RawEditor: NSViewRepresentable {
             guard let tv = textView else { return }
             let oldText = parent.text
             let newText = tv.string
-            if parent.text != newText {
+            // While a rewrite diff is pending, the buffer holds BOTH the struck-through
+            // original and the new text. Don't sync that half-diff to the binding (or mark
+            // dirty / trigger autosave). acceptAI/rejectAI call didChangeText() once resolved,
+            // which syncs the final text (mode back to .idle, so hasPendingAIDiff is false).
+            if !tv.hasPendingAIDiff, parent.text != newText {
                 parent.text = newText
                 if let onDidEdit = parent.onDidEdit {
                     onDidEdit()
@@ -1059,8 +1067,9 @@ struct RawEditor: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            guard parent.appState.settings.hideMarkdownWhileEditing,
-                  let tv = textView else { return }
+            guard let tv = textView else { return }
+            tv.refreshAISparkle()
+            guard parent.appState.settings.hideMarkdownWhileEditing else { return }
 
             // Revealing the raw markdown under the caret is the immediate visual
             // feedback the user expects, so it runs synchronously on every move.
@@ -1495,6 +1504,10 @@ extension LinkAwareTextView {
 
     func setPlainText(_ plain: String) {
         guard let storage = textStorage else { return }
+        // Tear down any in-flight/pending AI session BEFORE the storage is
+        // replaced — stale ranges would corrupt the new note or crash on
+        // accept/reject, and the floating bar would linger over new content.
+        teardownAISession()
         // Stale ranges from a previous file would crash reapplySearchHighlights
         lastSearchHighlightRanges = []
         lastSearchFocusIndex = -1
@@ -2023,6 +2036,7 @@ extension LinkAwareTextView {
             self?.refreshInlineImagePreviews()
             self?.refreshCollapsibleToggles()
             self?.refreshCodeBlockCopyButtons()
+            self?.refreshAISparkle()
         }
     }
 
@@ -2242,6 +2256,422 @@ extension LinkAwareTextView {
         }
     }
 
+    // MARK: - Inline AI editing
+
+    /// Positions a single reused ✨ button just past the end of the caret's line content
+    /// (or past the selection when text is selected). Anchors to the *used* width of the
+    /// caret's line fragment, so on an empty line it sits next to the caret rather than
+    /// at the far right of the text container. Cheap: one layout lookup, no parsing.
+    func refreshAISparkle() {
+        guard let layoutManager, let textContainer else { return }
+        // Respect the user's show/hide preference (default on).
+        guard settings?.showAISparkle ?? true else {
+            aiSparkleButton?.isHidden = true
+            return
+        }
+        let sel = selectedRange()
+        let ns = string as NSString
+
+        // The character index whose line we anchor to: selection end, or the caret.
+        let anchorIndex = max(0, min(sel.length > 0 ? sel.location + sel.length : sel.location, ns.length))
+
+        let fallbackLineHeight = layoutManager.defaultLineHeight(for: font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize))
+        var lineRect: NSRect
+        if sel.length > 0 {
+            // Non-empty selection: anchor just past the trailing edge of its glyphs.
+            let selGlyphs = layoutManager.glyphRange(forCharacterRange: sel, actualCharacterRange: nil)
+            lineRect = layoutManager.boundingRect(forGlyphRange: selGlyphs, in: textContainer)
+        } else if anchorIndex == ns.length
+                    && (ns.length == 0 || ns.substring(with: NSRange(location: ns.length - 1, length: 1)).rangeOfCharacter(from: .newlines) != nil) {
+            // Caret on the final empty line (empty doc, or after a trailing newline). The
+            // layout manager tracks this as the "extra line fragment". Its used rect is
+            // the caret position on that empty line.
+            let extra = layoutManager.extraLineFragmentUsedRect
+            if extra.height > 0 {
+                lineRect = extra
+            } else {
+                lineRect = NSRect(x: 0, y: 0, width: 0, height: fallbackLineHeight)
+            }
+        } else {
+            // Caret on a non-trailing (possibly empty) line: use that line fragment's USED
+            // rect, whose width reflects the actual typeset content (≈ the caret x on an
+            // empty line), not the full container width — which is what made the ✨ fly
+            // off to the right.
+            let glyphIndex = min(layoutManager.glyphIndexForCharacter(at: anchorIndex), max(0, layoutManager.numberOfGlyphs - 1))
+            lineRect = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: nil)
+        }
+
+        var rect = lineRect
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+
+        let size: CGFloat = 18
+        let frame = NSRect(x: rect.maxX + 6, y: rect.minY + (rect.height - size) / 2, width: size, height: size)
+
+        let button: AISparkleButton
+        if let existing = aiSparkleButton {
+            button = existing
+        } else {
+            button = AISparkleButton(frame: frame)
+            button.target = self
+            button.action = #selector(aiSparkleTapped)
+            addSubview(button)
+            aiSparkleButton = button
+        }
+        // This runs on every caret move; avoid needless invalidation when nothing moved.
+        if button.frame != frame { button.frame = frame }
+        button.isHidden = (aiBarHostingView != nil)   // hide while the bar is open
+    }
+
+    @objc private func aiSparkleTapped() {
+        let sel = selectedRange()
+        let mode: InlineAIBarMode = sel.length > 0 ? .rewrite : .generate
+        presentAIBar(mode: mode, at: sel)
+    }
+
+    private func presentAIBar(mode: InlineAIBarMode, at sel: NSRange) {
+        dismissAIBar()
+        aiBarOriginalSelection = sel
+        aiBarUserMoved = false
+        aiBarDragStartOrigin = nil
+
+        let defaultModel = AIModel(apiID: settings?.aiDefaultModel ?? AIModel.default.apiID)
+        let model = InlineAIBarModel(mode: mode, model: defaultModel)
+        model.allFiles = aiAppState?.allFiles ?? []
+        model.allFolders = aiAppState?.allFolders() ?? []
+
+        model.onSubmit = { [weak self] prompt, chosen in
+            self?.startAIStream(prompt: prompt, model: chosen, mode: mode, selection: sel)
+        }
+        model.onRetry = { [weak self] prompt, chosen in
+            // Discard the previous output so the re-run replaces it instead of
+            // appending, then stream fresh from the original anchor/selection.
+            self?.inlineAIController.discardOutput()
+            self?.clearAIDiffColors()
+            self?.aiBarModel?.awaitingAcceptReject = false
+            self?.startAIStream(prompt: prompt, model: chosen, mode: mode, selection: sel)
+        }
+        model.onStop   = { [weak self] in self?.stopAIStream() }
+        model.onAccept = { [weak self] in self?.acceptAI() }
+        model.onReject = { [weak self] in self?.rejectAI() }
+        model.onCancel = { [weak self] in self?.dismissAIBar() }
+        model.onDrag = { [weak self] translation in self?.dragAIBar(by: translation) }
+        model.onDragEnded = { [weak self] in self?.aiBarDragStartOrigin = nil }
+        model.onContentSizeMayHaveChanged = { [weak self] in self?.resizeAIBarToFit() }
+        aiBarModel = model
+
+        let host = NSHostingView(rootView: InlineAIBarView(model: model))
+        host.frame = aiBarFrame(below: sel)
+        addSubview(host)
+        aiBarHostingView = host
+        refreshAISparkle()
+    }
+
+    /// Frame for the AI bar. Anchored just below the bottom of the affected region so it
+    /// never overlaps the streamed text/diff (the region is the end of the streamed
+    /// `newRange`/`originalRange` once streaming starts, else the selection/cursor). If
+    /// placing it below would push it past the bottom of the visible viewport (a long
+    /// diff), it is placed ABOVE the top of the affected region instead, so it stays on
+    /// screen and still clears the diff.
+    private func aiBarFrame(below sel: NSRange, size: NSSize? = nil) -> NSRect {
+        guard let layoutManager, let textContainer else { return .zero }
+        let ns = string as NSString
+        let barSize = size ?? aiBarFittedSize()
+        let width = barSize.width
+        let barHeight = barSize.height
+
+        func yOffset(forCharacterIndex index: Int) -> (top: CGFloat, bottom: CGFloat) {
+            let safe = max(0, min(index, ns.length))
+            let gr = layoutManager.glyphRange(forCharacterRange: NSRange(location: safe, length: 0), actualCharacterRange: nil)
+            var r = layoutManager.boundingRect(forGlyphRange: gr, in: textContainer)
+            r.origin.y += textContainerOrigin.y
+            return (r.minY, r.maxY)
+        }
+
+        // Bottom of the affected region (prefer streamed text) and top of it (for the
+        // above-placement fallback).
+        var bottomAnchor = sel.length > 0 ? sel.location + sel.length : sel.location
+        if let nr = inlineAIController.newRange { bottomAnchor = max(bottomAnchor, NSMaxRange(nr)) }
+        if let orig = inlineAIController.originalRange { bottomAnchor = max(bottomAnchor, NSMaxRange(orig)) }
+        let topAnchor = min(sel.location, inlineAIController.originalRange?.location ?? sel.location)
+
+        let belowY = yOffset(forCharacterIndex: bottomAnchor).bottom + 6
+        let visible = enclosingScrollView?.documentVisibleRect ?? visibleRect
+
+        // If the bar placed below would run past the visible area, place it above the region.
+        if belowY + barHeight > visible.maxY {
+            let aboveY = yOffset(forCharacterIndex: topAnchor).top - barHeight - 6
+            let clampedY = max(visible.minY + 6, aboveY)
+            return NSRect(x: 12, y: clampedY, width: width, height: barHeight)
+        }
+        return NSRect(x: 12, y: belowY, width: width, height: barHeight)
+    }
+
+    /// The bar's content-fitted size (drag handle + growing prompt + suggestion list),
+    /// clamped to the editor width and a sane height range. fittingSize needs the
+    /// target width set on the host first.
+    private func aiBarFittedSize() -> NSSize {
+        let width = min(bounds.width - 24, 520)
+        var height: CGFloat = 80
+        if let host = aiBarHostingView {
+            host.frame.size.width = width
+            let fitting = host.fittingSize.height
+            if fitting > 0 { height = max(60, min(fitting, 360)) }
+        }
+        return NSSize(width: width, height: height)
+    }
+
+    /// Re-anchors the bar below the current affected region (called as text streams in
+    /// and when streaming finishes) so it tracks the growing diff instead of covering it.
+    /// No-op once the user has dragged the bar to a manual position.
+    private func repositionAIBar() {
+        guard let host = aiBarHostingView, !aiBarUserMoved else { return }
+        // Streaming doesn't change the bar's content, so reuse its current size —
+        // avoids a full SwiftUI fitting pass per streamed delta.
+        host.frame = aiBarFrame(below: aiBarOriginalSelection, size: host.frame.size)
+    }
+
+    /// Resizes the bar to fit its content (prompt growth, suggestion list). Preserves the
+    /// user-dragged origin if they moved it; otherwise re-anchors below the affected region.
+    private func resizeAIBarToFit() {
+        guard let host = aiBarHostingView else { return }
+        if aiBarUserMoved {
+            host.frame.size = aiBarFittedSize()
+        } else {
+            host.frame = aiBarFrame(below: aiBarOriginalSelection)
+        }
+    }
+
+    /// Moves the bar by a drag-handle translation. The bar is a subview of the text view,
+    /// which is a flipped NSView (y grows downward) — same direction as SwiftUI's global
+    /// translation — so the y delta is ADDED, not negated. The translation is cumulative
+    /// from drag start, so we offset the origin captured when the drag began.
+    private func dragAIBar(by translation: CGSize) {
+        guard let host = aiBarHostingView else { return }
+        aiBarUserMoved = true
+        let start = aiBarDragStartOrigin ?? host.frame.origin
+        if aiBarDragStartOrigin == nil { aiBarDragStartOrigin = start }
+        let newOrigin = NSPoint(x: start.x + translation.width,
+                                y: start.y + translation.height)
+        // Keep the bar within the visible area.
+        let visible = enclosingScrollView?.documentVisibleRect ?? visibleRect
+        let clampedX = min(max(newOrigin.x, visible.minX + 4), visible.maxX - host.frame.width - 4)
+        let clampedY = min(max(newOrigin.y, visible.minY + 4), visible.maxY - host.frame.height - 4)
+        host.frame.origin = NSPoint(x: clampedX, y: clampedY)
+    }
+
+    /// Shared teardown core: cancels any in-flight stream, closes the operation's
+    /// single undo group, and removes the bar.
+    private func cancelAIStreamAndRemoveBar() {
+        aiStreamTask?.cancel(); aiStreamTask = nil
+        endAIUndoGroup()
+        aiBarHostingView?.removeFromSuperview(); aiBarHostingView = nil
+        aiBarModel = nil
+    }
+
+    private func dismissAIBar() {
+        cancelAIStreamAndRemoveBar()
+        refreshAISparkle()
+    }
+
+    /// Tears down any in-flight or pending inline-AI session. Called when the
+    /// document is swapped (note/tab switch) so stale ranges can't corrupt the
+    /// new note or crash on accept/reject. Does NOT touch storage: the
+    /// about-to-run setPlainText replaces the whole attributed string, so old
+    /// diff colors vanish with it.
+    func teardownAISession() {
+        guard aiBarHostingView != nil || inlineAIController.mode != .idle else { return }
+        cancelAIStreamAndRemoveBar()
+        inlineAIController.resetWithoutMutating()
+    }
+
+    /// Re-applies transient AI diff colors after a styling pass, if a session is active.
+    /// The normal markdown restyle blanket-sets foreground colors, wiping the diff
+    /// colors; this restores them so they don't flicker mid-stream.
+    func reapplyAIDiffColorsIfActive() {
+        guard inlineAIController.mode != .idle else { return }
+        applyAIDiffColors()
+    }
+
+    /// Applies an AI text mutation through the standard NSTextView edit path so it
+    /// registers with the undo manager (Cmd-Z reverts AI insertions/rewrites). Bounds-safe.
+    /// All edits in one AI operation are coalesced into a single undo group (see
+    /// `beginAIUndoGroup`/`endAIUndoGroup`) so one Cmd-Z reverts the whole thing.
+    private func performAIEdit(_ range: NSRange, _ replacement: String) {
+        guard let storage = textStorage else { return }
+        guard range.location >= 0, NSMaxRange(range) <= storage.length else { return }
+        if shouldChangeText(in: range, replacementString: replacement) {
+            replaceCharacters(in: range, with: replacement)
+            didChangeText()
+        }
+    }
+
+    /// Opens an undo group so every streamed delta + the accept/reject deletion collapse
+    /// into a single Cmd-Z. Also disables NSTextView's automatic per-keystroke coalescing
+    /// boundary so the deltas don't split into separate undo steps.
+    private func beginAIUndoGroup() {
+        guard !aiUndoGroupOpen else { return }
+        breakUndoCoalescing()
+        undoManager?.beginUndoGrouping()
+        aiUndoGroupOpen = true
+    }
+
+    /// Closes the AI undo group opened by `beginAIUndoGroup` (idempotent).
+    private func endAIUndoGroup() {
+        guard aiUndoGroupOpen else { return }
+        undoManager?.endUndoGrouping()
+        breakUndoCoalescing()
+        aiUndoGroupOpen = false
+    }
+
+    private func startAIStream(prompt: String, model: AIModel, mode: InlineAIBarMode, selection sel: NSRange) {
+        guard let storage = textStorage else { return }
+        guard let key = KeychainStore().get(), !key.isEmpty else {
+            aiBarModel?.errorMessage = "Add your Anthropic API key in Settings →"
+            return
+        }
+
+        // Reuse the vault lists captured when the bar was presented; allFolders()
+        // walks every file's ancestor chain, so don't recompute it per submit.
+        let resolver = AIContextResolver(
+            allFiles: aiBarModel?.allFiles ?? [],
+            allFolders: aiBarModel?.allFolders ?? [],
+            readContents: { try? String(contentsOf: $0, encoding: .utf8) })
+        let resolved = resolver.resolve(prompt: prompt)
+
+        if mode == .generate {
+            inlineAIController.beginGenerate(in: storage, at: sel.location)
+        } else {
+            inlineAIController.beginRewrite(in: storage, selection: sel)
+        }
+        // Route the controller's text mutations through the undo-registering path so the
+        // whole AI edit is undoable with Cmd-Z (one logical change, not silent storage edits).
+        inlineAIController.performEdit = { [weak self] range, replacement in
+            self?.performAIEdit(range, replacement)
+        }
+        // Group every edit in this operation (all deltas + the accept/reject deletion)
+        // into a single undo step. Idempotent, so Retry re-entry keeps the same group.
+        beginAIUndoGroup()
+
+        let selectionText = mode == .rewrite ? (string as NSString).substring(with: sel) : nil
+        let body = AIRequestBuilder.build(
+            mode: mode,
+            prompt: prompt, noteText: string,
+            selection: selectionText, context: resolved.blocks, model: model)
+
+        aiBarModel?.isStreaming = true
+        if resolved.truncated {
+            aiBarModel?.errorMessage = "Context truncated to fit."
+        } else if !resolved.missing.isEmpty {
+            aiBarModel?.errorMessage = "\(resolved.missing.count) reference(s) not found."
+        } else {
+            aiBarModel?.errorMessage = nil
+        }
+
+        let client = AnthropicClient(apiKey: key)
+        aiStreamTask = Task { [weak self] in
+            do {
+                for try await delta in client.stream(body: body) {
+                    await MainActor.run {
+                        // appendDelta routes through performAIEdit, which calls didChangeText().
+                        self?.inlineAIController.appendDelta(delta)
+                        self?.colorAIDelta(appendedLength: (delta as NSString).length)
+                        self?.repositionAIBar()
+                    }
+                }
+                await MainActor.run { self?.finishAIStream(mode: mode) }
+            } catch {
+                await MainActor.run { self?.handleAIError(error) }
+            }
+        }
+    }
+
+    private func stopAIStream() {
+        aiStreamTask?.cancel(); aiStreamTask = nil
+        // finishAIStream owns the per-mode end-of-session rules (generate: reset +
+        // dismiss; rewrite: await accept/reject).
+        finishAIStream(mode: aiBarModel?.mode ?? .generate)
+    }
+
+    private func finishAIStream(mode: InlineAIBarMode) {
+        aiBarModel?.isStreaming = false
+        if mode == .rewrite {
+            aiBarModel?.awaitingAcceptReject = true
+        } else {
+            inlineAIController.cancel()
+            dismissAIBar()
+        }
+        applyAIDiffColors()
+        repositionAIBar()
+    }
+
+    private func handleAIError(_ error: Error) {
+        aiBarModel?.isStreaming = false
+        if let e = error as? AnthropicClient.ClientError {
+            switch e {
+            case .invalidKey: aiBarModel?.errorMessage = "Invalid API key — check Settings."
+            case .server(let s): aiBarModel?.errorMessage = "Server error (\(s)). Try again."
+            case .badResponse: aiBarModel?.errorMessage = "Unexpected response. Try again."
+            }
+        } else {
+            aiBarModel?.errorMessage = "Network error. Try again."
+        }
+        if aiBarModel?.mode == .generate {
+            inlineAIController.cancel()   // generate: reset to idle so a retry starts clean
+        }
+        if aiBarModel?.mode == .rewrite { aiBarModel?.awaitingAcceptReject = true }
+    }
+
+    /// Shared accept/reject epilogue: resolve the diff via the controller, restore
+    /// normal styling, sync the final text to the binding, and close the bar.
+    private func resolveAIRewrite(_ resolve: () -> Void) {
+        resolve()
+        clearAIDiffColors()
+        didChangeText()
+        dismissAIBar()
+    }
+
+    private func acceptAI() { resolveAIRewrite(inlineAIController.accept) }
+
+    private func rejectAI() { resolveAIRewrite(inlineAIController.reject) }
+
+    /// Colors only the newly appended streamed delta (green) — O(delta) per chunk
+    /// instead of re-coloring the whole accumulated diff (O(total), quadratic over a
+    /// stream). The first delta falls back to the full pass so the original range
+    /// gets its strikethrough/red at the same moment it always has; later wipes by
+    /// styling passes are restored by `reapplyAIDiffColorsIfActive`.
+    private func colorAIDelta(appendedLength: Int) {
+        guard let storage = textStorage,
+              let nr = inlineAIController.newRange, appendedLength > 0 else { return }
+        guard nr.length > appendedLength else {
+            applyAIDiffColors()
+            return
+        }
+        let sub = NSRange(location: NSMaxRange(nr) - appendedLength, length: appendedLength)
+        guard sub.location >= 0, NSMaxRange(sub) <= storage.length else { return }
+        storage.addAttribute(.foregroundColor, value: NSColor.systemGreen, range: sub)
+    }
+
+    private func applyAIDiffColors() {
+        guard let storage = textStorage else { return }
+        if let orig = inlineAIController.originalRange, orig.length > 0,
+           NSMaxRange(orig) <= storage.length {
+            storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: orig)
+            storage.addAttribute(.foregroundColor, value: NSColor.systemRed, range: orig)
+        }
+        if let nr = inlineAIController.newRange, nr.length > 0,
+           NSMaxRange(nr) <= storage.length {
+            storage.addAttribute(.foregroundColor, value: NSColor.systemGreen, range: nr)
+        }
+    }
+
+    private func clearAIDiffColors() {
+        guard let storage = textStorage else { return }
+        let full = NSRange(location: 0, length: storage.length)
+        storage.removeAttribute(.strikethroughStyle, range: full)
+        refreshEditorForCurrentDisplayMode(self)
+    }
+
     @objc private func collapsibleToggleTapped(_ sender: NSControl) {
         let sectionId = sender.identifier?.rawValue ?? ""
         guard !sectionId.isEmpty else { return }
@@ -2340,6 +2770,27 @@ class LinkAwareTextView: NSTextView {
     private let collapsibleStateManager = CollapsibleStateManager()
     /// Toggle buttons keyed by section identifier ("headerOffset-headerLength")
     private var collapsibleToggleButtons: [String: CollapsibleToggleButton] = [:]
+
+    // MARK: - Inline AI editing
+    let inlineAIController = InlineAIController()
+    /// True while a rewrite diff is on screen awaiting accept/reject — the buffer
+    /// holds both original and new text, which must not be synced/saved as-is.
+    var hasPendingAIDiff: Bool { inlineAIController.mode == .rewrite }
+    private var aiSparkleButton: AISparkleButton?
+    private var aiBarHostingView: NSHostingView<InlineAIBarView>?
+    private var aiBarModel: InlineAIBarModel?
+    private var aiStreamTask: Task<Void, Never>?
+    /// The selection/cursor captured when the bar opened — used to re-anchor the bar
+    /// below the affected region as text streams in.
+    private var aiBarOriginalSelection: NSRange = NSRange(location: 0, length: 0)
+    /// The bar's origin captured at the start of a drag (nil when not dragging).
+    private var aiBarDragStartOrigin: NSPoint?
+    /// Once the user drags the bar, stop auto-repositioning it below the streamed text.
+    private var aiBarUserMoved = false
+    /// True while an AI undo group is open (so the whole operation undoes as one step).
+    private var aiUndoGroupOpen = false
+    /// Injected at setup; source of vault files for @-context.
+    weak var aiAppState: AppState?
 
     // MARK: - Embedded Notes (for side panel)
     private static let embedRegex = try? NSRegularExpression(pattern: #"!\[\[([^\]]+)\]\]"#)
@@ -2935,6 +3386,7 @@ class LinkAwareTextView: NSTextView {
             self?.refreshInlineImagePreviews()
             self?.refreshCollapsibleToggles()
             self?.refreshCodeBlockCopyButtons()
+            self?.refreshAISparkle()
         }
     }
 
@@ -3107,6 +3559,13 @@ class LinkAwareTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
+        // ⌥J opens the inline AI bar at the cursor/selection (same as clicking the ✨).
+        // Works even when the ✨ is hidden via Settings.
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == .option, event.charactersIgnoringModifiers?.lowercased() == "j" {
+            aiSparkleTapped()
+            return
+        }
         if let popover = completionPopover, popover.isShown {
             switch event.keyCode {
             case KeyCode.downArrow: completionVC?.moveSelection(by: 1);    return

@@ -388,6 +388,7 @@ While editing:
 - **⌘F** - Find in note
 - **⌘G** - Find next
 - **⇧⌘G** - Find previous
+- **⌥J** - Open inline AI editing at the cursor (or click the ✨)
 - **/command** - Slash commands expand inline at line start or after a space
 
 ### Navigation Tips
