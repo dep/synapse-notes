@@ -2860,29 +2860,32 @@ class LinkAwareTextView: NSTextView {
     private func replaceAllMatches(query: String, replacement: String) {
         guard !query.isEmpty, let storage = textStorage else { return }
         let content = storage.string
-        var matches: [NSRange] = []
-        var searchStart = content.startIndex
-        while searchStart < content.endIndex,
-              let r = content.range(of: query, options: .caseInsensitive, range: searchStart..<content.endIndex) {
-            matches.append(NSRange(r, in: content))
-            searchStart = r.upperBound
-        }
-        guard !matches.isEmpty else { return }
-
-        // Build the post-replace string in one shot, then ask the delegate to permit a
-        // single full-document change. This keeps undo as one coalesced operation.
+        // Use Foundation's single-pass replace instead of collecting every match range.
+        // A note can contain millions of occurrences of a short query; materializing
+        // `[NSRange]` for each would spike memory and freeze the main thread.
         let mutable = NSMutableString(string: content)
-        for range in matches.reversed() {
-            mutable.replaceCharacters(in: range, with: replacement)
+        let initialSearchRange = NSRange(location: 0, length: (mutable as NSString).length)
+        let replacedCount = mutable.replaceOccurrences(
+            of: query,
+            with: replacement,
+            options: .caseInsensitive,
+            range: initialSearchRange
+        )
+        let resultString = mutable as String
+
+        guard replacedCount > 0 else {
+            applySearchHighlights(query: query, focusIndex: 0)
+            return
         }
+
         let fullRange = NSRange(location: 0, length: storage.length)
-        guard shouldChangeText(in: fullRange, replacementString: mutable as String) else { return }
+        guard shouldChangeText(in: fullRange, replacementString: resultString) else { return }
         // Highlight ranges are about to be invalidated by the full-document replace.
         // Drop them now so the debounced restyle (which re-applies highlights via
         // reapplySearchHighlights) can't read out-of-bounds NSRanges and crash.
         lastSearchHighlightRanges = []
         lastSearchFocusIndex = -1
-        storage.replaceCharacters(in: fullRange, with: mutable as String)
+        storage.replaceCharacters(in: fullRange, with: resultString)
         didChangeText()
 
         applySearchHighlights(query: query, focusIndex: 0)
