@@ -21,7 +21,11 @@ struct SettingsView: View {
     @State private var templateVarsExpanded = false
     @State private var themeImportError: String?
     @State private var showThemeImportError = false
-    @State private var anthropicKey: String = KeychainStore().get() ?? ""
+    // Loaded lazily in onAppear: the Settings scene constructs this view at app
+    // launch, and an eager KeychainStore().get() here would hit the keychain on
+    // every launch (prompting whenever the build's code signature changes).
+    @State private var anthropicKey: String = ""
+    @State private var anthropicKeyLoaded = false
 
     private let settingsFieldWidth: CGFloat = 440
 
@@ -683,7 +687,15 @@ struct SettingsView: View {
                     SecureField("sk-ant-...", text: $anthropicKey)
                         .font(.system(.body, design: .monospaced))
                         .textFieldStyle(.roundedBorder)
+                        .onAppear {
+                            guard !anthropicKeyLoaded else { return }
+                            anthropicKey = KeychainStore().get() ?? ""
+                            // Flip the flag on the next runloop turn so the
+                            // onChange from this programmatic load is skipped.
+                            DispatchQueue.main.async { anthropicKeyLoaded = true }
+                        }
                         .onChange(of: anthropicKey) { newValue in
+                            guard anthropicKeyLoaded else { return }
                             KeychainStore().set(newValue)
                         }
 

@@ -876,6 +876,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					E540C16C643A385615A9A437 = {
+						DevelopmentTeam = 299R8V27FZ;
+						ProvisioningStyle = Manual;
+					};
 				};
 			};
 			buildConfigurationList = FC17E84115FED15B8E080022 /* Build configuration list for PBXProject "Synapse Notes" */;
@@ -1355,7 +1359,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SynapseNotes/SynapseNotes.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 299R8V27FZ;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SynapseNotes/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
