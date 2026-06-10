@@ -212,4 +212,92 @@ final class GitignoreFileScanTests: XCTestCase {
         XCTAssertFalse(paths.contains(where: { $0.contains("/.git/") }),
                        ".git directory contents should never appear in file lists")
     }
+
+    // MARK: - Issue #260: git ls-files result is cached between scans
+
+    func test_ignoredDirectoriesCache_secondScanSpawnsNoGitProcess() {
+        initGitRepo()
+        writeGitignore("node_modules/\n")
+        makeFile(at: "notes/note.md")
+        makeFile(at: "node_modules/pkg/index.js")
+
+        let globalPath = tempDir.appendingPathComponent("global.yml").path
+        let settings = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
+        settings.respectGitignore = true
+        settings.fileExtensionFilter = "*"
+        settings.hiddenFileFolderFilter = ""
+
+        let appState = makeAppStateAndWaitForScan(settings: settings) { $0.openFolder(self.tempDir) }
+        let spawnsAfterFirstScan = appState.ignoredDirectoriesFetchCount
+        XCTAssertGreaterThanOrEqual(spawnsAfterFirstScan, 1,
+                                    "the first scan must run git ls-files")
+
+        // Rescan without touching any ignore input — must reuse the cached set.
+        appState.refreshAllFiles()
+
+        XCTAssertEqual(appState.ignoredDirectoriesFetchCount, spawnsAfterFirstScan,
+                       "a rescan with unchanged ignore files must not spawn git again")
+        let paths = appState.allProjectFiles.map { $0.path }
+        XCTAssertFalse(paths.contains(where: { $0.contains("node_modules") }),
+                       "the cached ignored set should still exclude node_modules")
+    }
+
+    func test_ignoredDirectoriesCache_invalidatedWhenGitignoreChanges() {
+        initGitRepo()
+        writeGitignore("node_modules/\n")
+        makeFile(at: "notes/note.md")
+        makeFile(at: "node_modules/pkg/index.js")
+        makeFile(at: "build/output.txt")
+
+        let globalPath = tempDir.appendingPathComponent("global.yml").path
+        let settings = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
+        settings.respectGitignore = true
+        settings.fileExtensionFilter = "*"
+        settings.hiddenFileFolderFilter = ""
+
+        let appState = makeAppStateAndWaitForScan(settings: settings) { $0.openFolder(self.tempDir) }
+        var paths = appState.allProjectFiles.map { $0.path }
+        XCTAssertTrue(paths.contains(where: { $0.contains("build") }),
+                      "precondition: build/ is visible before it's ignored")
+        let spawnsAfterFirstScan = appState.ignoredDirectoriesFetchCount
+
+        // Change the ignore rules; bump the mtime explicitly in case the
+        // filesystem's timestamp resolution is coarse.
+        writeGitignore("node_modules/\nbuild/\n")
+        try? FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(2)],
+            ofItemAtPath: tempDir.appendingPathComponent(".gitignore").path
+        )
+
+        appState.refreshAllFiles()
+
+        XCTAssertGreaterThan(appState.ignoredDirectoriesFetchCount, spawnsAfterFirstScan,
+                             "a .gitignore mtime change must re-run git ls-files")
+        paths = appState.allProjectFiles.map { $0.path }
+        XCTAssertFalse(paths.contains(where: { $0.contains("build") }),
+                       "the newly ignored build/ directory should be excluded")
+    }
+
+    func test_ignoredDirectoriesCache_explicitInvalidationForcesRespawn() {
+        initGitRepo()
+        writeGitignore("node_modules/\n")
+        makeFile(at: "notes/note.md")
+        makeFile(at: "node_modules/pkg/index.js")
+
+        let globalPath = tempDir.appendingPathComponent("global.yml").path
+        let settings = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
+        settings.respectGitignore = true
+        settings.fileExtensionFilter = "*"
+        settings.hiddenFileFolderFilter = ""
+
+        let appState = makeAppStateAndWaitForScan(settings: settings) { $0.openFolder(self.tempDir) }
+        let spawnsAfterFirstScan = appState.ignoredDirectoriesFetchCount
+
+        // Mirrors what the FSEvents full-rescan fallback does for structural changes.
+        appState.invalidateIgnoredDirectoriesCache()
+        appState.refreshAllFiles()
+
+        XCTAssertEqual(appState.ignoredDirectoriesFetchCount, spawnsAfterFirstScan + 1,
+                       "an invalidated cache must spawn git on the next scan")
+    }
 }

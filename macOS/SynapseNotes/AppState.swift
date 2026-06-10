@@ -335,8 +335,14 @@ class AppState: ObservableObject {
     /// is only applied when the counter still matches, discarding stale scans.
     /// `exitVault()` also increments this so in-flight async scans cannot commit after close.
     private(set) var scanGeneration: Int = 0
+    /// Number of full vault-tree scans started. Test probe (Issue #260): asserts the
+    /// incremental FSEvents path services pure content modifications without re-enumerating.
+    private(set) var fullScanCount: Int = 0
     /// Pending debounce work item for the DispatchSource file watcher.
     private var scanDebounceWorkItem: DispatchWorkItem?
+    /// Event paths accumulated across debounced FSEvents bursts (main-thread only).
+    /// A cancelled debounce must not drop paths the incremental indexer needs to see.
+    private var pendingEventPaths: [String] = []
 
     // MARK: - Content Cache (Issue #144)
     /// Per-file content cache keyed by standardized file URL.
@@ -638,32 +644,109 @@ class AppState: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
 
+            // Accumulate paths so a cancelled debounce never drops changes the
+            // incremental indexer needs to see (Issue #260).
+            self.pendingEventPaths.append(contentsOf: paths)
+
             // Debounce any additional bursts arriving in quick succession.
             self.scanDebounceWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                self.rebuildFileLists(reloadSettings: false)
-                // Only reload the selected file if one of the changed paths matches it.
-                if let selectedPath = self.selectedFile?.path,
-                   paths.contains(selectedPath),
-                   case .pulling = self.gitSyncStatus { return }
-                if let selectedPath = self.selectedFile?.path,
-                   paths.contains(selectedPath) {
-                    self.reloadSelectedFileFromDiskIfNeeded(force: true)
-                } else {
-                    // Even if the exact path wasn't in the event list, check for
-                    // modification-date changes (handles atomic-write style saves).
-                    self.reloadSelectedFileFromDiskIfNeeded()
-                }
+                let batch = self.pendingEventPaths
+                self.pendingEventPaths = []
+                self.processVaultEvents(paths: batch)
             }
             self.scanDebounceWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
         }
     }
 
+    /// Processes a debounced batch of FSEvents paths on the main thread.
+    ///
+    /// Fast path (Issue #260): when every changed path is an already-indexed note that
+    /// still exists on disk (a pure content modification — the dominant case: note saves),
+    /// only those cache entries are re-parsed. No tree enumeration, no `git ls-files`.
+    /// Anything ambiguous (creations, deletions, renames, directories, non-indexed files,
+    /// ignore-rule files, oversized batches) falls back to the full rescan, which also
+    /// drops the gitignore cache because structural changes can alter the ignored set
+    /// (e.g. a freshly created `node_modules`). Internal for testing.
+    func processVaultEvents(paths: [String]) {
+        if !applyIncrementalIndexUpdate(forEventPaths: paths) {
+            invalidateIgnoredDirectoriesCache()
+            rebuildFileLists(reloadSettings: false)
+        }
+
+        // Only reload the selected file if one of the changed paths matches it.
+        if let selectedPath = selectedFile?.path,
+           paths.contains(selectedPath),
+           case .pulling = gitSyncStatus { return }
+        if let selectedPath = selectedFile?.path,
+           paths.contains(selectedPath) {
+            reloadSelectedFileFromDiskIfNeeded(force: true)
+        } else {
+            // Even if the exact path wasn't in the event list, check for
+            // modification-date changes (handles atomic-write style saves).
+            reloadSelectedFileFromDiskIfNeeded()
+        }
+    }
+
+    /// Upper bound on event paths handled incrementally. Larger bursts (git checkout,
+    /// mass scripted edits) are cheaper as one full rescan than many main-thread reads.
+    private static let maxIncrementalEventPaths = 64
+
+    /// Attempts to service an FSEvents batch by re-indexing only the changed files.
+    /// Returns false when a full rescan is required instead.
+    ///
+    /// Generation safety: this runs synchronously on the main thread and only when no
+    /// index pass is in flight (`isIndexing == false`), so it cannot race a
+    /// `rebuildFullCache` commit. If a scan's enumeration phase is in flight, its index
+    /// pass starts *after* this update commits and re-reads every file from disk, so
+    /// fresher data always wins — stale data is never resurrected.
+    private func applyIncrementalIndexUpdate(forEventPaths paths: [String]) -> Bool {
+        guard let root = rootURL else { return false }
+        // A full index pass is in flight — the cache may be incomplete or about to be
+        // replaced wholesale; fall back so the generation counters arbitrate as before.
+        guard !isIndexing, !noteContentCache.isEmpty else { return false }
+        guard paths.count <= Self.maxIncrementalEventPaths else { return false }
+
+        let fm = FileManager.default
+        var changedNotes: Set<URL> = []
+        for path in paths {
+            // Touching ignore rules must re-run `git ls-files`, never the fast path.
+            if path.hasSuffix("/.gitignore") || path.hasSuffix("/.git/info/exclude") {
+                return false
+            }
+            // Unknown path: a new file, directory, attachment, or `.git` internals.
+            guard let url = cachedNoteURL(forEventPath: path) else { return false }
+            var isDirectory: ObjCBool = false
+            // Deleted (or replaced by a directory) — the file list changed.
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue else { return false }
+            guard isWithin(url, parentURL: root) else { return false }
+            changedNotes.insert(url)
+        }
+        guard !changedNotes.isEmpty else { return false }
+
+        updateCacheIncrementally(for: Array(changedNotes))
+        lastContentChange = UUID()
+        return true
+    }
+
+    /// Maps a raw FSEvents path to its `noteContentCache` key, or nil when the path is
+    /// not an already-indexed note. FSEvents reports resolved real paths (`/private/var/…`),
+    /// so the symlink-resolved form is also tried before giving up.
+    private func cachedNoteURL(forEventPath path: String) -> URL? {
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        if noteContentCache[url] != nil { return url }
+        let resolved = url.resolvingSymlinksInPath()
+        if noteContentCache[resolved] != nil { return resolved }
+        return nil
+    }
+
     private func stopWatching() {
         scanDebounceWorkItem?.cancel()
         scanDebounceWorkItem = nil
+        pendingEventPaths = []
 
         if let stream = vaultEventStream {
             FSEventStreamStop(stream)
@@ -1725,6 +1808,7 @@ class AppState: ObservableObject {
         // Clear all files
         allFiles = []
         allProjectFiles = []
+        invalidateIgnoredDirectoriesCache()
         noteContentCache = [:]
         cachedTagCounts = [:]
         cachedBacklinks = [:]
@@ -2114,6 +2198,7 @@ class AppState: ObservableObject {
 
         scanGeneration += 1
         let generation = scanGeneration
+        fullScanCount += 1
 
         // Snapshot settings values so the background thread never touches SettingsManager.
         let respectGitignore = settings.respectGitignore
@@ -2129,10 +2214,11 @@ class AppState: ObservableObject {
             let fm = FileManager.default
 
             // Build a set of gitignore-excluded directory paths (via git ls-files).
-            // This is a single process spawn rather than one per directory.
+            // The result is cached across scans and only re-fetched when the ignore
+            // inputs change (Issue #260) — see `cachedIgnoredDirectories`.
             var ignoredDirectories: Set<String> = []
             if respectGitignore, GitService.isGitRepo(at: root), let gitPath = GitService.findGit() {
-                ignoredDirectories = Self.fetchIgnoredDirectories(gitPath: gitPath, repoRoot: root)
+                ignoredDirectories = self.cachedIgnoredDirectories(gitPath: gitPath, repoRoot: root)
             }
 
             guard let enumerator = fm.enumerator(
@@ -2291,6 +2377,73 @@ class AppState: ObservableObject {
                 )
             }
         }
+    }
+
+    // MARK: - Gitignore Cache (Issue #260)
+
+    /// Cached `git ls-files --ignored` output plus the inputs that produced it.
+    /// Spawning git on every vault scan is wasteful (can be 200–500 ms on complex
+    /// repos); the ignored-directory set only changes when ignore rules or the
+    /// worktree's untracked structure change.
+    ///
+    /// Invalidation rules:
+    ///  - vault root changed (`rootPath` mismatch) or vault exited
+    ///  - `<root>/.gitignore` or `<root>/.git/info/exclude` mtime / existence changed
+    ///  - any FSEvents batch that falls back to a full rescan (`processVaultEvents`):
+    ///    structural changes can create new ignored directories (e.g. a fresh
+    ///    `node_modules`), and nested `.gitignore` edits/creations always take that path
+    private struct IgnoredDirectoriesCache {
+        let rootPath: String
+        let gitignoreModified: Date?
+        let excludeModified: Date?
+        let directories: Set<String>
+    }
+    /// Guarded by `ignoredDirectoriesLock`: read/written on `scanQueue` (main under
+    /// tests), invalidated from the main thread.
+    private var ignoredDirectoriesCacheStorage: IgnoredDirectoriesCache?
+    private let ignoredDirectoriesLock = NSLock()
+    /// Number of times `git ls-files` was actually spawned. Test probe (Issue #260).
+    private(set) var ignoredDirectoriesFetchCount: Int = 0
+
+    /// Returns the gitignore-excluded directory set for `repoRoot`, consulting the cache
+    /// first. Runs on `scanQueue` in production; the lock only synchronises against
+    /// `invalidateIgnoredDirectoriesCache` on the main thread, and is never held while
+    /// git runs so invalidation can't block the UI.
+    private func cachedIgnoredDirectories(gitPath: String, repoRoot: URL) -> Set<String> {
+        let rootPath = repoRoot.standardizedFileURL.path
+        let gitignoreModified = fileModificationDate(for: repoRoot.appendingPathComponent(".gitignore"))
+        let excludeModified = fileModificationDate(for: repoRoot.appendingPathComponent(".git/info/exclude"))
+
+        ignoredDirectoriesLock.lock()
+        let cached = ignoredDirectoriesCacheStorage
+        ignoredDirectoriesLock.unlock()
+
+        if let cached,
+           cached.rootPath == rootPath,
+           cached.gitignoreModified == gitignoreModified,
+           cached.excludeModified == excludeModified {
+            return cached.directories
+        }
+
+        let directories = Self.fetchIgnoredDirectories(gitPath: gitPath, repoRoot: repoRoot)
+
+        ignoredDirectoriesLock.lock()
+        ignoredDirectoriesFetchCount += 1
+        ignoredDirectoriesCacheStorage = IgnoredDirectoriesCache(
+            rootPath: rootPath,
+            gitignoreModified: gitignoreModified,
+            excludeModified: excludeModified,
+            directories: directories
+        )
+        ignoredDirectoriesLock.unlock()
+        return directories
+    }
+
+    /// Drops the cached ignored-directory set so the next scan re-runs `git ls-files`.
+    func invalidateIgnoredDirectoriesCache() {
+        ignoredDirectoriesLock.lock()
+        ignoredDirectoriesCacheStorage = nil
+        ignoredDirectoriesLock.unlock()
     }
 
     /// Runs `git ls-files --others --ignored --exclude-standard --directory` in the given

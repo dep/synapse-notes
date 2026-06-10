@@ -81,6 +81,7 @@
 		470CA39CF13239F7790E8E6A /* GraphNodeColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED00F83C56CAEA99861374B6 /* GraphNodeColorTests.swift */; };
 		47E834CD48727E2DA9D1C147 /* MarkdownTablePrettifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F8CCC8DE0551D8C09D24609 /* MarkdownTablePrettifier.swift */; };
 		483669AEE960F25266A752D3 /* AppStateObservationSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD46E5B1198C3929CE50A1CE /* AppStateObservationSplitTests.swift */; };
+		487F40967B33106E7547D9F6 /* IncrementalIndexUpdateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F25D8DD3669BC18323177AF /* IncrementalIndexUpdateTests.swift */; };
 		4A271201C92D670AD0CF92CD /* AppStateGraphTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE158B5BC42A50F28250D5C /* AppStateGraphTabTests.swift */; };
 		4B3CF3FB9620D4DD9E2E82E2 /* MarkdownPreviewCSSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FF4B814CF36CBFA3E891F9 /* MarkdownPreviewCSSTests.swift */; };
 		4B7D0E530EAA13F6B125ACB7 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24C81DC01DE3F2CA6D1DC3F8 /* Constants.swift */; };
@@ -306,6 +307,7 @@
 		1DCBA2DD744D17B8A93FD3D6 /* FileTreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeView.swift; sourceTree = "<group>"; };
 		1DF12B4101FE25EBB9EDC841 /* MarkdownEditorRefreshPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditorRefreshPlan.swift; sourceTree = "<group>"; };
 		1E5C67C5665B44BEA671BAF9 /* AppStateUnsavedChangesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateUnsavedChangesTests.swift; sourceTree = "<group>"; };
+		1F25D8DD3669BC18323177AF /* IncrementalIndexUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncrementalIndexUpdateTests.swift; sourceTree = "<group>"; };
 		1F8CCC8DE0551D8C09D24609 /* MarkdownTablePrettifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTablePrettifier.swift; sourceTree = "<group>"; };
 		1FAFBA8491471536C682215C /* FolderAppearancePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderAppearancePicker.swift; sourceTree = "<group>"; };
 		20765639CD137EFA64E5F828 /* MarkdownPreviewCSS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownPreviewCSS.swift; sourceTree = "<group>"; };
@@ -662,6 +664,7 @@
 				987E1B649BAA6DBF8B062EE1 /* HTMLToMarkdownTests.swift */,
 				9DE5954CBD5DB19F51E67763 /* ImagePasteTests.swift */,
 				BB6D950DAA29D4324BD4054E /* ImageSidebarEmbedTests.swift */,
+				1F25D8DD3669BC18323177AF /* IncrementalIndexUpdateTests.swift */,
 				E889CD671CA99F099DFF13C7 /* InlineAIControllerTests.swift */,
 				6ECAC2D5AC63076FFAE6E1CF /* InlineTagClickTests.swift */,
 				5A11E3B1BEF42A7AA9EAAE50 /* InlineTagStylingTests.swift */,
@@ -1136,6 +1139,7 @@
 				AC5C25866472910EC05AC2A0 /* HTMLToMarkdownTests.swift in Sources */,
 				8CA248B41EEFBB966526F952 /* ImagePasteTests.swift in Sources */,
 				53F221847CDB4F68E669AF75 /* ImageSidebarEmbedTests.swift in Sources */,
+				487F40967B33106E7547D9F6 /* IncrementalIndexUpdateTests.swift in Sources */,
 				5B07DDBDCE0FAF1375C70C49 /* InlineAIControllerTests.swift in Sources */,
 				3F40FA004E127110B79AEBE2 /* InlineTagClickTests.swift in Sources */,
 				172C4E1F1F3527C71D3DE159 /* InlineTagStylingTests.swift in Sources */,
