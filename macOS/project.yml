@@ -72,5 +72,13 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Synapse Notes.app/Contents/MacOS/Synapse Notes"
         BUNDLE_LOADER: "$(TEST_HOST)"
+      configs:
+        Debug:
+          # Must match the app target's signing: dyld refuses to load a test
+          # bundle whose Team ID differs from the (Manual, Apple Development)
+          # signed test host.
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: 299R8V27FZ
+          CODE_SIGN_IDENTITY: Apple Development
     dependencies:
       - target: Synapse

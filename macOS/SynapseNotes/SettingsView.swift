@@ -26,6 +26,10 @@ struct SettingsView: View {
     // every launch (prompting whenever the build's code signature changes).
     @State private var anthropicKey: String = ""
     @State private var anthropicKeyLoaded = false
+    // Same lazy pattern: the GitHub PAT now lives in the Keychain, so the field
+    // is local state loaded in onAppear instead of a binding into SettingsManager.
+    @State private var githubPAT: String = ""
+    @State private var githubPATLoaded = false
 
     private let settingsFieldWidth: CGFloat = 440
 
@@ -638,20 +642,31 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 8) {
-                        SecureField("ghp_...", text: $settings.githubPAT)
+                        SecureField("ghp_...", text: $githubPAT)
                             .font(.system(.body, design: .monospaced))
                             .textFieldStyle(.roundedBorder)
+                            .onAppear {
+                                guard !githubPATLoaded else { return }
+                                githubPAT = settings.githubPAT
+                                // Flip the flag on the next runloop turn so the
+                                // onChange from this programmatic load is skipped.
+                                DispatchQueue.main.async { githubPATLoaded = true }
+                            }
+                            .onChange(of: githubPAT) { newValue in
+                                guard githubPATLoaded else { return }
+                                settings.githubPAT = newValue
+                            }
 
-                        if settings.hasGitHubPAT {
+                        if !githubPAT.isEmpty {
                             Button("Clear") {
-                                settings.githubPAT = ""
+                                githubPAT = ""
                             }
                             .font(.system(size: 11))
                             .foregroundStyle(.red)
                         }
                     }
 
-                    Text("Used to publish notes to public GitHub Gists. The token needs the 'gist' scope.")
+                    Text("Stored securely in your macOS Keychain. Used to publish notes to public GitHub Gists. The token needs the 'gist' scope.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

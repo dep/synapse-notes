@@ -443,7 +443,7 @@ class AppState: ObservableObject {
         let appRefreshPublishers: [AnyPublisher<Void, Never>] = [
             settings.$dailyNotesEnabled.map { _ in () }.eraseToAnyPublisher(),
             settings.$hideMarkdownWhileEditing.map { _ in () }.eraseToAnyPublisher(),
-            settings.$githubPAT.map { _ in () }.eraseToAnyPublisher(),
+            settings.githubPATDidChange.eraseToAnyPublisher(),
             settings.$editorBodyFontFamily.map { _ in () }.eraseToAnyPublisher(),
             settings.$editorMonospaceFontFamily.map { _ in () }.eraseToAnyPublisher(),
             settings.$editorFontSize.map { _ in () }.eraseToAnyPublisher(),
