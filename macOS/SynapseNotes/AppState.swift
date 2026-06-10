@@ -1741,12 +1741,27 @@ class AppState: ObservableObject {
 
         if GitService.isGitRepo(at: url), let git = try? GitService(repoURL: url) {
             gitService = git
-            gitBranch = git.currentBranch()
-            gitAheadCount = git.aheadCount()
+            gitBranch = AppConstants.defaultBranchName
+            gitAheadCount = 0
             gitSyncStatus = .idle
+            // currentBranch() and aheadCount() each spawn a git subprocess and block until
+            // it exits, so they must not run on the main thread (Issue #257). Compute them
+            // on gitQueue and publish the results back; the defaults above stay visible
+            // for the few milliseconds until the round-trip completes.
+            gitQueue.async { [weak self] in
+                let branch = git.currentBranch()
+                let ahead = git.aheadCount()
+                DispatchQueue.main.async {
+                    // Drop the result if the vault changed (or closed) in the meantime.
+                    guard let self, self.gitService === git else { return }
+                    self.gitBranch = branch
+                    self.gitAheadCount = ahead
+                }
+            }
             // Populate the file-date cache now that gitService is available — the initial
             // file scan may have committed before this ran, in which case its
             // refreshGitDateCache() call was a no-op. This second call guarantees population.
+            // (refreshGitDateCache does its own gitQueue dispatch, so it stays off-main.)
             refreshGitDateCache()
             startPushTimer()
             startPullTimer()
@@ -1799,9 +1814,28 @@ class AppState: ObservableObject {
     }
 
     func pullLatest() {
-        guard let git = gitService, git.hasRemote() else { return }
+        guard let git = gitService else { return }
         guard case .idle = gitSyncStatus else { return }
-        gitSyncStatus = .pulling
+        // hasRemote() spawns a git subprocess, so probe it on the git queue rather than
+        // on the main thread (pullLatest is called synchronously from setupGit/openFolder,
+        // Issue #257). The status stays .idle for local-only repos, exactly as before.
+        gitQueue.async { [weak self] in
+            guard let self else { return }
+            guard git.hasRemote() else { return }
+            // Back on main: re-check that no other sync started while we probed the
+            // remote, then claim the .pulling state and run the pull on the git queue.
+            DispatchQueue.main.async {
+                guard self.gitService === git else { return }
+                guard case .idle = self.gitSyncStatus else { return }
+                self.gitSyncStatus = .pulling
+                self.performPull(git: git)
+            }
+        }
+    }
+
+    /// Runs `git pull --rebase` on the git queue and publishes the resulting state back
+    /// to the main thread. Callers must already have set `gitSyncStatus = .pulling`.
+    private func performPull(git: GitService) {
         gitQueue.async { [weak self] in
             guard let self else { return }
             do {
