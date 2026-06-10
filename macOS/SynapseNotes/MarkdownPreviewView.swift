@@ -132,7 +132,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 html = (html as NSString).replacingCharacters(in: range, with: replacement)
             }
         }
-        
+
         let textColor = isDarkMode ? "#E0E0E0" : "#333333"
         let backgroundColor = isDarkMode ? "#1E1E1E" : "#FFFFFF"
         let borderColor = isDarkMode ? "#444444" : "#CCCCCC"
@@ -149,7 +149,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         let h4Size = MarkdownPreviewCSS.headingFontSize(level: 4, baseSize: fontSize)
         let h5Size = MarkdownPreviewCSS.headingFontSize(level: 5, baseSize: fontSize)
         let h6Size = MarkdownPreviewCSS.headingFontSize(level: 6, baseSize: fontSize)
-        
+
         return """
         <!DOCTYPE html>
         <html>
