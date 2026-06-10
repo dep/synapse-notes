@@ -20,6 +20,21 @@ final class InlineAIController: ObservableObject {
 
     private weak var storage: NSTextStorage?
 
+    /// Optional edit hook supplied by the view layer. When set, all text mutations are
+    /// routed through it (so the host can register undo via shouldChangeText/didChangeText);
+    /// when nil, mutations apply directly to the storage (used by unit tests). The closure
+    /// receives the range to replace and the replacement string.
+    var performEdit: ((NSRange, String) -> Void)?
+
+    /// Applies a replacement either through the host's undo-registering hook or directly.
+    private func applyEdit(_ range: NSRange, _ replacement: String) {
+        if let performEdit {
+            performEdit(range, replacement)
+        } else {
+            storage?.replaceCharacters(in: range, with: replacement)
+        }
+    }
+
     // MARK: Generate
 
     func beginGenerate(in storage: NSTextStorage, at location: Int) {
@@ -45,9 +60,9 @@ final class InlineAIController: ObservableObject {
 
     /// Appends a streamed text delta at the end of the current `newRange`.
     func appendDelta(_ text: String) {
-        guard let storage, var nr = newRange, mode != .idle else { return }
+        guard storage != nil, var nr = newRange, mode != .idle else { return }
         let insertAt = nr.location + nr.length
-        storage.replaceCharacters(in: NSRange(location: insertAt, length: 0), with: text)
+        applyEdit(NSRange(location: insertAt, length: 0), text)
         nr.length += (text as NSString).length
         newRange = nr
     }
@@ -70,25 +85,25 @@ final class InlineAIController: ObservableObject {
     /// Rewrite accept: delete the original, keep the new text. No-op in any other mode.
     func accept() {
         guard mode == .rewrite else { return }
-        guard let storage, let orig = originalRange else {
-            // Defensive: rewrite mode but no storage/range — clear and bail.
+        guard let orig = originalRange else {
+            // Defensive: rewrite mode but no range — clear and bail.
             mode = .idle; originalRange = nil; newRange = nil
             return
         }
         // The new text sits immediately after the original; deleting the original
         // shifts the new text left into the original's place.
-        storage.replaceCharacters(in: orig, with: "")
+        applyEdit(orig, "")
         mode = .idle; originalRange = nil; newRange = nil
     }
 
     /// Rewrite reject: delete the streamed new text, restore the original. No-op in any other mode.
     func reject() {
         guard mode == .rewrite else { return }
-        guard let storage, let nr = newRange else {
+        guard let nr = newRange else {
             mode = .idle; originalRange = nil; newRange = nil
             return
         }
-        storage.replaceCharacters(in: nr, with: "")
+        applyEdit(nr, "")
         mode = .idle; originalRange = nil; newRange = nil
     }
 
@@ -108,8 +123,9 @@ final class InlineAIController: ObservableObject {
     /// of appending onto the previous output.
     func discardOutput() {
         guard mode != .idle else { return }
-        if let storage, let nr = newRange, nr.length > 0, NSMaxRange(nr) <= storage.length {
-            storage.replaceCharacters(in: nr, with: "")
+        if let nr = newRange, nr.length > 0,
+           (storage == nil || NSMaxRange(nr) <= storage!.length) {
+            applyEdit(nr, "")
         }
         mode = .idle
         originalRange = nil

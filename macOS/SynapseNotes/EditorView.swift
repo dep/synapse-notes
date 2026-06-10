@@ -2259,36 +2259,50 @@ extension LinkAwareTextView {
 
     // MARK: - Inline AI editing
 
-    /// Positions a single reused ✨ button at the end of the caret's line, or just
-    /// past the selection when text is selected. Cheap: one glyph-rect lookup, no parsing.
+    /// Positions a single reused ✨ button just past the end of the caret's line content
+    /// (or past the selection when text is selected). Anchors to the *used* width of the
+    /// caret's line fragment, so on an empty line it sits next to the caret rather than
+    /// at the far right of the text container. Cheap: one layout lookup, no parsing.
     func refreshAISparkle() {
         guard let layoutManager, let textContainer else { return }
         let sel = selectedRange()
         let ns = string as NSString
 
-        let anchorIndex: Int
+        // The character index whose line we anchor to: selection end, or the caret.
+        let anchorIndex = max(0, min(sel.length > 0 ? sel.location + sel.length : sel.location, ns.length))
+
+        let fallbackLineHeight = layoutManager.defaultLineHeight(for: font ?? NSFont.systemFont(ofSize: NSFont.systemFontSize))
+        var lineRect: NSRect
         if sel.length > 0 {
-            anchorIndex = sel.location + sel.length
-        } else {
-            let lineRange = ns.lineRange(for: NSRange(location: min(sel.location, ns.length), length: 0))
-            var end = lineRange.location + lineRange.length
-            if end > lineRange.location,
-               ns.substring(with: NSRange(location: end - 1, length: 1)).rangeOfCharacter(from: .newlines) != nil {
-                end -= 1
+            // Non-empty selection: anchor just past the trailing edge of its glyphs.
+            let selGlyphs = layoutManager.glyphRange(forCharacterRange: sel, actualCharacterRange: nil)
+            lineRect = layoutManager.boundingRect(forGlyphRange: selGlyphs, in: textContainer)
+        } else if anchorIndex == ns.length
+                    && (ns.length == 0 || ns.substring(with: NSRange(location: ns.length - 1, length: 1)).rangeOfCharacter(from: .newlines) != nil) {
+            // Caret on the final empty line (empty doc, or after a trailing newline). The
+            // layout manager tracks this as the "extra line fragment". Its used rect is
+            // the caret position on that empty line.
+            let extra = layoutManager.extraLineFragmentUsedRect
+            if extra.height > 0 {
+                lineRect = extra
+            } else {
+                lineRect = NSRect(x: 0, y: 0, width: 0, height: fallbackLineHeight)
             }
-            anchorIndex = end
+        } else {
+            // Caret on a non-trailing (possibly empty) line: use that line fragment's USED
+            // rect, whose width reflects the actual typeset content (≈ the caret x on an
+            // empty line), not the full container width — which is what made the ✨ fly
+            // off to the right.
+            let glyphIndex = min(layoutManager.glyphIndexForCharacter(at: anchorIndex), max(0, layoutManager.numberOfGlyphs - 1))
+            lineRect = layoutManager.lineFragmentUsedRect(forGlyphAt: glyphIndex, effectiveRange: nil)
         }
 
-        let safe = max(0, min(anchorIndex, ns.length))
-        let glyphRange = layoutManager.glyphRange(
-            forCharacterRange: NSRange(location: max(0, safe - 1), length: safe > 0 ? 1 : 0),
-            actualCharacterRange: nil)
-        var rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        var rect = lineRect
         rect.origin.x += textContainerOrigin.x
         rect.origin.y += textContainerOrigin.y
 
         let size: CGFloat = 18
-        let frame = NSRect(x: rect.maxX + 4, y: rect.minY + (rect.height - size) / 2, width: size, height: size)
+        let frame = NSRect(x: rect.maxX + 6, y: rect.minY + (rect.height - size) / 2, width: size, height: size)
 
         let button: AISparkleButton
         if let existing = aiSparkleButton {
@@ -2416,17 +2430,17 @@ extension LinkAwareTextView {
         }
     }
 
-    /// Moves the bar by a drag-handle translation. `translation` is SwiftUI global-space
-    /// (y grows downward); this view is an unflipped NSView (y grows upward), so the y
-    /// delta is negated. The translation is cumulative from drag start, so we offset the
-    /// origin captured when the drag began.
+    /// Moves the bar by a drag-handle translation. The bar is a subview of the text view,
+    /// which is a flipped NSView (y grows downward) — same direction as SwiftUI's global
+    /// translation — so the y delta is ADDED, not negated. The translation is cumulative
+    /// from drag start, so we offset the origin captured when the drag began.
     private func dragAIBar(by translation: CGSize) {
         guard let host = aiBarHostingView else { return }
         aiBarUserMoved = true
         let start = aiBarDragStartOrigin ?? host.frame.origin
         if aiBarDragStartOrigin == nil { aiBarDragStartOrigin = start }
         let newOrigin = NSPoint(x: start.x + translation.width,
-                                y: start.y - translation.height)
+                                y: start.y + translation.height)
         // Keep the bar within the visible area.
         let visible = enclosingScrollView?.documentVisibleRect ?? visibleRect
         let clampedX = min(max(newOrigin.x, visible.minX + 4), visible.maxX - host.frame.width - 4)
@@ -2436,6 +2450,7 @@ extension LinkAwareTextView {
 
     private func dismissAIBar() {
         aiStreamTask?.cancel(); aiStreamTask = nil
+        endAIUndoGroup()   // close the operation's single undo group
         aiBarHostingView?.removeFromSuperview(); aiBarHostingView = nil
         aiBarModel = nil
         refreshAISparkle()
@@ -2450,6 +2465,7 @@ extension LinkAwareTextView {
         guard aiBarHostingView != nil || inlineAIController.mode != .idle else { return }
         aiStreamTask?.cancel()
         aiStreamTask = nil
+        endAIUndoGroup()
         aiBarHostingView?.removeFromSuperview()
         aiBarHostingView = nil
         aiBarModel = nil
@@ -2462,6 +2478,37 @@ extension LinkAwareTextView {
     func reapplyAIDiffColorsIfActive() {
         guard inlineAIController.mode != .idle else { return }
         applyAIDiffColors()
+    }
+
+    /// Applies an AI text mutation through the standard NSTextView edit path so it
+    /// registers with the undo manager (Cmd-Z reverts AI insertions/rewrites). Bounds-safe.
+    /// All edits in one AI operation are coalesced into a single undo group (see
+    /// `beginAIUndoGroup`/`endAIUndoGroup`) so one Cmd-Z reverts the whole thing.
+    private func performAIEdit(_ range: NSRange, _ replacement: String) {
+        guard let storage = textStorage else { return }
+        guard range.location >= 0, NSMaxRange(range) <= storage.length else { return }
+        if shouldChangeText(in: range, replacementString: replacement) {
+            replaceCharacters(in: range, with: replacement)
+            didChangeText()
+        }
+    }
+
+    /// Opens an undo group so every streamed delta + the accept/reject deletion collapse
+    /// into a single Cmd-Z. Also disables NSTextView's automatic per-keystroke coalescing
+    /// boundary so the deltas don't split into separate undo steps.
+    private func beginAIUndoGroup() {
+        guard !aiUndoGroupOpen else { return }
+        breakUndoCoalescing()
+        undoManager?.beginUndoGrouping()
+        aiUndoGroupOpen = true
+    }
+
+    /// Closes the AI undo group opened by `beginAIUndoGroup` (idempotent).
+    private func endAIUndoGroup() {
+        guard aiUndoGroupOpen else { return }
+        undoManager?.endUndoGrouping()
+        breakUndoCoalescing()
+        aiUndoGroupOpen = false
     }
 
     private func startAIStream(prompt: String, model: AIModel, mode: InlineAIBarMode, selection sel: NSRange) {
@@ -2484,6 +2531,14 @@ extension LinkAwareTextView {
         } else {
             inlineAIController.beginRewrite(in: storage, selection: sel)
         }
+        // Route the controller's text mutations through the undo-registering path so the
+        // whole AI edit is undoable with Cmd-Z (one logical change, not silent storage edits).
+        inlineAIController.performEdit = { [weak self] range, replacement in
+            self?.performAIEdit(range, replacement)
+        }
+        // Group every edit in this operation (all deltas + the accept/reject deletion)
+        // into a single undo step. Idempotent, so Retry re-entry keeps the same group.
+        beginAIUndoGroup()
 
         let selectionText = mode == .rewrite ? (string as NSString).substring(with: sel) : nil
         let body = AIRequestBuilder.build(
@@ -2505,9 +2560,9 @@ extension LinkAwareTextView {
             do {
                 for try await delta in client.stream(body: body) {
                     await MainActor.run {
+                        // appendDelta routes through performAIEdit, which calls didChangeText().
                         self?.inlineAIController.appendDelta(delta)
                         self?.applyAIDiffColors()
-                        self?.didChangeText()
                         self?.repositionAIBar()
                     }
                 }
@@ -2703,6 +2758,8 @@ class LinkAwareTextView: NSTextView {
     private var aiBarDragStartOrigin: NSPoint?
     /// Once the user drags the bar, stop auto-repositioning it below the streamed text.
     private var aiBarUserMoved = false
+    /// True while an AI undo group is open (so the whole operation undoes as one step).
+    private var aiUndoGroupOpen = false
     /// Injected at setup; source of vault files for @-context.
     weak var aiAppState: AppState?
 

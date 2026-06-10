@@ -135,48 +135,10 @@ struct InlineAIBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Drag handle — click-drag to move the bar.
-            dragHandle
-
-            HStack(alignment: .top, spacing: 8) {
-                Text("✨")
-                    .padding(.top, 2)
-                // Multi-line prompt: Enter submits, Shift+Enter inserts a newline.
-                TextField(model.mode == .generate ? "Ask AI to write…" : "Ask AI to edit…",
-                          text: $model.prompt, axis: .vertical)
-                    .lineLimit(1...6)
-                    .textFieldStyle(.plain)
-                    .focused($promptFocused)
-                    .onChange(of: model.prompt) { _ in model.updateSuggestions() }
-                    .onSubmit { submit() }
-
-                Picker("", selection: $model.model) {
-                    ForEach(AIModel.allCases) { m in Text(m.displayName).tag(m) }
-                }
-                .labelsHidden()
-                .frame(width: 110)
-
-                if model.isStreaming {
-                    Button("Stop") { model.onStop?() }
-                } else if model.awaitingAcceptReject {
-                    Button("Accept") { model.onAccept?() }.keyboardShortcut(.return, modifiers: [])
-                    Button("Reject") { model.onReject?() }.keyboardShortcut(.escape, modifiers: [])
-                    Button("Retry") {
-                        guard !model.prompt.isEmpty else { return }
-                        model.onRetry?(model.prompt, model.model)
-                    }
-                } else {
-                    Button("Generate") { submit() }.disabled(model.prompt.isEmpty)
-                }
-            }
-
-            if let err = model.errorMessage {
-                Text(err).font(.caption).foregroundColor(.red)
-            }
-
-            if !model.atSuggestions.isEmpty {
-                suggestionList
-            }
+            dragHandle          // click-drag to move the bar
+            inputRow            // ✨ + prompt + model picker + action buttons
+            errorLine
+            if !model.atSuggestions.isEmpty { suggestionList }
         }
         .padding(8)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -188,6 +150,60 @@ struct InlineAIBarView: View {
         // One signal that the bar's height may have changed (prompt grew, suggestions
         // toggled, error shown, accept/reject row swapped in) → host re-fits.
         .onChange(of: contentSizeSignal) { _ in model.onContentSizeMayHaveChanged?() }
+    }
+
+    private var inputRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("✨").padding(.top, 2)
+            promptField
+            Picker("", selection: $model.model) {
+                ForEach(AIModel.allCases) { m in Text(m.displayName).tag(m) }
+            }
+            .labelsHidden()
+            .frame(width: 110)
+            actionButtons
+        }
+    }
+
+    private var promptField: some View {
+        // Multi-line prompt: Enter submits; Shift+Enter and Option+Enter insert a newline.
+        TextField(model.mode == .generate ? "Ask AI to write…" : "Ask AI to edit…",
+                  text: $model.prompt, axis: .vertical)
+            .lineLimit(1...6)
+            .textFieldStyle(.plain)
+            .focused($promptFocused)
+            .onChange(of: model.prompt) { _ in model.updateSuggestions() }
+            // Shift+Return inserts a newline; everything else (incl. plain Return) is
+            // ignored so .onSubmit fires for plain Return.
+            .onKeyPress { keyPress in
+                if keyPress.key == .return && keyPress.modifiers.contains(.shift) {
+                    model.prompt.append("\n")
+                    return .handled
+                }
+                return .ignored
+            }
+            .onSubmit { submit() }
+    }
+
+    @ViewBuilder private var actionButtons: some View {
+        if model.isStreaming {
+            Button("Stop") { model.onStop?() }
+        } else if model.awaitingAcceptReject {
+            Button("Accept") { model.onAccept?() }.keyboardShortcut(.return, modifiers: [])
+            Button("Reject") { model.onReject?() }.keyboardShortcut(.escape, modifiers: [])
+            Button("Retry") {
+                guard !model.prompt.isEmpty else { return }
+                model.onRetry?(model.prompt, model.model)
+            }
+        } else {
+            Button("Generate") { submit() }.disabled(model.prompt.isEmpty)
+        }
+    }
+
+    @ViewBuilder private var errorLine: some View {
+        if let err = model.errorMessage {
+            Text(err).font(.caption).foregroundColor(.red)
+        }
     }
 
     /// A single value that changes whenever the bar's layout footprint might change,
