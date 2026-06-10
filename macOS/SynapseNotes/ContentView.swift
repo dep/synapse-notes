@@ -503,9 +503,7 @@ struct ContentView: View {
 
             Spacer(minLength: 0)
 
-            if appState.isDirty {
-                TinyBadge(text: "Unsaved", color: SynapseTheme.success)
-            }
+            UnsavedIndicator()
 
             // Right side: Other toolbar buttons (without back/forward)
             HStack(spacing: SynapseTheme.Layout.spaceSmall) {
@@ -532,14 +530,7 @@ struct ContentView: View {
                 }
 
                 if appState.selectedFile != nil {
-                    Button(action: {
-                        appState.saveAndSyncCurrentFile()
-                    }) {
-                        Image(systemName: "square.and.arrow.down")
-                    }
-                    .buttonStyle(PrimaryChromeButtonStyle())
-                    .help("Save (⌘S)")
-                    .opacity(appState.isDirty ? 1 : 0.78)
+                    SaveHeaderButton()
                 }
 
                 // Exit vault button - far right
@@ -554,6 +545,37 @@ struct ContentView: View {
         .padding(.horizontal, SynapseTheme.Layout.spaceLarge)
         .padding(.vertical, SynapseTheme.Layout.spaceMedium)
         .background(SynapseTheme.panelElevated)
+    }
+
+    // MARK: - Dirty-State Header Leaves (#254)
+    //
+    // These observe EditorState (sole owner of `isDirty`) in tiny leaf views so the
+    // 1,400-line ContentView body is never invalidated by keystroke-frequency state.
+
+    private struct UnsavedIndicator: View {
+        @EnvironmentObject var editorState: EditorState
+
+        var body: some View {
+            if editorState.isDirty {
+                TinyBadge(text: "Unsaved", color: SynapseTheme.success)
+            }
+        }
+    }
+
+    private struct SaveHeaderButton: View {
+        @EnvironmentObject var appState: AppState
+        @EnvironmentObject var editorState: EditorState
+
+        var body: some View {
+            Button(action: {
+                appState.saveAndSyncCurrentFile()
+            }) {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .buttonStyle(PrimaryChromeButtonStyle())
+            .help("Save (⌘S)")
+            .opacity(editorState.isDirty ? 1 : 0.78)
+        }
     }
 
     private func headerToggleButton(systemName: String, isActive: Bool, action: @escaping () -> Void, help: String) -> some View {

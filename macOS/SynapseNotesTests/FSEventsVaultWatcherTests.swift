@@ -102,7 +102,7 @@ final class FSEventsVaultWatcherTests: XCTestCase {
 
         // Expect fileContent to eventually reflect the new on-disk content.
         let reloadExp = expectation(description: "file content reloaded")
-        sut.$fileContent
+        sut.editorState.$fileContent
             .first(where: { $0 == "updated externally" })
             .sink { _ in reloadExp.fulfill() }
             .store(in: &cancellables)

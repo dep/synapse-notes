@@ -271,9 +271,32 @@ class SettingsManager: ObservableObject {
     @Published var collapsedSidebarIDs: Set<String> {
         didSet { save() }
     }
-    @Published var githubPAT: String {
-        didSet { save() }
+    /// GitHub PAT, stored in the macOS Keychain — never written to settings files.
+    /// Computed (not @Published) so the keychain is only touched on first access,
+    /// never at launch; changes are published manually below.
+    var githubPAT: String {
+        get {
+            if let cachedGithubPAT { return cachedGithubPAT }
+            let value = githubPATStore.get() ?? ""
+            cachedGithubPAT = value
+            return value
+        }
+        set {
+            objectWillChange.send()
+            cachedGithubPAT = newValue
+            githubPATStore.set(newValue)
+            githubPATDidChange.send()
+        }
     }
+    /// Fires when the PAT changes (replaces the old `$githubPAT` projection).
+    let githubPATDidChange = PassthroughSubject<Void, Never>()
+    /// Keychain slot for the GitHub PAT (injectable so tests use InMemorySecretStore).
+    private let githubPATStore: SecretStore
+    /// Lazily-populated cache so repeated reads don't hit the keychain.
+    private var cachedGithubPAT: String?
+    /// Set when a settings file still contained a plaintext PAT; the scrubbed file
+    /// is persisted once after the load completes.
+    private var pendingGithubPATScrub = false
     /// Default Anthropic model (API ID) for inline AI editing (machine-local).
     @Published var aiDefaultModel: String {
         didSet { save() }
@@ -698,7 +721,6 @@ class SettingsManager: ObservableObject {
         var vaultPath: String?
 
         init(
-            githubPAT: String?,
             aiDefaultModel: String? = nil,
             sidebarPaneHeights: [String: CGFloat]?,
             collapsedPanes: [String]?,
@@ -708,7 +730,7 @@ class SettingsManager: ObservableObject {
             vaultPaths: [String]? = nil,
             lastNoteFolderPerVault: [String: String]? = nil
         ) {
-            self.githubPAT = githubPAT
+            self.githubPAT = nil  // PAT lives in the Keychain; field kept for migration decode only
             self.aiDefaultModel = aiDefaultModel
             self.sidebarPaneHeights = sidebarPaneHeights
             self.collapsedPanes = collapsedPanes
@@ -735,18 +757,24 @@ class SettingsManager: ObservableObject {
         }
     }
 
+    /// Default Keychain slot for the GitHub PAT.
+    static func defaultGithubPATStore() -> SecretStore {
+        KeychainStore(service: "com.SynapseNotes.github", account: "PAT")
+    }
+
     /// Initialize with default config path in Application Support (legacy mode for backward compatibility)
-    convenience init() {
+    convenience init(githubPATStore: SecretStore = SettingsManager.defaultGithubPATStore()) {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let configDir = appSupport.appendingPathComponent("Synapse")
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
         let configPath = configDir.appendingPathComponent(Self.globalSettingsFilename).path
-        self.init(configPath: configPath)
+        self.init(configPath: configPath, githubPATStore: githubPATStore)
     }
 
     /// Initialize with a specific config path (legacy mode, useful for testing)
-    init(configPath: String) {
+    init(configPath: String, githubPATStore: SecretStore = SettingsManager.defaultGithubPATStore()) {
         self.isInitializing = true
+        self.githubPATStore = githubPATStore
         self.configPath = configPath
         self.vaultRootURL = nil
         self.globalConfigPath = nil
@@ -765,7 +793,6 @@ class SettingsManager: ObservableObject {
         self.sidebarPaneHeights = Self.defaultPaneHeights
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
-        self.githubPAT = ""
         self.aiDefaultModel = AIModel.default.apiID
         self.fileTreeMode = .folder
         self.pinnedItems = []
@@ -786,13 +813,18 @@ class SettingsManager: ObservableObject {
 
         applyLegacyConfig(Self.loadConfig(from: configPath))
         self.isInitializing = false
+        scrubGithubPATFromFileIfNeeded()
     }
 
     /// Initialize with vault root - stores settings in .synapse/settings.yml
     /// - Parameters:
     ///   - vaultRoot: The vault root URL (nil means use defaults)
     ///   - globalConfigPath: Optional path for global/sensitive settings (defaults to Application Support)
-    convenience init(vaultRoot: URL?, globalConfigPath: String? = nil) {
+    convenience init(
+        vaultRoot: URL?,
+        globalConfigPath: String? = nil,
+        githubPATStore: SecretStore = SettingsManager.defaultGithubPATStore()
+    ) {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let configDir = appSupport.appendingPathComponent("Synapse")
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
@@ -800,13 +832,19 @@ class SettingsManager: ObservableObject {
 
         self.init(
             vaultRoot: vaultRoot,
-            globalConfigPath: globalConfigPath ?? defaultGlobalPath
+            globalConfigPath: globalConfigPath ?? defaultGlobalPath,
+            githubPATStore: githubPATStore
         )
     }
 
     /// Full initializer with vault root and global config path
-    init(vaultRoot: URL?, globalConfigPath: String) {
+    init(
+        vaultRoot: URL?,
+        globalConfigPath: String,
+        githubPATStore: SecretStore = SettingsManager.defaultGithubPATStore()
+    ) {
         self.isInitializing = true
+        self.githubPATStore = githubPATStore
         self.configPath = vaultRoot?.appendingPathComponent(".synapse/\(Self.vaultSettingsFilename)").path ?? globalConfigPath
         self.vaultRootURL = vaultRoot
         self.globalConfigPath = globalConfigPath
@@ -825,7 +863,6 @@ class SettingsManager: ObservableObject {
         self.sidebarPaneHeights = Self.defaultPaneHeights
         self.collapsedPanes = []
         self.collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
-        self.githubPAT = ""
         self.aiDefaultModel = AIModel.default.apiID
         self.fileTreeMode = .folder
         self.pinnedItems = []
@@ -857,6 +894,7 @@ class SettingsManager: ObservableObject {
             applyGlobalConfig(Self.loadGlobalConfig(from: globalConfigPath))
         }
         self.isInitializing = false
+        scrubGithubPATFromFileIfNeeded()
     }
 
     deinit {
@@ -897,7 +935,7 @@ class SettingsManager: ObservableObject {
             } else if isInitializing {
                 collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
             }
-            githubPAT = config.githubPAT ?? ""
+            migrateGithubPATFromFile(config.githubPAT)
             aiDefaultModel = config.aiDefaultModel ?? AIModel.default.apiID
             fileTreeMode = FileTreeMode(rawValue: config.fileTreeMode ?? "") ?? .folder
             pinnedItems = config.pinnedItems ?? []
@@ -929,7 +967,6 @@ class SettingsManager: ObservableObject {
         sidebarPaneHeights = Self.defaultPaneHeights
         collapsedPanes = []
         collapsedSidebarIDs = [FixedSidebar.right2ID.uuidString]
-        githubPAT = ""
         aiDefaultModel = AIModel.default.apiID
         fileTreeMode = .folder
         pinnedItems = []
@@ -1035,7 +1072,7 @@ class SettingsManager: ObservableObject {
     }
 
     private func applyGlobalConfig(_ globalConfig: GlobalConfig?) {
-        githubPAT = globalConfig?.githubPAT ?? ""
+        migrateGithubPATFromFile(globalConfig?.githubPAT)
         aiDefaultModel = globalConfig?.aiDefaultModel ?? AIModel.default.apiID
         sidebars = Self.applyPaneAssignments(globalConfig?.sidebarPaneAssignments)
         sidebarPaneHeights = globalConfig?.sidebarPaneHeights ?? Self.defaultPaneHeights
@@ -1057,9 +1094,27 @@ class SettingsManager: ObservableObject {
         lastNoteFolderPerVault = globalConfig?.lastNoteFolderPerVault ?? [:]
     }
 
+    /// One-time migration: a settings file that still contains a plaintext PAT has
+    /// it moved to the Keychain and the file scrubbed once the load completes.
+    private func migrateGithubPATFromFile(_ filePAT: String?) {
+        guard let filePAT, !filePAT.isEmpty else { return }
+        githubPAT = filePAT
+        pendingGithubPATScrub = true
+    }
+
+    /// Persists the settings file once, without the PAT, after a migration.
+    private func scrubGithubPATFromFileIfNeeded() {
+        guard pendingGithubPATScrub else { return }
+        pendingGithubPATScrub = false
+        flush()
+    }
+
     func reloadFromDisk() {
         isApplyingExternalChange = true
-        defer { isApplyingExternalChange = false }
+        defer {
+            isApplyingExternalChange = false
+            scrubGithubPATFromFileIfNeeded()
+        }
 
         if useLegacyMode {
             applyLegacyConfig(Self.loadConfig(from: configPath))
@@ -1215,7 +1270,6 @@ class SettingsManager: ObservableObject {
         let sidebarPaneHeights: [String: CGFloat]
         let collapsedPanes: [String]
         let collapsedSidebarIDs: [String]
-        let githubPAT: String
         let aiDefaultModel: String
         let fileTreeMode: FileTreeMode
         let pinnedItems: [PinnedItem]
@@ -1255,7 +1309,6 @@ class SettingsManager: ObservableObject {
             sidebarPaneHeights    = s.sidebarPaneHeights
             collapsedPanes        = Array(s.collapsedPanes)
             collapsedSidebarIDs   = Array(s.collapsedSidebarIDs)
-            githubPAT             = s.githubPAT
             aiDefaultModel        = s.aiDefaultModel
             fileTreeMode          = s.fileTreeMode
             pinnedItems           = s.pinnedItems
@@ -1292,7 +1345,6 @@ class SettingsManager: ObservableObject {
         private func writeGlobalOnly() {
             guard let globalConfigPath else { return }
             let globalConfig = GlobalConfig(
-                githubPAT: githubPAT.isEmpty ? nil : githubPAT,
                 aiDefaultModel: aiDefaultModel,
                 sidebarPaneHeights: sidebarPaneHeights.isEmpty ? nil : sidebarPaneHeights,
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
@@ -1327,7 +1379,6 @@ class SettingsManager: ObservableObject {
                 var sidebarPaneHeights: [String: CGFloat]?
                 var collapsedPanes: [String]?
                 var collapsedSidebarIDs: [String]?
-                var githubPAT: String?
                 var aiDefaultModel: String?
                 var fileTreeMode: String?
                 var pinnedItems: [PinnedItem]?
@@ -1358,7 +1409,6 @@ class SettingsManager: ObservableObject {
                 sidebarPaneHeights: sidebarPaneHeights.isEmpty ? nil : sidebarPaneHeights,
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,
                 collapsedSidebarIDs: collapsedSidebarIDs.isEmpty ? nil : collapsedSidebarIDs,
-                githubPAT: githubPAT.isEmpty ? nil : githubPAT,
                 aiDefaultModel: aiDefaultModel.isEmpty ? nil : aiDefaultModel,
                 fileTreeMode: fileTreeMode.rawValue,
                 pinnedItems: pinnedItems.isEmpty ? nil : pinnedItems,
@@ -1417,7 +1467,6 @@ class SettingsManager: ObservableObject {
 
             guard let globalConfigPath else { return }
             let globalConfig = GlobalConfig(
-                githubPAT: githubPAT.isEmpty ? nil : githubPAT,
                 aiDefaultModel: aiDefaultModel,
                 sidebarPaneHeights: sidebarPaneHeights.isEmpty ? nil : sidebarPaneHeights,
                 collapsedPanes: collapsedPanes.isEmpty ? nil : collapsedPanes,

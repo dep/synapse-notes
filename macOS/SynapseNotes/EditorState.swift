@@ -28,4 +28,45 @@ final class EditorState: ObservableObject {
     @Published var pendingScrollOffsetY: CGFloat? = nil
     /// When set, the editor should pre-populate the search field.
     @Published var pendingSearchQuery: String? = nil
+
+    // MARK: - Pending Signal Consumption
+
+    /// Returns the pending search query (if any) and clears it.
+    func consumePendingSearchQuery() -> String? {
+        guard let q = pendingSearchQuery else { return nil }
+        pendingSearchQuery = nil
+        return q
+    }
+
+    /// Returns the pending cursor range if `textView` is editable and the signal targets
+    /// `paneIndex` (or no specific pane), clearing the range and pane target.
+    func consumePendingCursorRange(for textView: NSTextView, paneIndex: Int) -> NSRange? {
+        guard textView.isEditable,
+              let range = pendingCursorRange,
+              pendingCursorTargetPaneIndex == nil || pendingCursorTargetPaneIndex == paneIndex else { return nil }
+        pendingCursorRange = nil
+        pendingCursorTargetPaneIndex = nil
+        return range
+    }
+
+    /// Returns the pending cursor position if `textView` is editable and the signal targets
+    /// `paneIndex` (or no specific pane), clearing the position and pane target.
+    func consumePendingCursorPosition(for textView: NSTextView, paneIndex: Int) -> Int? {
+        guard textView.isEditable,
+              let position = pendingCursorPosition,
+              pendingCursorTargetPaneIndex == nil || pendingCursorTargetPaneIndex == paneIndex else { return nil }
+        pendingCursorPosition = nil
+        pendingCursorTargetPaneIndex = nil
+        return position
+    }
+
+    /// Returns the pending scroll offset if `textView` is editable and the signal targets
+    /// `paneIndex` (or no specific pane), clearing the offset.
+    func consumePendingScrollOffset(for textView: NSTextView, paneIndex: Int) -> CGFloat? {
+        guard textView.isEditable,
+              let offset = pendingScrollOffsetY,
+              pendingCursorTargetPaneIndex == nil || pendingCursorTargetPaneIndex == paneIndex else { return nil }
+        pendingScrollOffsetY = nil
+        return offset
+    }
 }

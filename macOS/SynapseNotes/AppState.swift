@@ -164,16 +164,32 @@ class AppState: ObservableObject {
     /// Owns navigation data: tabs, history, split-pane layout.
     let navigationState = NavigationState()
 
-    /// Cancellables that forward sub-object changes to AppState.objectWillChange
-    /// so that existing views using @EnvironmentObject var appState continue to re-render.
+    /// Cancellables that mirror low-frequency AppState @Published values into the
+    /// focused sub-objects (see bindSubObjectObservers). Keystroke-frequency editor
+    /// state is NOT mirrored — EditorState owns it outright (#254).
     private var subObjectCancellables: [AnyCancellable] = []
 
     @Published var rootURL: URL?
     @Published var selectedFile: URL?
     /// Set when a pinned folder is tapped — signals FileTreeView to collapse others and focus this folder.
     @Published var focusPinnedFolder: URL? = nil
-    @Published var fileContent: String = ""
-    @Published var isDirty: Bool = false
+
+    // MARK: - Keystroke-Frequency Editor State (owned by EditorState, #254)
+    //
+    // These accessors forward to `editorState`, the sole owner of editor content,
+    // dirty state, and pending cursor/scroll signals. They are deliberately NOT
+    // @Published: mutating them must not fire AppState.objectWillChange, so typing
+    // no longer re-renders every view observing AppState. Views that render these
+    // values observe `editorState` directly via @EnvironmentObject.
+
+    var fileContent: String {
+        get { editorState.fileContent }
+        set { editorState.fileContent = newValue }
+    }
+    var isDirty: Bool {
+        get { editorState.isDirty }
+        set { editorState.isDirty = newValue }
+    }
     @Published var allFiles: [URL] = []
     @Published var allProjectFiles: [URL] = []
     @Published var recentFiles: [URL] = []
@@ -214,11 +230,29 @@ class AppState: ObservableObject {
     @Published var isNewNotePromptRequested: Bool = false
     @Published var isNewFolderPromptRequested: Bool = false
     @Published var pendingTemplateURL: URL? = nil
-    @Published var pendingCursorPosition: Int? = nil
-    @Published var pendingCursorRange: NSRange? = nil
-    @Published var pendingCursorTargetPaneIndex: Int? = nil
-    @Published var pendingScrollOffsetY: CGFloat? = nil
-    @Published var pendingSearchQuery: String? = nil
+
+    // Pending cursor/scroll signals — forwarded to EditorState (sole owner, #254).
+    // Not @Published: see the keystroke-frequency editor state note above.
+    var pendingCursorPosition: Int? {
+        get { editorState.pendingCursorPosition }
+        set { editorState.pendingCursorPosition = newValue }
+    }
+    var pendingCursorRange: NSRange? {
+        get { editorState.pendingCursorRange }
+        set { editorState.pendingCursorRange = newValue }
+    }
+    var pendingCursorTargetPaneIndex: Int? {
+        get { editorState.pendingCursorTargetPaneIndex }
+        set { editorState.pendingCursorTargetPaneIndex = newValue }
+    }
+    var pendingScrollOffsetY: CGFloat? {
+        get { editorState.pendingScrollOffsetY }
+        set { editorState.pendingScrollOffsetY = newValue }
+    }
+    var pendingSearchQuery: String? {
+        get { editorState.pendingSearchQuery }
+        set { editorState.pendingSearchQuery = newValue }
+    }
     @Published var commandPaletteMode: CommandPaletteMode = .files
     @Published var targetDirectoryForTemplate: URL?
     /// Target directory for new note creation (Issue #194) - stores the selected folder in the New Note sheet
@@ -301,8 +335,14 @@ class AppState: ObservableObject {
     /// is only applied when the counter still matches, discarding stale scans.
     /// `exitVault()` also increments this so in-flight async scans cannot commit after close.
     private(set) var scanGeneration: Int = 0
+    /// Number of full vault-tree scans started. Test probe (Issue #260): asserts the
+    /// incremental FSEvents path services pure content modifications without re-enumerating.
+    private(set) var fullScanCount: Int = 0
     /// Pending debounce work item for the DispatchSource file watcher.
     private var scanDebounceWorkItem: DispatchWorkItem?
+    /// Event paths accumulated across debounced FSEvents bursts (main-thread only).
+    /// A cancelled debounce must not drop paths the incremental indexer needs to see.
+    private var pendingEventPaths: [String] = []
 
     // MARK: - Content Cache (Issue #144)
     /// Per-file content cache keyed by standardized file URL.
@@ -388,12 +428,11 @@ class AppState: ObservableObject {
             $isIndexing.sink { [weak self] v in self?.vaultIndex.isIndexing = v },
             $lastContentChange.sink { [weak self] v in self?.vaultIndex.lastContentChange = v },
 
-            // EditorState mirrors — only low-frequency file-selection properties.
+            // EditorState mirror — only the low-frequency file-selection property.
             // High-frequency editor properties (fileContent, isDirty, pendingCursor*,
-            // pendingScrollOffsetY, pendingSearchQuery) are intentionally NOT mirrored
-            // here: they change on every keystroke and undo operation, and sinking them
-            // into EditorState during @Published willSet can interleave with AppKit's
-            // NSUndoManager stack, causing EXC_BAD_ACCESS on Cmd+Z.
+            // pendingScrollOffsetY, pendingSearchQuery) are NOT mirrored: EditorState is
+            // their sole owner and AppState exposes non-published forwarding accessors
+            // (#254), so typing never fires AppState.objectWillChange.
             $selectedFile.sink { [weak self] v in self?.editorState.selectedFile = v },
 
             // NavigationState mirrors — low-frequency, safe to sink
@@ -410,7 +449,7 @@ class AppState: ObservableObject {
         let appRefreshPublishers: [AnyPublisher<Void, Never>] = [
             settings.$dailyNotesEnabled.map { _ in () }.eraseToAnyPublisher(),
             settings.$hideMarkdownWhileEditing.map { _ in () }.eraseToAnyPublisher(),
-            settings.$githubPAT.map { _ in () }.eraseToAnyPublisher(),
+            settings.githubPATDidChange.eraseToAnyPublisher(),
             settings.$editorBodyFontFamily.map { _ in () }.eraseToAnyPublisher(),
             settings.$editorMonospaceFontFamily.map { _ in () }.eraseToAnyPublisher(),
             settings.$editorFontSize.map { _ in () }.eraseToAnyPublisher(),
@@ -605,32 +644,109 @@ class AppState: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
 
+            // Accumulate paths so a cancelled debounce never drops changes the
+            // incremental indexer needs to see (Issue #260).
+            self.pendingEventPaths.append(contentsOf: paths)
+
             // Debounce any additional bursts arriving in quick succession.
             self.scanDebounceWorkItem?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
-                self.rebuildFileLists(reloadSettings: false)
-                // Only reload the selected file if one of the changed paths matches it.
-                if let selectedPath = self.selectedFile?.path,
-                   paths.contains(selectedPath),
-                   case .pulling = self.gitSyncStatus { return }
-                if let selectedPath = self.selectedFile?.path,
-                   paths.contains(selectedPath) {
-                    self.reloadSelectedFileFromDiskIfNeeded(force: true)
-                } else {
-                    // Even if the exact path wasn't in the event list, check for
-                    // modification-date changes (handles atomic-write style saves).
-                    self.reloadSelectedFileFromDiskIfNeeded()
-                }
+                let batch = self.pendingEventPaths
+                self.pendingEventPaths = []
+                self.processVaultEvents(paths: batch)
             }
             self.scanDebounceWorkItem = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
         }
     }
 
+    /// Processes a debounced batch of FSEvents paths on the main thread.
+    ///
+    /// Fast path (Issue #260): when every changed path is an already-indexed note that
+    /// still exists on disk (a pure content modification — the dominant case: note saves),
+    /// only those cache entries are re-parsed. No tree enumeration, no `git ls-files`.
+    /// Anything ambiguous (creations, deletions, renames, directories, non-indexed files,
+    /// ignore-rule files, oversized batches) falls back to the full rescan, which also
+    /// drops the gitignore cache because structural changes can alter the ignored set
+    /// (e.g. a freshly created `node_modules`). Internal for testing.
+    func processVaultEvents(paths: [String]) {
+        if !applyIncrementalIndexUpdate(forEventPaths: paths) {
+            invalidateIgnoredDirectoriesCache()
+            rebuildFileLists(reloadSettings: false)
+        }
+
+        // Only reload the selected file if one of the changed paths matches it.
+        if let selectedPath = selectedFile?.path,
+           paths.contains(selectedPath),
+           case .pulling = gitSyncStatus { return }
+        if let selectedPath = selectedFile?.path,
+           paths.contains(selectedPath) {
+            reloadSelectedFileFromDiskIfNeeded(force: true)
+        } else {
+            // Even if the exact path wasn't in the event list, check for
+            // modification-date changes (handles atomic-write style saves).
+            reloadSelectedFileFromDiskIfNeeded()
+        }
+    }
+
+    /// Upper bound on event paths handled incrementally. Larger bursts (git checkout,
+    /// mass scripted edits) are cheaper as one full rescan than many main-thread reads.
+    private static let maxIncrementalEventPaths = 64
+
+    /// Attempts to service an FSEvents batch by re-indexing only the changed files.
+    /// Returns false when a full rescan is required instead.
+    ///
+    /// Generation safety: this runs synchronously on the main thread and only when no
+    /// index pass is in flight (`isIndexing == false`), so it cannot race a
+    /// `rebuildFullCache` commit. If a scan's enumeration phase is in flight, its index
+    /// pass starts *after* this update commits and re-reads every file from disk, so
+    /// fresher data always wins — stale data is never resurrected.
+    private func applyIncrementalIndexUpdate(forEventPaths paths: [String]) -> Bool {
+        guard let root = rootURL else { return false }
+        // A full index pass is in flight — the cache may be incomplete or about to be
+        // replaced wholesale; fall back so the generation counters arbitrate as before.
+        guard !isIndexing, !noteContentCache.isEmpty else { return false }
+        guard paths.count <= Self.maxIncrementalEventPaths else { return false }
+
+        let fm = FileManager.default
+        var changedNotes: Set<URL> = []
+        for path in paths {
+            // Touching ignore rules must re-run `git ls-files`, never the fast path.
+            if path.hasSuffix("/.gitignore") || path.hasSuffix("/.git/info/exclude") {
+                return false
+            }
+            // Unknown path: a new file, directory, attachment, or `.git` internals.
+            guard let url = cachedNoteURL(forEventPath: path) else { return false }
+            var isDirectory: ObjCBool = false
+            // Deleted (or replaced by a directory) — the file list changed.
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue else { return false }
+            guard isWithin(url, parentURL: root) else { return false }
+            changedNotes.insert(url)
+        }
+        guard !changedNotes.isEmpty else { return false }
+
+        updateCacheIncrementally(for: Array(changedNotes))
+        lastContentChange = UUID()
+        return true
+    }
+
+    /// Maps a raw FSEvents path to its `noteContentCache` key, or nil when the path is
+    /// not an already-indexed note. FSEvents reports resolved real paths (`/private/var/…`),
+    /// so the symlink-resolved form is also tried before giving up.
+    private func cachedNoteURL(forEventPath path: String) -> URL? {
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        if noteContentCache[url] != nil { return url }
+        let resolved = url.resolvingSymlinksInPath()
+        if noteContentCache[resolved] != nil { return resolved }
+        return nil
+    }
+
     private func stopWatching() {
         scanDebounceWorkItem?.cancel()
         scanDebounceWorkItem = nil
+        pendingEventPaths = []
 
         if let stream = vaultEventStream {
             FSEventStreamStop(stream)
@@ -1692,6 +1808,7 @@ class AppState: ObservableObject {
         // Clear all files
         allFiles = []
         allProjectFiles = []
+        invalidateIgnoredDirectoriesCache()
         noteContentCache = [:]
         cachedTagCounts = [:]
         cachedBacklinks = [:]
@@ -1741,12 +1858,27 @@ class AppState: ObservableObject {
 
         if GitService.isGitRepo(at: url), let git = try? GitService(repoURL: url) {
             gitService = git
-            gitBranch = git.currentBranch()
-            gitAheadCount = git.aheadCount()
+            gitBranch = AppConstants.defaultBranchName
+            gitAheadCount = 0
             gitSyncStatus = .idle
+            // currentBranch() and aheadCount() each spawn a git subprocess and block until
+            // it exits, so they must not run on the main thread (Issue #257). Compute them
+            // on gitQueue and publish the results back; the defaults above stay visible
+            // for the few milliseconds until the round-trip completes.
+            gitQueue.async { [weak self] in
+                let branch = git.currentBranch()
+                let ahead = git.aheadCount()
+                DispatchQueue.main.async {
+                    // Drop the result if the vault changed (or closed) in the meantime.
+                    guard let self, self.gitService === git else { return }
+                    self.gitBranch = branch
+                    self.gitAheadCount = ahead
+                }
+            }
             // Populate the file-date cache now that gitService is available — the initial
             // file scan may have committed before this ran, in which case its
             // refreshGitDateCache() call was a no-op. This second call guarantees population.
+            // (refreshGitDateCache does its own gitQueue dispatch, so it stays off-main.)
             refreshGitDateCache()
             startPushTimer()
             startPullTimer()
@@ -1798,10 +1930,44 @@ class AppState: ObservableObject {
         autoSaveTimer = timer
     }
 
+    /// Whether a new sync operation may start. `.error` is retryable — the next
+    /// attempt either succeeds (clearing the error) or refreshes the message —
+    /// while in-progress and conflict states still block re-entry (Issue #255).
+    private var canStartGitSync: Bool {
+        switch gitSyncStatus {
+        case .idle, .error: return true
+        default: return false
+        }
+    }
+
+    /// Resets a stale `.error` badge once a later git operation succeeds.
+    private func clearGitErrorStatus() {
+        if case .error = gitSyncStatus { gitSyncStatus = .idle }
+    }
+
     func pullLatest() {
-        guard let git = gitService, git.hasRemote() else { return }
-        guard case .idle = gitSyncStatus else { return }
-        gitSyncStatus = .pulling
+        guard let git = gitService else { return }
+        guard canStartGitSync else { return }
+        // hasRemote() spawns a git subprocess, so probe it on the git queue rather than
+        // on the main thread (pullLatest is called synchronously from setupGit/openFolder,
+        // Issue #257). The status stays .idle for local-only repos, exactly as before.
+        gitQueue.async { [weak self] in
+            guard let self else { return }
+            guard git.hasRemote() else { return }
+            // Back on main: re-check that no other sync started while we probed the
+            // remote, then claim the .pulling state and run the pull on the git queue.
+            DispatchQueue.main.async {
+                guard self.gitService === git else { return }
+                guard self.canStartGitSync else { return }
+                self.gitSyncStatus = .pulling
+                self.performPull(git: git)
+            }
+        }
+    }
+
+    /// Runs `git pull --rebase` on the git queue and publishes the resulting state back
+    /// to the main thread. Callers must already have set `gitSyncStatus = .pulling`.
+    private func performPull(git: GitService) {
         gitQueue.async { [weak self] in
             guard let self else { return }
             do {
@@ -1822,7 +1988,7 @@ class AppState: ObservableObject {
                     self.gitSyncStatus = .idle
                 }
             } catch {
-                DispatchQueue.main.async { self.gitSyncStatus = .idle }
+                DispatchQueue.main.async { self.gitSyncStatus = .error(error.localizedDescription) }
             }
         }
     }
@@ -1942,7 +2108,7 @@ class AppState: ObservableObject {
             return
         }
 
-        guard case .idle = gitSyncStatus else {
+        guard canStartGitSync else {
             // Already syncing — just refresh the file list
             refreshAllFiles()
             return
@@ -1952,13 +2118,22 @@ class AppState: ObservableObject {
             // Local-only repo: still auto-commit any uncommitted work, then refresh.
             gitQueue.async { [weak self] in
                 guard let self else { return }
-                if git.hasChanges() {
-                    try? git.stageAll()
-                    try? git.commit(message: "WIP: auto-save before refresh")
-                }
-                DispatchQueue.main.async {
-                    self.refreshAllFiles()
-                    self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                do {
+                    if git.hasChanges() {
+                        try git.stageAll()
+                        try git.commit(message: "WIP: auto-save before refresh")
+                    }
+                    DispatchQueue.main.async {
+                        self.clearGitErrorStatus()
+                        self.refreshAllFiles()
+                        self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        self.gitSyncStatus = .error(error.localizedDescription)
+                        self.refreshAllFiles()
+                        self.reloadSelectedFileFromDiskIfNeeded(force: true)
+                    }
                 }
             }
             return
@@ -1991,7 +2166,7 @@ class AppState: ObservableObject {
                 }
             } catch {
                 DispatchQueue.main.async {
-                    self.gitSyncStatus = .idle
+                    self.gitSyncStatus = .error(error.localizedDescription)
                     self.refreshAllFiles()
                 }
             }
@@ -2023,6 +2198,7 @@ class AppState: ObservableObject {
 
         scanGeneration += 1
         let generation = scanGeneration
+        fullScanCount += 1
 
         // Snapshot settings values so the background thread never touches SettingsManager.
         let respectGitignore = settings.respectGitignore
@@ -2038,10 +2214,11 @@ class AppState: ObservableObject {
             let fm = FileManager.default
 
             // Build a set of gitignore-excluded directory paths (via git ls-files).
-            // This is a single process spawn rather than one per directory.
+            // The result is cached across scans and only re-fetched when the ignore
+            // inputs change (Issue #260) — see `cachedIgnoredDirectories`.
             var ignoredDirectories: Set<String> = []
             if respectGitignore, GitService.isGitRepo(at: root), let gitPath = GitService.findGit() {
-                ignoredDirectories = Self.fetchIgnoredDirectories(gitPath: gitPath, repoRoot: root)
+                ignoredDirectories = self.cachedIgnoredDirectories(gitPath: gitPath, repoRoot: root)
             }
 
             guard let enumerator = fm.enumerator(
@@ -2200,6 +2377,73 @@ class AppState: ObservableObject {
                 )
             }
         }
+    }
+
+    // MARK: - Gitignore Cache (Issue #260)
+
+    /// Cached `git ls-files --ignored` output plus the inputs that produced it.
+    /// Spawning git on every vault scan is wasteful (can be 200–500 ms on complex
+    /// repos); the ignored-directory set only changes when ignore rules or the
+    /// worktree's untracked structure change.
+    ///
+    /// Invalidation rules:
+    ///  - vault root changed (`rootPath` mismatch) or vault exited
+    ///  - `<root>/.gitignore` or `<root>/.git/info/exclude` mtime / existence changed
+    ///  - any FSEvents batch that falls back to a full rescan (`processVaultEvents`):
+    ///    structural changes can create new ignored directories (e.g. a fresh
+    ///    `node_modules`), and nested `.gitignore` edits/creations always take that path
+    private struct IgnoredDirectoriesCache {
+        let rootPath: String
+        let gitignoreModified: Date?
+        let excludeModified: Date?
+        let directories: Set<String>
+    }
+    /// Guarded by `ignoredDirectoriesLock`: read/written on `scanQueue` (main under
+    /// tests), invalidated from the main thread.
+    private var ignoredDirectoriesCacheStorage: IgnoredDirectoriesCache?
+    private let ignoredDirectoriesLock = NSLock()
+    /// Number of times `git ls-files` was actually spawned. Test probe (Issue #260).
+    private(set) var ignoredDirectoriesFetchCount: Int = 0
+
+    /// Returns the gitignore-excluded directory set for `repoRoot`, consulting the cache
+    /// first. Runs on `scanQueue` in production; the lock only synchronises against
+    /// `invalidateIgnoredDirectoriesCache` on the main thread, and is never held while
+    /// git runs so invalidation can't block the UI.
+    private func cachedIgnoredDirectories(gitPath: String, repoRoot: URL) -> Set<String> {
+        let rootPath = repoRoot.standardizedFileURL.path
+        let gitignoreModified = fileModificationDate(for: repoRoot.appendingPathComponent(".gitignore"))
+        let excludeModified = fileModificationDate(for: repoRoot.appendingPathComponent(".git/info/exclude"))
+
+        ignoredDirectoriesLock.lock()
+        let cached = ignoredDirectoriesCacheStorage
+        ignoredDirectoriesLock.unlock()
+
+        if let cached,
+           cached.rootPath == rootPath,
+           cached.gitignoreModified == gitignoreModified,
+           cached.excludeModified == excludeModified {
+            return cached.directories
+        }
+
+        let directories = Self.fetchIgnoredDirectories(gitPath: gitPath, repoRoot: repoRoot)
+
+        ignoredDirectoriesLock.lock()
+        ignoredDirectoriesFetchCount += 1
+        ignoredDirectoriesCacheStorage = IgnoredDirectoriesCache(
+            rootPath: rootPath,
+            gitignoreModified: gitignoreModified,
+            excludeModified: excludeModified,
+            directories: directories
+        )
+        ignoredDirectoriesLock.unlock()
+        return directories
+    }
+
+    /// Drops the cached ignored-directory set so the next scan re-runs `git ls-files`.
+    func invalidateIgnoredDirectoriesCache() {
+        ignoredDirectoriesLock.lock()
+        ignoredDirectoriesCacheStorage = nil
+        ignoredDirectoriesLock.unlock()
     }
 
     /// Runs `git ls-files --others --ignored --exclude-standard --directory` in the given
@@ -3115,12 +3359,19 @@ class AppState: ObservableObject {
     private func stageGitChanges() {
         guard settings.autoPush, let git = gitService else { return }
 
-        gitQueue.async {
+        gitQueue.async { [weak self] in
             do {
                 if git.hasChanges() {
                     try git.stageAll()
                 }
-            } catch {}
+                DispatchQueue.main.async { self?.clearGitErrorStatus() }
+            } catch {
+                // Staging is the first link in the auto-push chain — if it fails,
+                // notes silently stop being backed up, so surface it (Issue #255).
+                DispatchQueue.main.async {
+                    self?.gitSyncStatus = .error("Auto-save staging failed: \(error.localizedDescription)")
+                }
+            }
         }
     }
 

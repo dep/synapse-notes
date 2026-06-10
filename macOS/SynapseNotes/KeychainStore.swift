@@ -16,6 +16,14 @@ struct KeychainStore: SecretStore {
     let service: String
     let account: String
 
+    /// True when running inside a test host. The app itself is the TEST_HOST and
+    /// constructs views (e.g. the Settings scene) that read the keychain eagerly;
+    /// from the ad-hoc-signed runner any SecItem access prompts for the login
+    /// password. Under XCTest the real keychain is inert: get returns nil,
+    /// set/delete are no-ops. Tests exercise the contract via InMemorySecretStore.
+    private static let isRunningInTests =
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
     init(service: String = "com.SynapseNotes.anthropic", account: String = "apiKey") {
         self.service = service
         self.account = account
@@ -32,6 +40,7 @@ struct KeychainStore: SecretStore {
 
     /// Returns the stored secret, or nil if none is set.
     func get() -> String? {
+        guard !Self.isRunningInTests else { return nil }
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -49,6 +58,7 @@ struct KeychainStore: SecretStore {
 
     /// Stores the secret, overwriting any existing value. An empty string deletes the item.
     func set(_ value: String) {
+        guard !Self.isRunningInTests else { return }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { delete(); return }
 
@@ -65,6 +75,7 @@ struct KeychainStore: SecretStore {
 
     /// Removes the stored secret if present.
     func delete() {
+        guard !Self.isRunningInTests else { return }
         SecItemDelete(baseQuery as CFDictionary)
     }
 }

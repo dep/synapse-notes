@@ -501,7 +501,7 @@ final class SettingsManagerTests: XCTestCase {
                       ".synapse folder should be created automatically")
     }
 
-    func test_vaultSpecificSettings_githubPATStaysInApplicationSupport() {
+    func test_vaultSpecificSettings_githubPATGoesToSecretStoreNotSettingsFiles() {
         let vaultDir = tempDir.appendingPathComponent("TestVault", isDirectory: true)
         try! FileManager.default.createDirectory(at: vaultDir, withIntermediateDirectories: true)
 
@@ -510,20 +510,25 @@ final class SettingsManagerTests: XCTestCase {
         try! FileManager.default.createDirectory(at: appSupportDir, withIntermediateDirectories: true)
         let globalConfigPath = appSupportDir.appendingPathComponent("settings.yml").path
 
-        // Initialize manager with both vault root and global config path
-        var manager = SettingsManager(vaultRoot: vaultDir, globalConfigPath: globalConfigPath)
+        // Initialize manager with both vault root, global config path, and an
+        // in-memory secret store (the PAT lives in the Keychain in production)
+        let store = InMemorySecretStore()
+        let manager = SettingsManager(vaultRoot: vaultDir, globalConfigPath: globalConfigPath, githubPATStore: store)
 
-        // Set githubPAT - should go to global config
+        // Set githubPAT - should go to the secret store only
         manager.githubPAT = "ghp_test_token"
+        // Force a settings-file write so both files exist for inspection
+        manager.autoSave = true
 
-        // Verify token was saved to global config, not vault config
-        let notedSettingsFile = vaultDir.appendingPathComponent(".synapse/settings.yml")
+        XCTAssertEqual(store.get(), "ghp_test_token",
+                       "githubPAT should be saved to the secret store")
+
+        // Verify token is in neither settings file
         let globalText = try! String(contentsOfFile: globalConfigPath, encoding: .utf8)
-        XCTAssertTrue(globalText.contains("githubPAT:"))
-        XCTAssertTrue(globalText.contains("ghp_test_token"),
-                      "githubPAT should be saved to global config")
+        XCTAssertFalse(globalText.contains("ghp_test_token"),
+                       "githubPAT should NOT be saved to the global config")
 
-        // Verify token is NOT in vault config
+        let notedSettingsFile = vaultDir.appendingPathComponent(".synapse/settings.yml")
         let vaultText = try! String(contentsOf: notedSettingsFile, encoding: .utf8)
         XCTAssertFalse(vaultText.contains("githubPAT:"),
                        "githubPAT should NOT be saved to vault-specific config")

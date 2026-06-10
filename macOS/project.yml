@@ -37,6 +37,14 @@ targets:
         INFOPLIST_FILE: SynapseNotes/Info.plist
         ENABLE_HARDENED_RUNTIME: YES
       configs:
+        Debug:
+          # Sign dev builds with a stable identity instead of ad-hoc: ad-hoc
+          # signatures change on every rebuild, so the keychain ACL for the
+          # Anthropic API key never matches and macOS re-prompts on each launch.
+          # With a stable identity, one "Always Allow" sticks across rebuilds.
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: 299R8V27FZ
+          CODE_SIGN_IDENTITY: Apple Development
         Release:
           CODE_SIGN_STYLE: Manual
           DEVELOPMENT_TEAM: 299R8V27FZ
@@ -64,5 +72,13 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Synapse Notes.app/Contents/MacOS/Synapse Notes"
         BUNDLE_LOADER: "$(TEST_HOST)"
+      configs:
+        Debug:
+          # Must match the app target's signing: dyld refuses to load a test
+          # bundle whose Team ID differs from the (Manual, Apple Development)
+          # signed test host.
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: 299R8V27FZ
+          CODE_SIGN_IDENTITY: Apple Development
     dependencies:
       - target: Synapse

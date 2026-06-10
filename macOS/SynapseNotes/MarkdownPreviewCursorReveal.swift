@@ -7,8 +7,16 @@ struct MarkdownPreviewCursorReveal {
         guard isEditable, cursorLocation != NSNotFound else {
             return MarkdownPreviewCursorReveal(revealedRanges: [])
         }
+        return make(document: parser.parse(source), cursorLocation: cursorLocation, isEditable: isEditable)
+    }
 
-        let document = parser.parse(source)
+    /// Variant for callers that already hold a parse of the current text (e.g. the
+    /// per-caret-move reveal path, which memoizes the document across selection changes).
+    static func make(document: MarkdownDocument, cursorLocation: Int, isEditable: Bool) -> MarkdownPreviewCursorReveal {
+        guard isEditable, cursorLocation != NSNotFound else {
+            return MarkdownPreviewCursorReveal(revealedRanges: [])
+        }
+
         let revealedRanges = document.blocks.flatMap { block in
             block.inlineTokens.compactMap { token -> NSRange? in
                 switch token.kind {

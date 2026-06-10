@@ -79,22 +79,32 @@ final class AppStatePendingSearchQueryTests: XCTestCase {
     }
 
     // MARK: - Observable
+    // pendingSearchQuery is owned by EditorState (#254): mutations publish on
+    // editorState.objectWillChange and deliberately do NOT fire AppState's.
 
-    func test_pendingSearchQuery_set_triggersObjectWillChange() {
-        var changeCount = 0
-        let cancellable = sut.objectWillChange.sink { _ in changeCount += 1 }
+    func test_pendingSearchQuery_set_triggersEditorStateObjectWillChange_notAppState() {
+        var editorStateChanges = 0
+        var appStateChanges = 0
+        let editorCancellable = sut.editorState.objectWillChange.sink { _ in editorStateChanges += 1 }
+        let appCancellable = sut.objectWillChange.sink { _ in appStateChanges += 1 }
         sut.pendingSearchQuery = "test"
-        XCTAssertGreaterThanOrEqual(changeCount, 1)
-        cancellable.cancel()
+        XCTAssertGreaterThanOrEqual(editorStateChanges, 1)
+        XCTAssertEqual(appStateChanges, 0)
+        editorCancellable.cancel()
+        appCancellable.cancel()
     }
 
-    func test_pendingSearchQuery_clear_triggersObjectWillChange() {
+    func test_pendingSearchQuery_clear_triggersEditorStateObjectWillChange_notAppState() {
         sut.pendingSearchQuery = "test"
-        var changeCount = 0
-        let cancellable = sut.objectWillChange.sink { _ in changeCount += 1 }
+        var editorStateChanges = 0
+        var appStateChanges = 0
+        let editorCancellable = sut.editorState.objectWillChange.sink { _ in editorStateChanges += 1 }
+        let appCancellable = sut.objectWillChange.sink { _ in appStateChanges += 1 }
         sut.pendingSearchQuery = nil
-        XCTAssertGreaterThanOrEqual(changeCount, 1)
-        cancellable.cancel()
+        XCTAssertGreaterThanOrEqual(editorStateChanges, 1)
+        XCTAssertEqual(appStateChanges, 0)
+        editorCancellable.cancel()
+        appCancellable.cancel()
     }
 
     // MARK: - Helpers
