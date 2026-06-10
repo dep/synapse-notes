@@ -164,16 +164,32 @@ class AppState: ObservableObject {
     /// Owns navigation data: tabs, history, split-pane layout.
     let navigationState = NavigationState()
 
-    /// Cancellables that forward sub-object changes to AppState.objectWillChange
-    /// so that existing views using @EnvironmentObject var appState continue to re-render.
+    /// Cancellables that mirror low-frequency AppState @Published values into the
+    /// focused sub-objects (see bindSubObjectObservers). Keystroke-frequency editor
+    /// state is NOT mirrored — EditorState owns it outright (#254).
     private var subObjectCancellables: [AnyCancellable] = []
 
     @Published var rootURL: URL?
     @Published var selectedFile: URL?
     /// Set when a pinned folder is tapped — signals FileTreeView to collapse others and focus this folder.
     @Published var focusPinnedFolder: URL? = nil
-    @Published var fileContent: String = ""
-    @Published var isDirty: Bool = false
+
+    // MARK: - Keystroke-Frequency Editor State (owned by EditorState, #254)
+    //
+    // These accessors forward to `editorState`, the sole owner of editor content,
+    // dirty state, and pending cursor/scroll signals. They are deliberately NOT
+    // @Published: mutating them must not fire AppState.objectWillChange, so typing
+    // no longer re-renders every view observing AppState. Views that render these
+    // values observe `editorState` directly via @EnvironmentObject.
+
+    var fileContent: String {
+        get { editorState.fileContent }
+        set { editorState.fileContent = newValue }
+    }
+    var isDirty: Bool {
+        get { editorState.isDirty }
+        set { editorState.isDirty = newValue }
+    }
     @Published var allFiles: [URL] = []
     @Published var allProjectFiles: [URL] = []
     @Published var recentFiles: [URL] = []
@@ -214,11 +230,29 @@ class AppState: ObservableObject {
     @Published var isNewNotePromptRequested: Bool = false
     @Published var isNewFolderPromptRequested: Bool = false
     @Published var pendingTemplateURL: URL? = nil
-    @Published var pendingCursorPosition: Int? = nil
-    @Published var pendingCursorRange: NSRange? = nil
-    @Published var pendingCursorTargetPaneIndex: Int? = nil
-    @Published var pendingScrollOffsetY: CGFloat? = nil
-    @Published var pendingSearchQuery: String? = nil
+
+    // Pending cursor/scroll signals — forwarded to EditorState (sole owner, #254).
+    // Not @Published: see the keystroke-frequency editor state note above.
+    var pendingCursorPosition: Int? {
+        get { editorState.pendingCursorPosition }
+        set { editorState.pendingCursorPosition = newValue }
+    }
+    var pendingCursorRange: NSRange? {
+        get { editorState.pendingCursorRange }
+        set { editorState.pendingCursorRange = newValue }
+    }
+    var pendingCursorTargetPaneIndex: Int? {
+        get { editorState.pendingCursorTargetPaneIndex }
+        set { editorState.pendingCursorTargetPaneIndex = newValue }
+    }
+    var pendingScrollOffsetY: CGFloat? {
+        get { editorState.pendingScrollOffsetY }
+        set { editorState.pendingScrollOffsetY = newValue }
+    }
+    var pendingSearchQuery: String? {
+        get { editorState.pendingSearchQuery }
+        set { editorState.pendingSearchQuery = newValue }
+    }
     @Published var commandPaletteMode: CommandPaletteMode = .files
     @Published var targetDirectoryForTemplate: URL?
     /// Target directory for new note creation (Issue #194) - stores the selected folder in the New Note sheet
@@ -388,12 +422,11 @@ class AppState: ObservableObject {
             $isIndexing.sink { [weak self] v in self?.vaultIndex.isIndexing = v },
             $lastContentChange.sink { [weak self] v in self?.vaultIndex.lastContentChange = v },
 
-            // EditorState mirrors — only low-frequency file-selection properties.
+            // EditorState mirror — only the low-frequency file-selection property.
             // High-frequency editor properties (fileContent, isDirty, pendingCursor*,
-            // pendingScrollOffsetY, pendingSearchQuery) are intentionally NOT mirrored
-            // here: they change on every keystroke and undo operation, and sinking them
-            // into EditorState during @Published willSet can interleave with AppKit's
-            // NSUndoManager stack, causing EXC_BAD_ACCESS on Cmd+Z.
+            // pendingScrollOffsetY, pendingSearchQuery) are NOT mirrored: EditorState is
+            // their sole owner and AppState exposes non-published forwarding accessors
+            // (#254), so typing never fires AppState.objectWillChange.
             $selectedFile.sink { [weak self] v in self?.editorState.selectedFile = v },
 
             // NavigationState mirrors — low-frequency, safe to sink

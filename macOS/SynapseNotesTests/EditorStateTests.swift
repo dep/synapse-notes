@@ -39,11 +39,10 @@ final class EditorStateTests: XCTestCase {
     }
 
     func test_editorState_fileContent_initiallyEmpty() {
-        // EditorState.fileContent is initialised to empty; it is NOT synced from
-        // AppState to avoid interleaving with NSUndoManager during Cmd+Z (see
-        // bindSubObjectObservers comment). Views that need fileContent should
-        // subscribe to appState directly.
+        // EditorState is the sole owner of fileContent (#254); AppState.fileContent
+        // is a non-published forwarding accessor over this storage.
         XCTAssertEqual(sut.editorState.fileContent, "")
+        XCTAssertEqual(sut.fileContent, "")
     }
 
     func test_editorState_isDirty_initiallyFalse() {
@@ -61,9 +60,10 @@ final class EditorStateTests: XCTestCase {
                        "appState.selectedFile must be mirrored into editorState.selectedFile")
     }
 
-    // MARK: - High-frequency editor properties are NOT mirrored (crash safety)
+    // MARK: - High-frequency editor properties are owned by EditorState (#254)
     // fileContent, isDirty, pendingCursor*, pendingScrollOffsetY, and pendingSearchQuery
-    // are intentionally NOT synced from AppState into EditorState. Sinking these during
-    // @Published willSet can interleave with NSUndoManager and cause EXC_BAD_ACCESS on Cmd+Z.
-    // Views that need them must subscribe to appState directly.
+    // live solely on EditorState; AppState exposes non-published forwarding accessors so
+    // mutations never fire AppState.objectWillChange. Views that render these values must
+    // observe editorState directly. See AppStateObservationSplitTests for the regression
+    // coverage of this decoupling.
 }

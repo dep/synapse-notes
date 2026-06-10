@@ -3,36 +3,24 @@ import AppKit
 import ImageIO
 import WebKit
 
+// Pending-signal consumption lives on EditorState (the sole owner of pending
+// cursor/scroll state, #254). These free functions are thin forwarders kept for
+// existing call sites and tests.
+
 func consumePendingSearchQuery(from appState: AppState) -> String? {
-    guard let q = appState.pendingSearchQuery else { return nil }
-    appState.pendingSearchQuery = nil
-    return q
+    appState.editorState.consumePendingSearchQuery()
 }
 
 func consumePendingCursorRange(from appState: AppState, for textView: NSTextView, paneIndex: Int) -> NSRange? {
-    guard textView.isEditable,
-          let range = appState.pendingCursorRange,
-          appState.pendingCursorTargetPaneIndex == nil || appState.pendingCursorTargetPaneIndex == paneIndex else { return nil }
-    appState.pendingCursorRange = nil
-    appState.pendingCursorTargetPaneIndex = nil
-    return range
+    appState.editorState.consumePendingCursorRange(for: textView, paneIndex: paneIndex)
 }
 
 func consumePendingCursorPosition(from appState: AppState, for textView: NSTextView, paneIndex: Int) -> Int? {
-    guard textView.isEditable,
-          let position = appState.pendingCursorPosition,
-          appState.pendingCursorTargetPaneIndex == nil || appState.pendingCursorTargetPaneIndex == paneIndex else { return nil }
-    appState.pendingCursorPosition = nil
-    appState.pendingCursorTargetPaneIndex = nil
-    return position
+    appState.editorState.consumePendingCursorPosition(for: textView, paneIndex: paneIndex)
 }
 
 func consumePendingScrollOffset(from appState: AppState, for textView: NSTextView, paneIndex: Int) -> CGFloat? {
-    guard textView.isEditable,
-          let offset = appState.pendingScrollOffsetY,
-          appState.pendingCursorTargetPaneIndex == nil || appState.pendingCursorTargetPaneIndex == paneIndex else { return nil }
-    appState.pendingScrollOffsetY = nil
-    return offset
+    appState.editorState.consumePendingScrollOffset(for: textView, paneIndex: paneIndex)
 }
 
 func restoreScrollOffset(_ offset: CGFloat, in scrollView: NSScrollView) {
@@ -180,6 +168,9 @@ func activatePaneOnReadOnlyInteraction(isEditable: Bool, onActivatePane: (() -> 
 
 struct EditorView: View {
     @EnvironmentObject var appState: AppState
+    /// Sole owner of keystroke-frequency editor state (#254). Observing it here
+    /// keeps the editor live-updating without typing invalidating AppState observers.
+    @EnvironmentObject var editorState: EditorState
     var paneIndex: Int = 0
 
     /// When set, renders in read-only mode using these values instead of live appState.
@@ -203,9 +194,9 @@ struct EditorView: View {
     private var isReadOnly: Bool { readOnlyFile != nil }
     private var usesExternalEditableState: Bool { editableFile != nil && editableContent != nil }
     private var displayFile: URL? { readOnlyFile ?? editableFile ?? appState.selectedFile }
-    private var displayContent: String { readOnlyContent ?? editableContent?.wrappedValue ?? appState.fileContent }
-    private var displayIsDirty: Bool { editableIsDirty?.wrappedValue ?? appState.isDirty }
-    private var activeTextBinding: Binding<String> { editableContent ?? $appState.fileContent }
+    private var displayContent: String { readOnlyContent ?? editableContent?.wrappedValue ?? editorState.fileContent }
+    private var displayIsDirty: Bool { editableIsDirty?.wrappedValue ?? editorState.isDirty }
+    private var activeTextBinding: Binding<String> { editableContent ?? $editorState.fileContent }
     private var participatesInGlobalEditorCommands: Bool { !usesExternalEditableState }
     private var isInViewMode: Bool { isReadOnly || (participatesInGlobalEditorCommands && !appState.isEditMode) }
     private var isDark: Bool { NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
@@ -249,7 +240,7 @@ struct EditorView: View {
                                         atUTF16Offset: offset
                                     ) else { return }
                                     activeTextBinding.wrappedValue = toggled
-                                    appState.isDirty = true
+                                    editorState.isDirty = true
                                 }
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -336,7 +327,7 @@ struct EditorView: View {
         if let editableIsDirty {
             editableIsDirty.wrappedValue = true
         } else {
-            appState.isDirty = true
+            editorState.isDirty = true
         }
     }
 
@@ -490,8 +481,8 @@ struct EditorView: View {
             editableContent.wrappedValue = content
             editableIsDirty?.wrappedValue = true
         } else {
-            appState.fileContent = content
-            appState.isDirty = true
+            editorState.fileContent = content
+            editorState.isDirty = true
         }
 
         showHistoryModal = false
@@ -696,6 +687,9 @@ struct RawEditor: NSViewRepresentable {
     var participatesInGlobalEditorCommands: Bool = true
     var onDidEdit: (() -> Void)? = nil
     @EnvironmentObject var appState: AppState
+    /// Observed so programmatic content changes and pending cursor/scroll signals
+    /// (owned by EditorState, #254) trigger updateNSView without an AppState publish.
+    @EnvironmentObject var editorState: EditorState
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -900,18 +894,18 @@ struct RawEditor: NSViewRepresentable {
         }
 
         if participatesInGlobalEditorCommands {
-            if let range = consumePendingCursorRange(from: appState, for: textView, paneIndex: paneIndex) {
+            if let range = editorState.consumePendingCursorRange(for: textView, paneIndex: paneIndex) {
                 let len = textView.string.count
                 let safeLoc = min(range.location, len)
                 let safeLen = min(range.length, len - safeLoc)
                 let safeRange = NSRange(location: safeLoc, length: safeLen)
                 textView.setSelectedRange(safeRange)
-                if let offset = consumePendingScrollOffset(from: appState, for: textView, paneIndex: paneIndex) {
+                if let offset = editorState.consumePendingScrollOffset(for: textView, paneIndex: paneIndex) {
                     restoreScrollOffset(offset, in: scrollView)
                 } else {
                     textView.scrollRangeToVisible(safeRange)
                 }
-            } else if let position = consumePendingCursorPosition(from: appState, for: textView, paneIndex: paneIndex) {
+            } else if let position = editorState.consumePendingCursorPosition(for: textView, paneIndex: paneIndex) {
                 let clamped = min(position, textView.string.count)
                 textView.setSelectedRange(NSRange(location: clamped, length: 0))
                 textView.scrollRangeToVisible(NSRange(location: clamped, length: 0))
@@ -929,7 +923,7 @@ struct RawEditor: NSViewRepresentable {
             DispatchQueue.main.async { self.scrollToRange = nil }
         }
 
-        if participatesInGlobalEditorCommands, isEditable, let q = consumePendingSearchQuery(from: appState) {
+        if participatesInGlobalEditorCommands, isEditable, let q = editorState.consumePendingSearchQuery() {
             DispatchQueue.main.async {
                 NotificationCenter.default.post(
                     name: .scrollToSearchMatch,
