@@ -16,6 +16,7 @@ final class AppStateRelatedLinksTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        UserDefaults.standard.removeObject(forKey: "backlinkSortOrder")
         sut = AppState()
         tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -24,6 +25,7 @@ final class AppStateRelatedLinksTests: XCTestCase {
     }
 
     override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "backlinkSortOrder")
         try? FileManager.default.removeItem(at: tempDir)
         sut = nil
         super.tearDown()
@@ -169,5 +171,89 @@ final class AppStateRelatedLinksTests: XCTestCase {
         XCTAssertEqual(rel.inbound.count, 2,
             "Two notes link to Target")
         XCTAssertTrue(rel.unresolved.isEmpty)
+    }
+
+    // MARK: - Backlink context snippets
+
+    func test_backlinkSnippets_returnsContextFromLinkingNote() {
+        let hub = makeNote(named: "Hub")
+        let linker = makeNote(named: "Linker", content: "intro\nLinker mentions [[Hub]] in passing\noutro")
+        sut.refreshAllFiles()
+        sut.openFile(hub)
+
+        let snippets = sut.backlinkSnippets(for: linker)
+        XCTAssertEqual(snippets.count, 1)
+        XCTAssertEqual(snippets.first?.text, "Linker mentions [[Hub]] in passing")
+        XCTAssertEqual(snippets.first?.lineNumber, 2)
+    }
+
+    func test_backlinkSnippets_aliasedLinkStillProducesSnippet() {
+        let hub = makeNote(named: "Hub")
+        let linker = makeNote(named: "Linker", content: "See [[Hub|the central note]] here")
+        sut.refreshAllFiles()
+        sut.openFile(hub)
+
+        let snippets = sut.backlinkSnippets(for: linker)
+        XCTAssertEqual(snippets.count, 1)
+        XCTAssertEqual(snippets.first?.text, "See [[Hub|the central note]] here")
+    }
+
+    func test_backlinkSnippets_readsFromDiskWhenNotInContentCache() {
+        let hub = makeNote(named: "Hub")
+        sut.refreshAllFiles()
+        sut.openFile(hub)
+
+        // Created after the refresh, so no cache entry can exist for it yet —
+        // this pins the disk-read fallback path.
+        let lateLinker = makeNote(named: "LateLinker", content: "Late mention of [[Hub]]")
+
+        let snippets = sut.backlinkSnippets(for: lateLinker)
+        XCTAssertEqual(snippets.count, 1)
+        XCTAssertEqual(snippets.first?.text, "Late mention of [[Hub]]")
+    }
+
+    func test_backlinkSnippets_noSelectedFile_returnsEmpty() {
+        let linker = makeNote(named: "Linker", content: "Points at [[Hub]]")
+        sut.refreshAllFiles()
+
+        XCTAssertTrue(sut.backlinkSnippets(for: linker).isEmpty,
+            "Without a selected note there is no backlink target to extract context for")
+    }
+
+    // MARK: - Backlink sorting
+
+    func test_inbound_sortedByTitleByDefault() {
+        let hub = makeNote(named: "Hub")
+        makeNote(named: "Charlie", content: "[[Hub]]")
+        makeNote(named: "alpha", content: "[[Hub]]")
+        makeNote(named: "Bravo", content: "[[Hub]]")
+        sut.refreshAllFiles()
+        sut.openFile(hub)
+
+        let rel = sut.relationshipsForSelectedFile()!
+        XCTAssertEqual(rel.inbound.map { $0.deletingPathExtension().lastPathComponent },
+                       ["alpha", "Bravo", "Charlie"],
+            "Backlinks must be deterministically title-sorted by default (not Set order)")
+    }
+
+    func test_inbound_sortedByModifiedWhenSelected() {
+        let hub = makeNote(named: "Hub")
+        let oldest = makeNote(named: "Oldest", content: "[[Hub]]")
+        let middle = makeNote(named: "Middle", content: "[[Hub]]")
+        let newest = makeNote(named: "Newest", content: "[[Hub]]")
+        try! FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 100)], ofItemAtPath: oldest.path)
+        try! FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 200)], ofItemAtPath: middle.path)
+        try! FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 300)], ofItemAtPath: newest.path)
+        sut.refreshAllFiles()
+        sut.openFile(hub)
+        sut.backlinkSortOrder = .modified
+
+        let rel = sut.relationshipsForSelectedFile()!
+        XCTAssertEqual(rel.inbound.map { $0.deletingPathExtension().lastPathComponent },
+                       ["Newest", "Middle", "Oldest"],
+            "Recent sort should order backlinks most recently modified first")
     }
 }

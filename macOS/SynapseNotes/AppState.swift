@@ -280,6 +280,7 @@ class AppState: ObservableObject {
 
     @AppStorage("sortCriterion") var sortCriterion: SortCriterion = .name
     @AppStorage("sortAscending") var sortAscending: Bool = true
+    @AppStorage("backlinkSortOrder") var backlinkSortOrder: BacklinkSortOrder = .title
 
     // Settings
     @Published var settings: SettingsManager
@@ -999,15 +1000,7 @@ class AppState: ObservableObject {
     }
 
     private func normalizedNoteReference(_ value: String) -> String {
-        value
-            .split(separator: "|", maxSplits: 1)
-            .first
-            .map(String.init)?
-            .split(separator: "#", maxSplits: 1)
-            .first
-            .map(String.init)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased() ?? ""
+        BacklinkSnippetExtractor.normalize(value)
     }
 
     private static let wikiLinkRegex = try? NSRegularExpression(pattern: #"\[\[([^\]]+)\]\]"#)
@@ -1533,7 +1526,23 @@ class AppState: ObservableObject {
             }
         }
 
+        inbound = BacklinkSorter.sort(inbound, by: backlinkSortOrder) { url in
+            noteContentCache[url]?.modificationDate
+                ?? ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date)
+        }
+
         return NoteLinkRelationships(outbound: outbound, inbound: inbound, unresolved: unresolved)
+    }
+
+    /// Context snippets showing where `sourceURL` mentions the currently selected note.
+    /// Reads from the in-memory content cache when possible, falling back to disk.
+    func backlinkSnippets(for sourceURL: URL) -> [BacklinkSnippet] {
+        guard let selectedFile else { return [] }
+        let target = normalizedNoteReference(noteTitle(for: selectedFile))
+        guard !target.isEmpty else { return [] }
+        guard let content = noteContentCache[sourceURL]?.content
+                ?? (try? String(contentsOf: sourceURL, encoding: .utf8)) else { return [] }
+        return BacklinkSnippetExtractor.snippets(ofNormalizedTarget: target, in: content)
     }
 
     // MARK: - Vault Graph

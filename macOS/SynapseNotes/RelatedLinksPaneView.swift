@@ -6,6 +6,11 @@ struct RelatedLinksPaneView: View {
     // Cached result — only recomputed when selectedFile changes, not on every keystroke
     @State private var relationships: NoteLinkRelationships? = nil
 
+    // Backlink context preview: single source of truth so at most one popover shows
+    @State private var hoveredPreviewURL: URL? = nil
+    @State private var hoverTask: Task<Void, Never>? = nil
+    @State private var previewSnippets: [BacklinkSnippet] = []
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
@@ -51,7 +56,8 @@ struct RelatedLinksPaneView: View {
                             title: "Backlinks",
                             icon: "arrow.down.left",
                             items: relationships.inbound,
-                            emptyText: "No notes link here yet"
+                            emptyText: "No notes link here yet",
+                            showsPreview: true
                         )
 
                         if !relationships.unresolved.isEmpty {
@@ -83,6 +89,9 @@ struct RelatedLinksPaneView: View {
     }
 
     private func refresh() {
+        hoverTask?.cancel()
+        hoverTask = nil
+        hoveredPreviewURL = nil
         relationships = appState.relationshipsForSelectedFile()
     }
 
@@ -91,11 +100,41 @@ struct RelatedLinksPaneView: View {
     }
 
     @ViewBuilder
-    private func linkSection(title: String, icon: String, items: [URL], emptyText: String) -> some View {
+    private func linkSection(title: String, icon: String, items: [URL], emptyText: String, showsPreview: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: icon)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(SynapseTheme.textSecondary)
+            HStack {
+                Label(title, systemImage: icon)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(SynapseTheme.textSecondary)
+
+                Spacer()
+
+                if showsPreview {
+                    Menu {
+                        ForEach(BacklinkSortOrder.allCases, id: \.self) { order in
+                            Button(action: {
+                                appState.backlinkSortOrder = order
+                                // @AppStorage on an ObservableObject doesn't publish — rebuild explicitly
+                                refresh()
+                            }) {
+                                if appState.backlinkSortOrder == order {
+                                    Label(order.rawValue, systemImage: "checkmark")
+                                } else {
+                                    Text(order.rawValue)
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(SynapseTheme.textMuted)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Sort backlinks")
+                }
+            }
 
             if items.isEmpty {
                 Text(emptyText)
@@ -147,11 +186,57 @@ struct RelatedLinksPaneView: View {
                             } else {
                                 NSCursor.pop()
                             }
+                            guard showsPreview else { return }
+                            hoverTask?.cancel()
+                            if hovering {
+                                hoverTask = Task { @MainActor in
+                                    try? await Task.sleep(nanoseconds: 350_000_000)
+                                    guard !Task.isCancelled else { return }
+                                    previewSnippets = appState.backlinkSnippets(for: url)
+                                    hoveredPreviewURL = url
+                                }
+                            } else if hoveredPreviewURL == url {
+                                hoveredPreviewURL = nil
+                            }
+                        }
+                        .popover(
+                            isPresented: Binding(
+                                get: { showsPreview && hoveredPreviewURL == url },
+                                set: { if !$0 { hoveredPreviewURL = nil } }
+                            ),
+                            arrowEdge: .trailing
+                        ) {
+                            backlinkPreview
                         }
                     }
                 }
             }
         }
+    }
+
+    private var backlinkPreview: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if previewSnippets.isEmpty {
+                Text("No mention found")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(SynapseTheme.textMuted)
+            } else {
+                ForEach(previewSnippets, id: \.lineNumber) { snippet in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("L\(snippet.lineNumber)")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .foregroundStyle(SynapseTheme.textMuted)
+                        Text(snippet.text)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(SynapseTheme.textPrimary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: 320, alignment: .leading)
     }
 
     @ViewBuilder
