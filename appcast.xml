@@ -7,6 +7,27 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.5.1</title>
+      <pubDate>Fri, 12 Jun 2026 11:21:50 +0000</pubDate>
+      <sparkle:version>15</sparkle:version>
+      <sparkle:shortVersionString>1.5.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New</h3>
+        <ul>
+          <li><strong>Backlink context previews</strong> — related links panel now shows a snippet of context around each backlink</li>
+          <li><strong>Backlink sorting</strong> — related links are now sorted for better discoverability</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/v1.5.1/SynapseNotes-1.5.1.dmg"
+        sparkle:edSignature="4ca4vMPBwsVD5iiZp0rw7PU2lJop4m8gW/9jqFHKr3nTUiF6IXiu+Dwms2/eQAEVXgBzfPXBqnyU6fgtWkOOAw=="
+        length="6894366"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+    <item>
       <title>Version 1.5.0</title>
       <pubDate>Wed, 10 Jun 2026 17:25:06 +0000</pubDate>
       <sparkle:version>14</sparkle:version>
