@@ -59,7 +59,7 @@ final class AnthropicClientTests: XCTestCase {
         ])
         let client = makeClient()
         var collected = ""
-        for try await delta in client.stream(body: ["model": "claude-sonnet-4-6"]) {
+        for try await delta in client.stream(body: ["model": "claude-sonnet-5"]) {
             collected += delta
         }
         XCTAssertEqual(collected, "Hello, world")

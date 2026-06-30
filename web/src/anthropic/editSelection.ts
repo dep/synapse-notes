@@ -1,4 +1,4 @@
-export const DEFAULT_MODEL = 'claude-sonnet-4-6'
+export const DEFAULT_MODEL = 'claude-sonnet-5'
 
 export type EditSelectionResult =
   | { ok: true; text: string }

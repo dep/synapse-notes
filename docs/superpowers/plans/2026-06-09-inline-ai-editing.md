@@ -77,13 +77,13 @@ import XCTest
 final class AIModelTests: XCTestCase {
     func test_apiIDs_areExactAnthropicModelStrings() {
         XCTAssertEqual(AIModel.haiku.apiID, "claude-haiku-4-5")
-        XCTAssertEqual(AIModel.sonnet.apiID, "claude-sonnet-4-6")
+        XCTAssertEqual(AIModel.sonnet.apiID, "claude-sonnet-5")
         XCTAssertEqual(AIModel.opus.apiID, "claude-opus-4-8")
     }
 
     func test_displayNames_areHumanReadable() {
         XCTAssertEqual(AIModel.haiku.displayName, "Haiku 4.5")
-        XCTAssertEqual(AIModel.sonnet.displayName, "Sonnet 4.6")
+        XCTAssertEqual(AIModel.sonnet.displayName, "Sonnet 5")
         XCTAssertEqual(AIModel.opus.displayName, "Opus 4.8")
     }
 
@@ -121,7 +121,7 @@ enum AIModel: String, CaseIterable, Identifiable {
     var apiID: String {
         switch self {
         case .haiku:  return "claude-haiku-4-5"
-        case .sonnet: return "claude-sonnet-4-6"
+        case .sonnet: return "claude-sonnet-5"
         case .opus:   return "claude-opus-4-8"
         }
     }
@@ -129,7 +129,7 @@ enum AIModel: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .haiku:  return "Haiku 4.5"
-        case .sonnet: return "Sonnet 4.6"
+        case .sonnet: return "Sonnet 5"
         case .opus:   return "Opus 4.8"
         }
     }
@@ -680,7 +680,7 @@ final class AnthropicClientTests: XCTestCase {
         ])
         let client = makeClient()
         var collected = ""
-        for try await delta in client.stream(body: ["model": "claude-sonnet-4-6"]) {
+        for try await delta in client.stream(body: ["model": "claude-sonnet-5"]) {
             collected += delta
         }
         XCTAssertEqual(collected, "Hello, world")
@@ -1055,7 +1055,7 @@ final class SettingsManagerAIModelTests: XCTestCase {
 
     func test_default_isSonnetAPIID() {
         let mgr = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
-        XCTAssertEqual(mgr.aiDefaultModel, "claude-sonnet-4-6")
+        XCTAssertEqual(mgr.aiDefaultModel, "claude-sonnet-5")
     }
 
     func test_aiDefaultModel_persistsAcrossReload() {
@@ -1105,13 +1105,13 @@ Add to `init(from:)`:
 - [ ] **Step 3c: Initialize the property in every initializer** — wherever `githubPAT = ""` is set in init (lines ~748, ~806) and where defaults are applied, add alongside:
 
 ```swift
-        aiDefaultModel = "claude-sonnet-4-6"
+        aiDefaultModel = "claude-sonnet-5"
 ```
 
 - [ ] **Step 3d: Apply on load** — in `applyGlobalConfig(_:)` (line 1006), after the `githubPAT` line (1007), add:
 
 ```swift
-        aiDefaultModel = globalConfig?.aiDefaultModel ?? "claude-sonnet-4-6"
+        aiDefaultModel = globalConfig?.aiDefaultModel ?? "claude-sonnet-5"
 ```
 
 - [ ] **Step 3e: Persist on save** — in BOTH `writeGlobalOnly()` (line 1258) and `writeVault()`'s `GlobalConfig(...)` (line 1377), add the argument after `lastNoteFolderPerVault:`:

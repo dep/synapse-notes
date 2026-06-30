@@ -12,7 +12,7 @@ enum AIModel: String, CaseIterable, Identifiable {
     var apiID: String {
         switch self {
         case .haiku:  return "claude-haiku-4-5"
-        case .sonnet: return "claude-sonnet-4-6"
+        case .sonnet: return "claude-sonnet-5"
         case .opus:   return "claude-opus-4-8"
         }
     }
@@ -20,7 +20,7 @@ enum AIModel: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .haiku:  return "Haiku 4.5"
-        case .sonnet: return "Sonnet 4.6"
+        case .sonnet: return "Sonnet 5"
         case .opus:   return "Opus 4.8"
         }
     }

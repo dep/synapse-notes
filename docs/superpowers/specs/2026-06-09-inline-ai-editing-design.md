@@ -11,7 +11,7 @@ Add the ability to edit the current note using AI, directly inside the editor:
 - A clickable ✨ icon at the end of the active line opens an inline prompt bar; the AI generates text streaming in at the cursor.
 - Selecting text shows a ✨ near the selection; clicking it opens the bar in "rewrite" mode, presenting the AI's rewrite as an inline diff (original struck-through, new text green) with Accept / Reject / Retry.
 - The user adds an Anthropic API key in Settings (stored in the macOS Keychain) and picks a default model.
-- A per-request model picker in the bar toggles between Haiku 4.5, Sonnet 4.6, and Opus 4.8.
+- A per-request model picker in the bar toggles between Haiku 4.5, Sonnet 5, and Opus 4.8.
 - `@<filename>` / `@<directory>` autocomplete in the prompt field pulls vault notes in as context.
 - Generated text streams into the editor live; a Stop button (and Esc) cancels, keeping whatever streamed.
 
@@ -19,7 +19,7 @@ Add the ability to edit the current note using AI, directly inside the editor:
 
 **Goals:** in-flow generation and rewriting, safe (non-destructive) rewrites, streaming UX, secure key storage, vault-note context injection, per-request model choice.
 
-**Non-Goals (YAGNI):** multi-turn chat history, image inputs, tool use, a prompt template library, per-vault key overrides, non-Anthropic providers, recursive `@directory` walking. The model set is exactly Haiku 4.5 / Sonnet 4.6 / Opus 4.8.
+**Non-Goals (YAGNI):** multi-turn chat history, image inputs, tool use, a prompt template library, per-vault key overrides, non-Anthropic providers, recursive `@directory` walking. The model set is exactly Haiku 4.5 / Sonnet 5 / Opus 4.8.
 
 ## Architecture
 
@@ -94,7 +94,7 @@ Direct `URLSession` SSE — no SDK dependency (the app has no first-party Swift 
 - **Endpoint:** `POST https://api.anthropic.com/v1/messages`
 - **Headers:** `x-api-key: <key>`, `anthropic-version: 2023-06-01`, `content-type: application/json`
 - **Body:** `{ "model": <id>, "max_tokens": 4096, "stream": true, "system": <system>, "messages": [...] }`. No `thinking` block — inline edits want low latency, and omitting thinking is valid for all three models. `max_tokens` 4096 is ample for inline edits and keeps streaming responsive.
-- **Model IDs (exact, no date suffixes):** `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-8`.
+- **Model IDs (exact, no date suffixes):** `claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-4-8`.
 - **Streaming:** consume `urlSession.bytes(for: request)` (the `URLSession` is injectable, defaulting to `.shared`, mirroring `GistPublisher` so tests can supply a mocked `URLProtocol`), split on lines, parse `data:` JSON, and for each `{"type":"content_block_delta","delta":{"type":"text_delta","text":"…"}}` emit `delta.text`. Stop on `message_stop`. A non-2xx HTTP status maps to a typed error (401 → invalid key, ≥500 → server error).
 - **Cancellation:** hold the `Task` running the stream; `cancel()` on Stop/Esc.
 
@@ -102,7 +102,7 @@ Direct `URLSession` SSE — no SDK dependency (the app has no first-party Swift 
 
 - `SettingsView.swift`: add an **"AI"** `Section` after the GitHub Gist section, containing a `SecureField` for the API key (reads/writes `KeychainStore`) and a `Picker` bound to `settings.aiDefaultModel`.
 - `SettingsManager.swift`: add `@Published var aiDefaultModel: String` with the existing `didSet { save() }` pattern, persisted in `GlobalConfig` (machine-local). The API key never touches YAML — `KeychainStore` is the single source of truth, read on demand.
-- The bar's per-request model picker defaults to `aiDefaultModel`; changing it in the bar updates `aiDefaultModel` so "last used" persists. Default value: `claude-sonnet-4-6` (speed/quality balance).
+- The bar's per-request model picker defaults to `aiDefaultModel`; changing it in the bar updates `aiDefaultModel` so "last used" persists. Default value: `claude-sonnet-5` (speed/quality balance).
 
 ## Error Handling
 

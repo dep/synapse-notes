@@ -20,7 +20,7 @@ final class SettingsManagerAIModelTests: XCTestCase {
 
     func test_default_isSonnetAPIID() {
         let mgr = SettingsManager(vaultRoot: tempDir, globalConfigPath: globalPath)
-        XCTAssertEqual(mgr.aiDefaultModel, "claude-sonnet-4-6")
+        XCTAssertEqual(mgr.aiDefaultModel, "claude-sonnet-5")
     }
 
     func test_aiDefaultModel_persistsAcrossReload() {
