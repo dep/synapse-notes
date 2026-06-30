@@ -7,6 +7,26 @@
     <language>en</language>
 
     <item>
+      <title>Version 1.5.2</title>
+      <pubDate>Tue, 30 Jun 2026 18:23:58 +0000</pubDate>
+      <sparkle:version>16</sparkle:version>
+      <sparkle:shortVersionString>1.5.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h3>What's New</h3>
+        <ul>
+          <li>Updated the inline AI editor's default Sonnet model to Claude Sonnet 5</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/dep/synapse-notes/releases/download/1.5.2/SynapseNotes-1.5.2.dmg"
+        sparkle:edSignature="Ofw/aqnKr2YqtgXPrJJxZxnB9l47teUmw+JynjmL+GgbNhyGJv89jqBT8CpkbXx/2n1gtd29ChmXi5a42bATBQ=="
+        length="6894839"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+
+    <item>
       <title>Version 1.5.1</title>
       <pubDate>Fri, 12 Jun 2026 11:21:50 +0000</pubDate>
       <sparkle:version>15</sparkle:version>
